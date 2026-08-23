@@ -1,0 +1,6 @@
+# Archivos y carpetas generados por el compilador de C.
+*.o
+**/build/
+
+# Archivos generados por Flex.
+lex.yy.c
