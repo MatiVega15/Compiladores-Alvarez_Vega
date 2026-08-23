@@ -1,4 +1,8 @@
+---
+
 # Especificación del Lenguaje
+
+---
 
 ## Punto 1: Gramática
 
@@ -11,17 +15,24 @@
 
 La gramática extendida se define como:
 
-$$G = \langle V_N,\; V_T,\; R,\; S \rangle$$
+$$G = \langle V_N,\ V_T,\ R,\ S \rangle$$
 
 donde:
 
 - $V_N$: conjunto de símbolos no terminales:
-$$V_N = \{P,\; TipoMain,\; Declaraciones,\; Decl,\; Tipo,\; Sentencias,\; Sent,\; E,\; T,\; F\}$$
+
+```math
+V_N = \{ P,\ TipoMain,\ Declaraciones,\ Decl,\ Tipo,\ Sentencias,\ Sent,\ E,\ T,\ F\}
+```
 
 - $V_T$: conjunto de símbolos terminales:
-$$V_T = \{int,\; bool,\; void,\; main,\; id,\; nro,\; true,\; false,\; +,\; *,\; =,\; (,\; ),\; \{,\; \},\; ;,\; return\}$$
+
+```math
+V_T = \{int,\ bool,\ void,\ main,\ id,\ nro,\ true,\ false,\ +,\ *,\ =,\ (,\ ),\ \{,\ \},\ ;,\ return\}
+```
 
 - $S$: símbolo inicial:
+
 $$S = P$$
 
 - $R$: las reglas o producciones presentadas a continuación:
@@ -55,5 +66,43 @@ Se asume que toda función contiene una secuencia de una o más sentencias.
 - `F` $\rightarrow$ (E) | nro | id | true | false
 
 Además de extender las expresiones, se quitó la ambigüedad y se estableció la precedencia de la multiplicación sobre la suma. Así, `F` representa los factores o elementos atómicos, `T` los términos de mayor precedencia y `E` las expresiones de menor precedencia.
+
+---
+
+## Punto 2: Expresiones Regulares
+
+### - Palabras reservadas:
+
+```math
+"int" | "bool" | "void" | "main" | "return"
+```
+
+### - Variables o identificadores:
+
+```math
+[a-zA-Z]([a-zA-Z] | [0-9])^*
+```
+
+Se considera que el conjunto de letras comprende tanto las mayúsculas como las minúsculas.
+
+### - Valores constantes:
+
+```math
+[0-9]^+ | "true" | "false"
+```
+
+Se permiten ceros a la izquierda en los valores enteros.
+
+### - Operadores:
+
+```math
+"+" | "*" | "="
+```
+
+### - Delimitadores:
+
+```math
+"(" | ")" | "\{" | "\}" | ";"
+```
 
 ---
