@@ -1,0 +1,18 @@
+void main(){int x; int y; x = 1 ; y=1; x = x+3*2*y; }
+
+int main(){int x; int y; x = 1 ; x = x+3*2*y; return x; y = 4; x = 2; return y*2;}
+
+bool main ( ) {
+    int x;
+    bool aux1;
+    int Variable2dos;
+    bool A123a;
+    x = x + 3 * x;
+    Variable2dos = 000001;
+    aux1 = true;
+    A123a = false;
+    x = 10 / 20;
+    x = 10 && 20;
+    return;
+    @
+}
