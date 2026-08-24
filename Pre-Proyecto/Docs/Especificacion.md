@@ -22,7 +22,7 @@ donde:
 - $V_N$: conjunto de símbolos no terminales:
 
 ```math
-V_N = \{ P,\ TipoMain,\ Declaraciones,\ Decl,\ Tipo,\ Sentencias,\ Sent,\ E,\ T,\ F\}
+V_N = \{ P,\ TipoMain,\ Declaraciones,\ Decl,\ Tipo,\ Sentencias,\ Sent,\ E\}
 ```
 
 - $V_T$: conjunto de símbolos terminales:
@@ -61,11 +61,9 @@ Se asume que toda función contiene una secuencia de una o más sentencias.
 
 ***Expresiones:***
 
-- `E` $\rightarrow$ E + T | T
-- `T` $\rightarrow$ T * F | F
-- `F` $\rightarrow$ (E) | nro | id | true | false
+- `E` $\rightarrow$ E + E | E * E | (E) | nro | id | true | false
 
-Además de extender las expresiones, se quitó la ambigüedad y se estableció la precedencia de la multiplicación sobre la suma. Así, `F` representa los factores o elementos atómicos, `T` los términos de mayor precedencia y `E` las expresiones de menor precedencia.
+Se extienden las expresiones sin quitar la ambigüedad ni establecer la precedencia de la multiplicación sobre la suma. Este aspecto se resolverá posteriormente con la herramienta Bison, a la hora de desarrollar el analizador sintáctico.
 
 ---
 
