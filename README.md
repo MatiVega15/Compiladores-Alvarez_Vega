@@ -27,13 +27,24 @@
 ├── Pre-Proyecto/
 │   ├── Makefile
 │   ├── Docs/
-│   |   ├── Especificacion.md
-|   |   └── Pre-Proyecto.pdf
+│   │   ├── Especificacion.md
+│   │   └── Pre-Proyecto.pdf
 │   └── Src/
 │       ├── Lexer/
 │       │   └── AnalizadorLexico.lex
+│       ├── Parser/
+│       │   └── AnalizadorSintactico.y
 │       └── Test/
-│           └── Prueba.txt
+│           ├── Prueba1.txt
+│           ├── Prueba2.txt
+│           ├── Prueba3.txt
+│           ├── Prueba4.txt
+│           ├── Prueba5.txt
+│           ├── Prueba6.txt
+│           ├── Prueba7.txt
+│           ├── Prueba8.txt
+│           ├── Prueba9.txt
+│           └── Prueba10.txt
 ├── .gitignore
 └── README.md
 ```
@@ -74,6 +85,12 @@ El analizador léxico fue implementado utilizando la herramienta Flex, a partir 
 
 *Para revisar su implementación, ver [Analizador Léxico](Pre-Proyecto/Src/Lexer/AnalizadorLexico.lex).*
 
+## *4. Analizador Sintáctico*
+
+El analizador sintáctico fue implementado utilizando la herramienta Bison a partir de la gramática extendida. Se definieron las reglas sintácticas y las precedencias de operadores `'+'` y `'*'` para resolver ambigüedades en las expresiones.
+
+*Para revisar su implementación, ver [Analizador Sintáctico](Pre-Proyecto/Src/Parser/AnalizadorSintactico.y).*
+
 ### **Compilación y Ejecución**
 
 Desde la raíz del repositorio, ejecutar los siguientes comandos:
@@ -85,10 +102,19 @@ make
 
 Los archivos generados se almacenan en la carpeta `build/`, que no se encuentra versionada.
 
-Para ejecutar el analizador léxico con el archivo de prueba:
+Para ejecutar el analizador sintáctico con los archivos de prueba:
 
 ```bash
-./build/AnalizadorLexico Src/Test/Prueba.txt
+./build/AnalizadorSintactico Src/Test/Prueba1.txt
+./build/AnalizadorSintactico Src/Test/Prueba2.txt
+./build/AnalizadorSintactico Src/Test/Prueba3.txt
+./build/AnalizadorSintactico Src/Test/Prueba4.txt
+./build/AnalizadorSintactico Src/Test/Prueba5.txt
+./build/AnalizadorSintactico Src/Test/Prueba6.txt
+./build/AnalizadorSintactico Src/Test/Prueba7.txt
+./build/AnalizadorSintactico Src/Test/Prueba8.txt
+./build/AnalizadorSintactico Src/Test/Prueba9.txt
+./build/AnalizadorSintactico Src/Test/Prueba10.txt
 ```
 
 Por último, para limpiar los archivos generados:
