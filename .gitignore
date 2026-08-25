@@ -1,6 +1,14 @@
-# Archivos y carpetas generados por el compilador de C.
-*.o
-**/build/
+# Directorio de compilación.
+build/
 
-# Archivos generados por Flex.
+# Archivos generados por Flex y Bison.
+*.tab.c
+*.tab.h
+*.output
 lex.yy.c
+*.lex.c
+*.yy.c
+
+# Compilados y binarios.
+*.o
+*.out
