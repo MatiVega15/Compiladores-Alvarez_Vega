@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "AnalizadorSintactico.tab.h"
 
 %}
@@ -17,30 +18,30 @@ DIGITO      [0-9]
 
 %%
 
-"int"                           {printf ("Una palabra reservada: %s\n", yytext); return INT;}
-"bool"                          {printf ("Una palabra reservada: %s\n", yytext); return BOOL;}
-"void"                          {printf ("Una palabra reservada: %s\n", yytext); return VOID;}
-"main"                          {printf ("Una palabra reservada: %s\n", yytext); return MAIN;}
-"return"                        {printf ("Una palabra reservada: %s\n", yytext); return RETURN;}
+"int"                           { return INT; }
+"bool"                          { return BOOL; }
+"void"                          { return VOID; }
+"main"                          { return MAIN; }
+"return"                        { return RETURN; }
 
-{DIGITO}+                       {printf ("Un valor constante: %s\n", yytext); return NRO;}
-"true"                          {printf ("Un valor constante: %s\n", yytext); return TRUE;}
-"false"                         {printf ("Un valor constante: %s\n", yytext); return FALSE;}
+{DIGITO}+                       { yylval.numero = atoi (yytext); return NRO; }
+"true"                          { return TRUE; }
+"false"                         { return FALSE; }
 
-{LETRA}({LETRA}|{DIGITO})*      {printf ("Un identificador: %s\n", yytext); return ID;}
+{LETRA}({LETRA}|{DIGITO})*      { yylval.identificador = strdup (yytext); return ID; }
 
-"+"                             {printf ("Un operador: %s\n", yytext); return '+';}
-"*"                             {printf ("Un operador: %s\n", yytext); return '*';}
-"="                             {printf ("Un operador: %s\n", yytext); return '=';}
+"+"                             { return '+'; }
+"*"                             { return '*'; }
+"="                             { return '='; }
 
-"("                             {printf ("Un delimitador: %s\n", yytext); return '(';}
-")"                             {printf ("Un delimitador: %s\n", yytext); return ')';}
-"{"                             {printf ("Un delimitador: %s\n", yytext); return '{';}
-"}"                             {printf ("Un delimitador: %s\n", yytext); return '}';}
-";"                             {printf ("Un delimitador: %s\n", yytext); return ';';}
+"("                             { return '('; }
+")"                             { return ')'; }
+"{"                             { return '{'; }
+"}"                             { return '}'; }
+";"                             { return ';'; }
 
-[ \t\n\r]+                      {/* Ignorar espacios en blanco y saltos de línea. */}
+[ \t\n\r]+                      { /* Ignorar espacios en blanco y saltos de línea. */ }
 
-.                               {fprintf (stderr, "ERROR LÉXICO: Caracter no reconocido '%s' en línea %d\n", yytext, yylineno); exit (1);}
+.                               { fprintf (stderr, "\nERROR LÉXICO: Caracter no reconocido '%s' en línea %d\n", yytext, yylineno); exit (1); }
 
 %%
