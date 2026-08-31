@@ -9,6 +9,11 @@ lex.yy.c
 *.lex.c
 *.yy.c
 
+# Resultados de tests.
+*.dot
+*.png
+Src/Test/Resultados/
+
 # Compilados y binarios.
 *.o
 *.out
