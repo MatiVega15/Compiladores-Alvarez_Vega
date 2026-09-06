@@ -1,0 +1,4 @@
+int main () {
+    int mi_variable;
+    return;
+}

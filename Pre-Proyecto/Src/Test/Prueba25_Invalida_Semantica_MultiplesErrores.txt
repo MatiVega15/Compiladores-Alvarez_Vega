@@ -1,0 +1,30 @@
+int main () {
+    int x;
+    int y;
+    bool a;
+    bool b;
+    bool c;
+
+    x = true;
+    a = 10;
+
+    a = true + false;
+    b = true * false;
+
+    x = a + b;
+    y = a * b;
+
+    a = x + y;
+    b = x * y;
+
+    a = x + 10;
+    b = 10 * y;
+
+    x = (a + 10) * y;
+    y = x * (a + b);
+
+    z = 10;
+    x = z + 1;
+
+    return true;
+}

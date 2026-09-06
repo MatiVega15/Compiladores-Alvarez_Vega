@@ -1,0 +1,5 @@
+bool main () {
+    bool b;
+    b = 10;
+    return b;
+}
