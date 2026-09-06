@@ -1,7 +1,17 @@
 #ifndef AST_H
 #define AST_H
 
+#include "Tipos.h"
 #include <stdio.h>
+
+/**
+ * Declaración adelantada de Simbolo.
+ * 
+ * El Árbol Sintáctico Abstracto (AST) mantiene referencias
+ * a símbolos de la Tabla de Símbolos (TS), pero no necesita
+ * conocer su definición completa.
+ */
+typedef struct Simbolo Simbolo;
 
 /**
  * Representa los distintos tipos de nodos que pueden
@@ -21,20 +31,6 @@ typedef enum {
     AST_TRUE,
     AST_FALSE
 } TipoNodo;
-
-/**
- * Representa los tipos de datos que admite el lenguaje.
- * 
- * TIPO_NO_DEFINIDO se utiliza cuando el tipo todavía no
- * fue determinado o debe inferirse posteriormente a
- * partir del árbol.
- */
-typedef enum {
-    TIPO_INT,
-    TIPO_BOOL,
-    TIPO_VOID,
-    TIPO_NO_DEFINIDO
-} TipoDato;
 
 /**
  * Almacena el valor asociado a determinados tipos de nodos.
@@ -58,6 +54,8 @@ typedef union {
  * - Un valor, cuando corresponde.
  * - Una cantidad variable de hijos.
  * - Un arreglo de punteros a sus nodos hijos.
+ * - La línea del código fuente asociada al nodo.
+ * - Una referencia al símbolo correspondiente, si existe.
  */
 typedef struct NodoAST {
     TipoNodo tipo;
@@ -66,17 +64,20 @@ typedef struct NodoAST {
 
     struct NodoAST **hijos;
     int cantidad_hijos;
+
+    int linea;
+    Simbolo *simbolo;
 } NodoAST;
 
 /**
  * Crea un nuevo nodo del Árbol Sintáctico Abstracto (AST).
  * 
- * Recibe el tipo de nodo que se desea crear.
- * Devuelve un puntero al nodo creado.
+ * Recibe el tipo de nodo que se desea crear y la línea del código
+ * fuente asociada al nodo. Devuelve un puntero al nodo creado.
  * 
- * El nodo se crea inicialmente sin hijos.
+ * El nodo se crea inicialmente sin hijos y sin símbolo asociado.
  */
-NodoAST *crear_nodo (TipoNodo tipo);
+NodoAST *crear_nodo (TipoNodo tipo, int linea);
 
 /**
  * Agrega un hijo al nodo padre.

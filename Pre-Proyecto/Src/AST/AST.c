@@ -8,7 +8,7 @@ static const char *nombre_tipo_dato (TipoDato tipo);
 static int generar_dot_nodo (const NodoAST *nodo, FILE *archivo, int *contador);
 static void generar_etiqueta_nodo (const NodoAST *nodo, FILE *archivo, int identificador);
 
-NodoAST *crear_nodo (TipoNodo tipo) {
+NodoAST *crear_nodo (TipoNodo tipo, int linea) {
     // Se reserva memoria para el AST.
     NodoAST *nodo = malloc (sizeof (NodoAST));
     
@@ -22,9 +22,12 @@ NodoAST *crear_nodo (TipoNodo tipo) {
     // El tipo de dato se determina posteriormente.
     nodo -> tipo_dato = TIPO_NO_DEFINIDO;
 
-    // Inicialmente el nodo no tiene hijos.
+    // Inicialmente el nodo no tiene hijos ni símbolo asociado.
     nodo -> hijos = NULL;
     nodo -> cantidad_hijos = 0;
+    nodo -> simbolo = NULL;
+
+    nodo -> linea = linea;
 
     return nodo;
 }
