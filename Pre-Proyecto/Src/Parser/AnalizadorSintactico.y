@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include "AST.h"
 
-extern int yylineno;
-
 int yylex (void);
 void yyerror (const char *s);
 
@@ -15,6 +13,11 @@ NodoAST *arbol = NULL;
 %code requires {
     #include "AST.h"
 }
+
+/* Activa el seguimiento de posiciones de los tokens y de las producciones. */
+
+%locations
+%define parse.error verbose
 
 /* Valores que pueden transportar los tokens y las producciones. */
 
@@ -56,7 +59,7 @@ NodoAST *arbol = NULL;
 %%
 
 P               : TipoMain MAIN '(' ')' '{' Declaraciones Sentencias '}'        {
-                                                                                    arbol = crear_nodo (AST_PROGRAMA);
+                                                                                    arbol = crear_nodo (AST_PROGRAMA, @1.first_line);
                                                                                     arbol -> tipo_dato = $1;
 
                                                                                     agregar_hijo (arbol, $6);
@@ -76,23 +79,23 @@ TipoMain        : INT                                                           
                 ;
 
 Declaraciones   : Decl Declaraciones                                            {
-                                                                                    $$ = crear_nodo (AST_DECLARACIONES);
+                                                                                    $$ = crear_nodo (AST_DECLARACIONES, @1.first_line);
 
                                                                                     agregar_hijo ($$, $1);
                                                                                     agregar_hijo ($$, $2);
                                                                                 }
                 | Decl                                                          {
-                                                                                    $$ = crear_nodo (AST_DECLARACIONES);
+                                                                                    $$ = crear_nodo (AST_DECLARACIONES, @1.first_line);
 
                                                                                     agregar_hijo ($$, $1);
                                                                                 }
                 ;
 
 Decl            : Tipo ID ';'                                                   {
-                                                                                    $$ = crear_nodo (AST_DECLARACION);
+                                                                                    $$ = crear_nodo (AST_DECLARACION, @1.first_line);
                                                                                     $$ -> tipo_dato = $1;
 
-                                                                                    NodoAST *identificador = crear_nodo (AST_IDENTIFICADOR);
+                                                                                    NodoAST *identificador = crear_nodo (AST_IDENTIFICADOR, @2.first_line);
                                                                                     identificador -> valor.identificador = $2;
 
                                                                                     agregar_hijo ($$, identificador);
@@ -108,43 +111,43 @@ Tipo            : INT                                                           
                 ;
 
 Sentencias      : Sent Sentencias                                               {
-                                                                                    $$ = crear_nodo (AST_SENTENCIAS);
+                                                                                    $$ = crear_nodo (AST_SENTENCIAS, @1.first_line);
 
                                                                                     agregar_hijo ($$, $1);
                                                                                     agregar_hijo ($$, $2);
                                                                                 }
                 | Sent                                                          {
-                                                                                    $$ = crear_nodo (AST_SENTENCIAS);
+                                                                                    $$ = crear_nodo (AST_SENTENCIAS, @1.first_line);
 
                                                                                     agregar_hijo ($$, $1);
                                                                                 }
                 ;
 
 Sent            : ID '=' E ';'                                                  {
-                                                                                    $$ = crear_nodo (AST_ASIGNACION);
+                                                                                    $$ = crear_nodo (AST_ASIGNACION, @1.first_line);
 
-                                                                                    NodoAST *identificador = crear_nodo (AST_IDENTIFICADOR);
+                                                                                    NodoAST *identificador = crear_nodo (AST_IDENTIFICADOR, @1.first_line);
                                                                                     identificador -> valor.identificador = $1;
 
                                                                                     agregar_hijo ($$, identificador);
                                                                                     agregar_hijo ($$, $3);
                                                                                 }
                 | RETURN E ';'                                                  {
-                                                                                    $$ = crear_nodo (AST_RETURN);
+                                                                                    $$ = crear_nodo (AST_RETURN, @1.first_line);
                                                                                     agregar_hijo ($$, $2);
                                                                                 }
                 | RETURN ';'                                                    {
-                                                                                    $$ = crear_nodo (AST_RETURN);
+                                                                                    $$ = crear_nodo (AST_RETURN, @1.first_line);
                                                                                 }
                 ;
 
 E               : E '+' E                                                       {
-                                                                                    $$ = crear_nodo (AST_SUMA);
+                                                                                    $$ = crear_nodo (AST_SUMA, @2.first_line);
                                                                                     agregar_hijo ($$, $1);
                                                                                     agregar_hijo ($$, $3);
                                                                                 }
                 | E '*' E                                                       {
-                                                                                    $$ = crear_nodo (AST_MULTIPLICACION);
+                                                                                    $$ = crear_nodo (AST_MULTIPLICACION, @2.first_line);
                                                                                     agregar_hijo ($$, $1);
                                                                                     agregar_hijo ($$, $3);
                                                                                 }
@@ -152,19 +155,19 @@ E               : E '+' E                                                       
                                                                                     $$ = $2;
                                                                                 }
                 | NRO                                                           {
-                                                                                    $$ = crear_nodo (AST_NUMERO);
+                                                                                    $$ = crear_nodo (AST_NUMERO, @1.first_line);
                                                                                     $$ -> valor.numero = $1;
                                                                                 }
                 | ID                                                            {
-                                                                                    $$ = crear_nodo (AST_IDENTIFICADOR);
+                                                                                    $$ = crear_nodo (AST_IDENTIFICADOR, @1.first_line);
                                                                                     $$ -> valor.identificador = $1;
                                                                                 }
                 | TRUE                                                          {
-                                                                                    $$ = crear_nodo (AST_TRUE);
+                                                                                    $$ = crear_nodo (AST_TRUE, @1.first_line);
                                                                                     $$ -> tipo_dato = TIPO_BOOL;
                                                                                 }
                 | FALSE                                                         {
-                                                                                    $$ = crear_nodo (AST_FALSE);
+                                                                                    $$ = crear_nodo (AST_FALSE, @1.first_line);
                                                                                     $$ -> tipo_dato = TIPO_BOOL;
                                                                                 }
                 ;   
@@ -173,6 +176,12 @@ E               : E '+' E                                                       
 
 /* - CÓDIGO DE USUARIO - */
 
+extern int error_lexico;
+
 void yyerror (const char *s) {
-    fprintf (stderr, "\nERROR SINTÁCTICO: producción no reconocida en la línea %d: %s\n", yylineno, s);
+    if (error_lexico) {
+        return;
+    }
+    
+    fprintf (stderr, "ERROR SINTÁCTICO: línea %d, columna %d - %s.\n", yylloc.first_line, yylloc.first_column, s);
 }
