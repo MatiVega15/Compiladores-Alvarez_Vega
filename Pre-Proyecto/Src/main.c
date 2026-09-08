@@ -6,6 +6,7 @@
 #include "TS.h"
 #include "AnalizadorSemantico.h"
 #include "Interprete.h"
+#include "GeneradorPseudoAssembly.h"
 
 // Variables y funciones definidas por Bison.
 extern FILE *yyin;
@@ -24,7 +25,7 @@ int main (int argc, char **argv) {
 
     // Se requiere al menos el archivo fuente de entrada.
     if (argc < 2) {
-        fprintf (stderr, "Uso: %s <archivo> [archivo_dot]\n", argv [0]);
+        fprintf (stderr, "Uso: %s <archivo> [archivo_dot] [archivo_asm]\n", argv [0]);
         return 1;
     }
     
@@ -78,6 +79,46 @@ int main (int argc, char **argv) {
     }
     else {
         printf ("✓ Análisis semántico correcto.\n");
+
+        /* ========== Generación de pseudo-assembly ========== */
+
+        // Se determina el nombre del archivo de pseudo-assembly.
+        char nombre_pseudo [1024];
+        
+        if (argc >= 4) {
+            // Si se proporciona un nombre de archivo pseudo-assembly, se utiliza.
+            strcpy (nombre_pseudo, argv [3]);
+        }
+        else {
+            // De lo contrario, se genera a partir del nombre del archivo fuente.
+            strcpy (nombre_pseudo, argv [1]);
+        }
+        
+        char *extension = strrchr (nombre_pseudo, '.');
+
+        if (extension != NULL) {
+            // Se reemplaza la extensión existente por ".asm".
+            strcpy (extension, ".asm");
+        }
+        else {
+            // Si no hay extensión, se agrega ".asm" al final.
+            strcat (nombre_pseudo, ".asm");
+        }
+
+        // Se crea el archivo de pseudo-assembly.
+        FILE *archivo_pseudo = fopen (nombre_pseudo, "w");
+        
+        if (!archivo_pseudo) {
+            perror ("Error al crear el archivo de pseudo-assembly");
+            liberar_arbol (arbol);
+            liberar_TS (ts);
+            fclose (archivo);
+            return 1;
+        }
+
+        // Se genera el pseudo-assembly a partir del AST validado.
+        generar_pseudo_assembly (arbol, archivo_pseudo);
+        fclose (archivo_pseudo);
 
         /* ========== Interpretación ========== */
         
