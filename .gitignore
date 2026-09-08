@@ -12,6 +12,7 @@ lex.yy.c
 # Resultados de tests.
 *.dot
 *.png
+*.asm
 Src/Test/Resultados/
 
 # Compilados y binarios.

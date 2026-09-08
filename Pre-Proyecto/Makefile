@@ -12,6 +12,7 @@ AST_SRC = Src/AST/AST.c
 TS_SRC = Src/TS/TS.c
 SEMANTICO_SRC = Src/Semantico/AnalizadorSemantico.c
 INTERPRETE_SRC = Src/Interprete/Interprete.c
+GENERADOR_SRC = Src/Generador/GeneradorPseudoAssembly.c
 MAIN_SRC = Src/main.c
 
 TEST_AST_SRC = $(TEST_DIR)/TestAST.c
@@ -22,6 +23,7 @@ TEST_TS_SRC = $(TEST_DIR)/TestTS.c
 TIPOS_H = Src/Common/Tipos.h
 SEMANTICO_H = Src/Semantico/AnalizadorSemantico.h
 INTERPRETE_H = Src/Interprete/Interprete.h
+GENERADOR_H = Src/Generador/GeneradorPseudoAssembly.h
 
 # ========== Archivos generados y ejecutables ==========
 
@@ -82,9 +84,9 @@ PRUEBAS = 	$(TEST_DIR)/Prueba1_Valida_AsignacionesYExpresiones.txt \
 all: $(BIN)
 
 # Enlazado final.
-$(BIN): $(PARSER_C) $(PARSER_H) $(LEXER_C) $(AST_SRC) $(TS_SRC) $(SEMANTICO_SRC) $(SEMANTICO_H) $(INTERPRETE_SRC) $(INTERPRETE_H) $(MAIN_SRC) $(TIPOS_H)
+$(BIN): $(PARSER_C) $(PARSER_H) $(LEXER_C) $(AST_SRC) $(TS_SRC) $(SEMANTICO_SRC) $(SEMANTICO_H) $(INTERPRETE_SRC) $(INTERPRETE_H) $(GENERADOR_SRC) $(GENERADOR_H) $(MAIN_SRC) $(TIPOS_H)
 	@mkdir -p $(BUILD_DIR)
-	@gcc -I$(BUILD_DIR) -ISrc/AST -ISrc/TS -ISrc/Common -ISrc/Semantico -ISrc/Interprete $(PARSER_C) $(LEXER_C) $(AST_SRC) $(TS_SRC) $(SEMANTICO_SRC) $(INTERPRETE_SRC) $(MAIN_SRC) -o $(BIN)
+	@gcc -I$(BUILD_DIR) -ISrc/AST -ISrc/TS -ISrc/Common -ISrc/Semantico -ISrc/Interprete -ISrc/Generador $(PARSER_C) $(LEXER_C) $(AST_SRC) $(TS_SRC) $(SEMANTICO_SRC) $(INTERPRETE_SRC) $(GENERADOR_SRC) $(MAIN_SRC) -o $(BIN)
 
 # ========== Generación del Parser ==========
 
@@ -109,7 +111,7 @@ tests: $(BIN)
 		nombre=$$(basename $$prueba .txt); \
 		echo ""; \
 		echo "\n========== $$nombre ==========\n\n"; \
-		$(BIN) $$prueba $(RESULTADOS_DIR)/$$nombre.dot; \
+		$(BIN) $$prueba $(RESULTADOS_DIR)/$$nombre.dot $(RESULTADOS_DIR)/$$nombre.asm; \
 		if [ -f $(RESULTADOS_DIR)/$$nombre.dot ]; then \
 			dot -Tpng $(RESULTADOS_DIR)/$$nombre.dot -o $(RESULTADOS_DIR)/$$nombre.png; \
 		fi; \
@@ -122,7 +124,7 @@ prueba: $(BIN)
 	@mkdir -p $(RESULTADOS_DIR)
 	@echo ""
 	@echo "\n========== $(PRUEBA) ==========\n\n"
-	@$(BIN) $(TEST_DIR)/$(PRUEBA).txt $(RESULTADOS_DIR)/$(PRUEBA).dot; \
+	@$(BIN) $(TEST_DIR)/$(PRUEBA).txt $(RESULTADOS_DIR)/$(PRUEBA).dot $(RESULTADOS_DIR)/$(PRUEBA).asm; \
 	resultado=$$?; \
 	if [ -f $(RESULTADOS_DIR)/$(PRUEBA).dot ]; then \
 		dot -Tpng $(RESULTADOS_DIR)/$(PRUEBA).dot -o $(RESULTADOS_DIR)/$(PRUEBA).png; \
