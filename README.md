@@ -36,6 +36,9 @@
 │       │   └── AST.h
 │       ├── Common
 │       │   └── Tipos.h
+│       ├── Generador
+│       │   ├── GeneradorPseudoAssembly.c
+│       │   └── GeneradorPseudoAssembly.h
 │       ├── Interprete
 │       │   ├── Interprete.c
 │       │   └── Interprete.h
@@ -232,18 +235,46 @@ Los errores que dependen del **estado de ejecución**, como el uso de una variab
 
 *Para revisar su implementación, ver [Interprete.h](Pre-Proyecto/Src/Interprete/Interprete.h) y [Interprete.c](Pre-Proyecto/Src/Interprete/Interprete.c).*
 
+## *7. Generador de Seudo-Assembly*
+
+Se implementó un **generador de seudo-assembly** encargado de producir una representación similar a un **código de tres direcciones** a partir del AST validado semánticamente.
+
+El generador utiliza **temporales** (`T1`, `T2`, `T3`, etc.) para almacenar los resultados intermedios de las expresiones.
+
+Las instrucciones utilizadas son:
+
+- **SUM** *operador1 operador2 resultado*
+- **MUL** *operador1 operador2 resultado*
+- **MOV** *operador resultado*
+- **RETURN** *operador*
+- **RETURN**
+
+Las operaciones se generan respetando la estructura del AST y, por lo tanto, las precedencias y los paréntesis establecidos durante el análisis sintáctico.
+
+Las **asignaciones** simples se representan mediante la instrucción `MOV`, mientras que las **operaciones** `+` y `*` generan un temporal para almacenar su resultado.
+
+Las **constantes booleanas** se representan como `TRUE` y `FALSE` dentro del seudo-assembly.
+
+Las **declaraciones** no generan instrucciones, ya que la información correspondiente a las variables ya fue registrada durante el análisis semántico en la TS.
+
+El generador utiliza la información de los símbolos asociada a los identificadores del AST para obtener los **nombres de las variables** durante la generación del código.
+
+El generador produce archivos con extensión `.asm`. Estos archivos contienen **seudo-assembly y no constituyen código assembly real destinado a ser ensamblado o ejecutado directamente**.
+
+*Para revisar su implementación, ver [GeneradorPseudoAssembly.h](Pre-Proyecto/Src/Generador/GeneradorPseudoAssembly.h) y [GeneradorPseudoAssembly.c](Pre-Proyecto/Src/Generador/GeneradorPseudoAssembly.c).*
+
 ---
 
 ## *Programa principal*
 
 Se incorporó `Src/main.c`, encargado de **coordinar las distintas etapas de procesamiento del programa**.
 
-El programa principal recibe como primer argumento un archivo fuente y, opcionalmente, como segundo argumento, el archivo de salida en formato DOT.
+El programa principal recibe como primer argumento un archivo fuente y, opcionalmente un segundo argumento para el archivo de salida en formato DOT y un tercero para el archivo de salida de seudo-assembly.
 
 Por ejemplo:
 
 ```bash
-./build/Interprete archivo.txt archivo.dot
+./build/Interprete archivo.txt archivo.dot archivo.asm
 ```
 
 El **procesamiento** se realiza de manera progresiva:
@@ -251,13 +282,14 @@ El **procesamiento** se realiza de manera progresiva:
 1. Análisis **léxico**.
 2. Análisis **sintáctico** y construcción del **AST**.
 3. Análisis **semántico** y construcción de la **TS**.
-4. **Interpretación** del programa.
+4. Generación del **seudo-assembly**.
+5. **Interpretación** del programa.
 
-Si se detectan **errores léxicos o sintácticos**, el procesamiento se detiene y no se genera el AST de salida. La ejecución de cualquiera de estos dos análisis finaliza tras encontrar el primer error.
+Si se detectan **errores léxicos o sintácticos**, el procesamiento se detiene y no se generan las salidas correspondientes al AST ni al seudo-assembly. La ejecución de cualquiera de estos dos análisis finaliza tras encontrar el primer error.
 
-Si se detectan **errores semánticos**, se informa la totalidad de los errores encontrados y no se realiza la interpretación. Es decir, este análisis no se detiene tras el primer error. Además, se genera el AST en formato DOT y PNG.
+Si se detectan **errores semánticos**, se informa la totalidad de los errores encontrados y no se realiza la generación de seudo-assembly ni la interpretación. Es decir, este análisis no se detiene tras el primer error. Además, se genera el AST en formato DOT y PNG.
 
-Si la interpretación produce un **error de ejecución**, este se informa y se conserva la posibilidad de generar la representación gráfica del AST. Esta etapa tampoco se detiene al encontrar el primer error.
+Si la interpretación produce un **error de ejecución**, este se informa y se conserva la posibilidad de generar la representación gráfica del AST y el seudo-assembly. Esta etapa tampoco se detiene al encontrar el primer error.
 
 ## *Pruebas*
 
@@ -272,6 +304,8 @@ Las **pruebas** incluyen:
 - **Errores detectados durante la interpretación**.
 
 Las pruebas se encuentran en `Pre-Proyecto/Src/Test/`.
+
+Las pruebas válidas que superan el análisis semántico permiten comprobar, además, la correcta generación del **seudo-assembly**.
 
 También se mantienen **pruebas independientes para los módulos AST y TS**:
 
@@ -307,7 +341,7 @@ make tests
 
 Este comando ejecuta las **36 pruebas disponibles**.
 
-Para cada prueba se genera, cuando corresponde, su representación en formato **DOT** y su correspondiente imagen **PNG**.
+Para cada prueba se genera, cuando corresponde, su representación en formato **DOT** y su correspondiente imagen **PNG**, así como también el archivo de **seudo-assembly** en formato **ASM**.
 
 Los resultados se muestran por consola y se almacenan en:
 
@@ -331,7 +365,21 @@ Por ejemplo:
 make prueba PRUEBA=Prueba1_Valida_AsignacionesYExpresiones
 ```
 
-El comando ejecuta la prueba, la muestra por consola y genera, cuando corresponde, el **DOT** y el **PNG** del AST en la carpeta `Src/Test/Resultados`.
+No es necesario incluir la extensión `.txt`, ya que `Makefile` la agrega automáticamente.
+
+El comando ejecuta la prueba, la muestra por consola y genera, cuando corresponde, el **DOT** y el **PNG** del AST, así como el **seudo-assembly** en formato **ASM**. Los resultados se encuentran en la carpeta `Src/Test/Resultados`.
+
+También es posible utilizar este objetivo para analizar/interpretar un archivo de entrada que no se encuentre incluido en la lista de las 36 pruebas. Por ejemplo, si existe:
+
+```bash
+Src/Test/programa.txt
+```
+
+Puede ejecutarse mediante:
+
+```bash
+make prueba PRUEBA=programa
+```
 
 ### **Probar el AST**
 
