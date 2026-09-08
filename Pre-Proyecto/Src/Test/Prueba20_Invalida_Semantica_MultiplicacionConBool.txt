@@ -1,0 +1,7 @@
+int main () {
+    int x;
+    bool b;
+    b = false;
+    x = 10 * b;
+    return x;
+}

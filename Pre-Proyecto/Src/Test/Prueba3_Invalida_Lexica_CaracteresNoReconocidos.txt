@@ -1,0 +1,14 @@
+bool main ( ) {
+    int x;
+    bool aux1;
+    int Variable2dos;
+    bool A123a;
+    x = x + 3 * x;
+    Variable2dos = 000001;
+    aux1 = true;
+    A123a = false;
+    x = 10 / 20;
+    x = 10 && 20;
+    return;
+    @
+}

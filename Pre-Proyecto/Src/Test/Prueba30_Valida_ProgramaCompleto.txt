@@ -1,0 +1,23 @@
+int main () {
+    int x;
+    int y;
+    int resultado;
+    bool activo;
+    bool terminado;
+
+    x = 10;
+    y = 20;
+
+    activo = true;
+    terminado = false;
+
+    resultado = x + y;
+    x = resultado * 2;
+    y = (x + resultado) * 3;
+    resultado = x * (y + 5);
+
+    activo = terminado;
+    terminado = activo;
+
+    return resultado;
+}

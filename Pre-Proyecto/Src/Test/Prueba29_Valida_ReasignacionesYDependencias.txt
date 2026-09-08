@@ -1,0 +1,17 @@
+int main () {
+    int a;
+    int b;
+    int c;
+    int d;
+
+    a = 1;
+    b = a;
+    c = b + a;
+    d = c * b;
+    a = d + c;
+    b = a * d;
+    c = b + d;
+    d = c * a;
+
+    return d;
+}

@@ -1,0 +1,20 @@
+# Directorio de compilación.
+build/
+
+# Archivos generados por Flex y Bison.
+*.tab.c
+*.tab.h
+*.output
+lex.yy.c
+*.lex.c
+*.yy.c
+
+# Resultados de tests.
+*.dot
+*.png
+*.asm
+Src/Test/Resultados/
+
+# Compilados y binarios.
+*.o
+*.out
