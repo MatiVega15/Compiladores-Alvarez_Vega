@@ -26,31 +26,41 @@
 ```text
 .
 ├── Pre-Proyecto/
-│   ├── Docs/
-│   │   ├── Documentacion.md
-│   │   ├── Especificacion.md
-│   │   └── Pre-Proyecto.pdf
-│   ├── Makefile
-│   └── Src/
-│       ├── AST/
-│       ├── Common/
-│       ├── Generador/
-│       ├── Interprete/
-│       ├── Lexer/
-│       ├── Parser/
-│       ├── Semantico/
-│       ├── TS/
-│       ├── Test/
-│       └── main.c
+│   ├── Docs/
+│   │   ├── Documentacion.md
+│   │   ├── Especificacion.md
+│   │   └── Pre-Proyecto.pdf
+│   ├── Makefile
+│   └── Src/
+│       ├── AST/
+│       ├── Common/
+│       ├── Generador/
+│       ├── Interprete/
+│       ├── Lexer/
+│       ├── Parser/
+│       ├── Semantico/
+│       ├── TS/
+│       ├── Test/
+│       └── main.c
 ├── Proyecto/
-│   └── Docs/
-│       ├── Proyecto - Descripción y Requisitos.pdf
-│       └── Proyecto - Especificación del Lenguaje.pdf
+│   ├── Docs/
+│   │   ├── Documentacion.md
+│   │   ├── Especificacion.md
+│   │   ├── Proyecto - Descripción y Requisitos.pdf
+│   │   └── Proyecto - Especificación del Lenguaje.pdf
+│   ├── Makefile
+│   └── Src/
+│       ├── Lexer/
+│       ├── Test/
+│       │   └── Lexico/
+│       │       ├── Invalidas/
+│       │       └── Validas/
+│       └── main.c
 ├── .gitignore
 └── README.md
 ```
 
-Las carpetas `Pre-Proyecto/build/` y `Pre-Proyecto/Src/Test/Resultados/` se generan durante la compilación y ejecución de las pruebas y se encuentran excluidas del repositorio.
+Las carpetas `Pre-Proyecto/build/`, `Pre-Proyecto/Src/Test/Resultados/`, `Proyecto/build/` y `Proyecto/Src/Test/Resultados/` se generan durante la compilación y ejecución de las pruebas y se encuentran excluidas del repositorio.
 
 ---
 
@@ -94,5 +104,81 @@ make clean
 ## *Documentación*
 
 ***La documentación completa de cada etapa junto con información adicional de compilación y ejecución se encuentra en [Documentación del Pre-Proyecto](Pre-Proyecto/Docs/Documentacion.md).***
+
+---
+
+# **Proyecto**
+
+## *Descripción*
+
+El Proyecto consiste en el **diseño e implementación de un compilador para un lenguaje de programación simple, denominado C-TDS**, similar a C o Pascal.
+
+El trabajo se aborda de una manera incremental, mediante las siguientes etapas:
+
+1. Análisis **léxico** y **sintáctico**.
+2. Generación del **árbol sintáctico abstracto (AST)** y la **tabla de símbolos (TS)**.
+3. Análisis **semántico**.
+4. Generación de **código intermedio**.
+5. Generación de **código objeto**.
+6. **Optimizador** y extensiones.
+
+Actualmente se encuentra implementada la etapa de análisis léxico.
+
+## *Compilación y ejecución*
+
+Para **compilar el Proyecto**, desde la raíz del repositorio:
+
+```bash
+cd Proyecto
+make
+```
+
+El **ejecutable** generado se encuentra en:
+
+```text
+Proyecto/build/c-tds
+```
+
+Para **ejecutar el análisis léxico** de un archivo:
+
+```bash
+./build/c-tds archivo.ctds
+```
+
+También puede seleccionarse explícitamente la **etapa léxica**:
+
+```bash
+./build/c-tds -target scan archivo.ctds
+```
+
+Para activar el **modo depuración**:
+
+```bash
+./build/c-tds -debug archivo.ctds
+```
+
+Para **ejecutar las pruebas del análisis léxico**:
+
+```bash
+make tests-lexico
+```
+
+El **objetivo `tests`** permite ejecutar todas las pruebas correspondientes a las etapas implementadas:
+
+```bash
+make tests
+```
+
+Actualmente, esto equivale a ejecutar las pruebas del análisis léxico.
+
+Para **limpiar** los archivos generados:
+
+```bash
+make clean
+```
+
+## *Documentación*
+
+***La documentación completa de cada etapa junto con información detallada sobre implementación, interfaz de línea de comandos, pruebas, compilación y ejecución, se encuentra en [Documentación del Proyecto](Proyecto/Docs/Documentacion.md).***
 
 ---
