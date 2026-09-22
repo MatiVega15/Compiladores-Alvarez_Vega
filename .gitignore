@@ -13,7 +13,7 @@ lex.yy.c
 *.dot
 *.png
 *.asm
-Src/Test/Resultados/
+**/Src/Test/Resultados/
 
 # Compilados y binarios.
 *.o
