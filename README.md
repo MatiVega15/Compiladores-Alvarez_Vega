@@ -51,8 +51,12 @@
 │   ├── Makefile
 │   └── Src/
 │       ├── Lexer/
+│       ├── Parser/
 │       ├── Test/
-│       │   └── Lexico/
+│       │   ├── Lexico/
+│       │   │   ├── Invalidas/
+│       │   │   └── Validas/
+│       │   └── Sintactico/
 │       │       ├── Invalidas/
 │       │       └── Validas/
 │       └── main.c
@@ -122,7 +126,7 @@ El trabajo se aborda de una manera incremental, mediante las siguientes etapas:
 5. Generación de **código objeto**.
 6. **Optimizador** y extensiones.
 
-Actualmente se encuentra implementada la etapa de análisis léxico.
+Actualmente se encuentran implementadas las etapas de **análisis léxico** y **análisis sintáctico**.
 
 ## *Compilación y ejecución*
 
@@ -139,13 +143,15 @@ El **ejecutable** generado se encuentra en:
 Proyecto/build/c-tds
 ```
 
-Para **ejecutar el análisis léxico** de un archivo:
+Para **ejecutar el compilador**:
 
 ```bash
 ./build/c-tds archivo.ctds
 ```
 
-También puede seleccionarse explícitamente la **etapa léxica**:
+Por defecto, se ejecuta la última etapa implementada, actualmente el **análisis sintáctico**, generando un archivo `.sint`.
+
+Las etapas también pueden seleccionarse mediante `-target`. Por ejemplo, para el **análisis léxico**:
 
 ```bash
 ./build/c-tds -target scan archivo.ctds
@@ -157,11 +163,7 @@ Para activar el **modo depuración**:
 ./build/c-tds -debug archivo.ctds
 ```
 
-Para **ejecutar las pruebas del análisis léxico**:
-
-```bash
-make tests-lexico
-```
+El modo de depuración muestra **información adicional** durante la etapa de análisis que se esté ejecutando.
 
 El **objetivo `tests`** permite ejecutar todas las pruebas correspondientes a las etapas implementadas:
 
@@ -169,7 +171,18 @@ El **objetivo `tests`** permite ejecutar todas las pruebas correspondientes a la
 make tests
 ```
 
-Actualmente, esto equivale a ejecutar las pruebas del análisis léxico.
+Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico** y del **análisis sintáctico**.
+
+Para **ejecutar solamente las pruebas del análisis léxico**:
+
+```bash
+make tests-lexico
+```
+Para **ejecutar solamente las pruebas del análisis sintáctico**:
+
+```bash
+make tests-sintactico
+```
 
 Para **limpiar** los archivos generados:
 
