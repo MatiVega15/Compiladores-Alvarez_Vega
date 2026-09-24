@@ -1,0 +1,3 @@
+int calcular {
+    int x;
+    x = 10;

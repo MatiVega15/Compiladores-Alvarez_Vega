@@ -1,0 +1,5 @@
+int main () {
+    boolean a;
+    boolean b;
+    a = a || ;
+}

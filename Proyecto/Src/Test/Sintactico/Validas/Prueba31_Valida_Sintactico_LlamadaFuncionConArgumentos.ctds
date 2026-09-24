@@ -1,0 +1,8 @@
+int sumar (int a, int b) {
+
+}
+
+int main () {
+    int resultado;
+    resultado = sumar (10, 20);
+}

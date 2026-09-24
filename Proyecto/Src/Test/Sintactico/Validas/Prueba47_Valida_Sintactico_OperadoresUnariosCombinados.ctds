@@ -1,0 +1,6 @@
+int main () {
+    boolean resultado;
+    int valor;
+
+    resultado = !-valor;
+}

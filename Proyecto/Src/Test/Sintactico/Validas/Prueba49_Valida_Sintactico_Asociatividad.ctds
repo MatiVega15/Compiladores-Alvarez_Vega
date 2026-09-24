@@ -1,0 +1,12 @@
+int main () {
+    int resultado;
+    boolean resultadoBool;
+    boolean a;
+    boolean b;
+    boolean c;
+
+    resultado = 10 - 5 + 2;
+    resultado = 20 / 5 * 2;
+    resultadoBool = a && b && c;
+    resultadoBool = a || b || c;
+}

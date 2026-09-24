@@ -1,0 +1,3 @@
+int x;
+boolean activo;
+float promedio;

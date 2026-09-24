@@ -1,0 +1,8 @@
+int main () {
+    boolean activo;
+
+    if (activo) {
+        
+    } else
+        activo = false;
+}

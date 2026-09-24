@@ -1,0 +1,4 @@
+int main () {
+    float promedio;
+    promedio = 10.5;
+}
