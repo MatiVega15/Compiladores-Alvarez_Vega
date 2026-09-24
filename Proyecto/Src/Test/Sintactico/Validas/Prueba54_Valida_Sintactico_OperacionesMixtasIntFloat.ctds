@@ -1,0 +1,13 @@
+int main () {
+    int entero;
+    float decimal;
+    float resultado;
+
+    entero = 10;
+    decimal = 3.5;
+
+    resultado = entero + decimal;
+    resultado = entero * decimal;
+    resultado = decimal - entero;
+    resultado = decimal / entero;
+}

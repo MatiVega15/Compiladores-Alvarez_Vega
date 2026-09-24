@@ -1,0 +1,7 @@
+void mostrar (int valor) {
+
+}
+
+int main () {
+    mostrar (10);
+}

@@ -1,0 +1,19 @@
+int main () {
+    int x;
+    boolean a;
+    boolean b;
+
+    if (x < 10) {
+
+    }
+
+    if (a && b) {
+
+    } else {
+
+    }
+
+    while (x + 1 < 20) {
+        
+    }
+}

@@ -1,0 +1,8 @@
+int contador;
+boolean activo;
+float promedio;
+
+int calcular (int valor) {
+    int resultado;
+    resultado = valor + 10;
+}

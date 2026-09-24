@@ -1,0 +1,8 @@
+int calcular () {
+
+}
+
+int main () {
+    int resultado;
+    resultado = calcular ();
+}

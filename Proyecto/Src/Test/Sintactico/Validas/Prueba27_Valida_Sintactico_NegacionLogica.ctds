@@ -1,0 +1,5 @@
+int main () {
+    boolean activo;
+    boolean resultado;
+    resultado = !activo;
+}

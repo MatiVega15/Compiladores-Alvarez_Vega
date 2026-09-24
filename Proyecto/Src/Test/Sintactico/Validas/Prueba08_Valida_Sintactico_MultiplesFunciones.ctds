@@ -1,0 +1,11 @@
+int suma (int a, int b) {
+
+}
+
+boolean esPositivo (int valor) {
+
+}
+
+void mostrar () {
+    
+}

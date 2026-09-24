@@ -1,0 +1,6 @@
+int main () {
+    int resultado;
+    boolean activo;
+    resultado = 10 + 20 * 3;
+    activo = resultado < 100 && true;
+}
