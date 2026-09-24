@@ -10,6 +10,11 @@ extern int error_lexico;
 extern int modo_debug;
 extern FILE *salida_lexico;
 
+/* ========== Variables y funciones de Bison ========== */
+
+extern int yyparse (void);
+extern FILE *salida_sintactico;
+
 /* ========== Etapas del compilador ========== */
 
 typedef enum {
@@ -27,6 +32,7 @@ typedef struct {
     // Nombre solicitado mediante -o.
     const char *archivo_salida;
 
+    // Última etapa que debe ejecutarse.
     Etapa etapa;
 
     int debug;
@@ -37,7 +43,8 @@ typedef struct {
 /* ========== Prototipos de funciones auxiliares ========== */
 
 static int procesar_argumentos (int argc, char *argv [], Configuracion *configuracion);
-static int analizar_lexicamente (const Configuracion *configuracion);
+static int analizar_lexicamente (const Configuracion *configuracion, FILE *salida);
+static int analizar_sintacticamente (const Configuracion *configuracion, FILE *salida);
 static Etapa obtener_etapa (const char *nombre);
 static const char *nombre_etapa (Etapa etapa);
 static char *generar_nombre_salida (const char *archivo_entrada, Etapa etapa);
@@ -47,11 +54,14 @@ static int termina_con (const char *cadena, const char *sufijo);
 
 int main (int argc, char *argv []) {
     Configuracion configuracion;
+    FILE *salida;
+    char *nombre_salida;
+    int resultado;
 
     // Configuración por defecto.
     configuracion.archivo_entrada = NULL;
     configuracion.archivo_salida = NULL;
-    configuracion.etapa = ETAPA_SCAN;
+    configuracion.etapa = ETAPA_PARSE;
     configuracion.debug = 0;
     configuracion.optimizar = 0;
     configuracion.optimizar_todo = 0;
@@ -68,15 +78,55 @@ int main (int argc, char *argv []) {
         return EXIT_FAILURE;
     }
 
-    // Se ejecuta la etapa actualmente implementada.
-    if (configuracion.etapa == ETAPA_SCAN) {
-        return analizar_lexicamente (&configuracion);
+    // Actualmente solo están implementadas las etapas scan y parse.
+    if (configuracion.etapa > ETAPA_PARSE) {
+        fprintf (stderr, "ERROR: La etapa '%s' todavía no está implementada.\n", nombre_etapa (configuracion.etapa));
+
+        return EXIT_FAILURE;
     }
 
-    // Etapas posteriores aún sin implementar.
-    fprintf (stderr, "ERROR: La etapa '%s' todavía no está implementada.\n", nombre_etapa (configuracion.etapa));
+    // Se genera una única salida correspondiente a la última etapa que se debe ejecutar.
+    if (configuracion.archivo_salida != NULL) {
+        nombre_salida = malloc (strlen (configuracion.archivo_salida) + 1);
 
-    return EXIT_FAILURE;
+        if (nombre_salida != NULL) {
+            strcpy (nombre_salida, configuracion.archivo_salida);
+        }
+    }
+    else {
+        nombre_salida = generar_nombre_salida (configuracion.archivo_entrada, configuracion.etapa);
+    }
+
+    if (nombre_salida == NULL) {
+        fprintf (stderr, "ERROR: No se pudo generar el nombre del archivo de salida.\n");
+
+        return EXIT_FAILURE;
+    }
+
+    // Se crea el archivo de salida.
+    salida = fopen (nombre_salida, "w");
+
+    if (salida == NULL) {
+        fprintf (stderr, "ERROR: No se pudo crear el archivo '%s'.\n", nombre_salida);
+
+        free (nombre_salida);
+        return EXIT_FAILURE;
+    }
+
+    // Se ejecuta el análisis léxico.
+    if (configuracion.etapa == ETAPA_SCAN) {
+        resultado = analizar_lexicamente (&configuracion, salida);
+    }
+
+    // Se ejecuta el análisis sintáctico.
+    else {
+        resultado = analizar_sintacticamente (&configuracion, salida);
+    }
+    
+    fclose (salida);
+    free (nombre_salida);
+
+    return resultado;
 }
 
 /* ========== Procesamiento de argumentos ========== */
@@ -213,15 +263,13 @@ static int procesar_argumentos (int argc, char *argv [], Configuracion *configur
 /* ========== Análisis léxico ========== */
 
 /**
- * Ejecuta la etapa de análisis léxico.
+ * Ejecuta únicamente la etapa de análisis léxico.
  * 
- * Para esta etapa se genera automáticamente
- * un archivo con extensión .lex.
+ * El resultado se escribe en el archivo de salida
+ * proporcionado por main.
  */
-static int analizar_lexicamente (const Configuracion *configuracion) {
+static int analizar_lexicamente (const Configuracion *configuracion, FILE *salida) {
     FILE *entrada;
-    FILE *salida;
-    char *nombre_salida;
 
     // Se abre el archivo fuente.
     entrada = fopen (configuracion -> archivo_entrada, "r");
@@ -229,36 +277,6 @@ static int analizar_lexicamente (const Configuracion *configuracion) {
     if (entrada == NULL) {
         fprintf (stderr, "ERROR: No se pudo abrir el archivo '%s'.\n", configuracion -> archivo_entrada);
 
-        return EXIT_FAILURE;
-    }
-
-    // Se genera el nombre correspondiente a la etapa.
-    if (configuracion -> archivo_salida != NULL) {
-        nombre_salida = malloc (strlen (configuracion -> archivo_salida) + 1);
-
-        if (nombre_salida != NULL) {
-            strcpy (nombre_salida, configuracion -> archivo_salida);
-        }
-    }
-    else {
-        nombre_salida = generar_nombre_salida (configuracion -> archivo_entrada, configuracion -> etapa);
-    }
-
-    if (nombre_salida == NULL) {
-        fprintf (stderr, "ERROR: No se pudo generar el nombre del archivo de salida.\n");
-
-        fclose (entrada);
-        return EXIT_FAILURE;
-    }
-
-    // Se abre el archivo de salida de la etapa.
-    salida = fopen (nombre_salida, "w");
-
-    if (salida == NULL) {
-        fprintf (stderr, "ERROR: No se pudo crear el archivo '%s'.\n", nombre_salida);
-
-        free (nombre_salida);
-        fclose (entrada);
         return EXIT_FAILURE;
     }
 
@@ -275,16 +293,75 @@ static int analizar_lexicamente (const Configuracion *configuracion) {
     salida_lexico = salida;
 
     // Se ejecuta el analizador léxico.
-    yylex ();
+    while (yylex () != 0) {
+
+    }
 
     // Se cierran los archivos y se liberan punteros.
     fclose (entrada);
-    fclose (salida);
     salida_lexico = NULL;
-    free (nombre_salida);
 
     // Si ocurrió un error léxico, la etapa termina indicando un resultado fallido.
     if (error_lexico) {
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+/* ========== Análisis sintáctico ========== */
+
+/**
+ * Ejecuta la etapa de análisis sintáctico.
+ * 
+ * Bison utiliza el analizador léxico de Flex
+ * para obtener los tokens.
+ * 
+ * La salida contiene únicamente la información
+ * generada por el análisis sintáctico.
+ */
+static int analizar_sintacticamente (const Configuracion *configuracion, FILE *salida) {
+    FILE *entrada;
+    int resultado_parser;
+
+    // Se abre nuevamente el archivo fuente.
+    entrada = fopen (configuracion -> archivo_entrada, "r");
+
+    if (entrada == NULL) {
+        fprintf (stderr, "ERROR: No se pudo abrir el archivo '%s'.\n", configuracion -> archivo_entrada);
+
+        return EXIT_FAILURE;
+    }
+
+    // Se configura la entrada utilizada por Flex.
+    yyin = entrada;
+
+    // Se configura el modo debug.
+    modo_debug = configuracion -> debug;
+
+    // Se reinicia el estado de error del analizador.
+    error_lexico = 0;
+
+    // Se indica al parser dónde debe registrar los tokens reconocidos.
+    salida_sintactico = salida;
+
+    // Durante parse, el lexer no genera una salida .lex.
+    salida_lexico = NULL;
+    
+    // Se ejecuta el analizador sintáctico.
+    resultado_parser = yyparse ();
+
+    // Se cierran los archivos y se liberan punteros.
+    fclose (entrada);
+    salida_sintactico = NULL;
+
+    // Si ocurrió un error léxico, la etapa termina indicando un resultado fallido.
+    if (error_lexico) {
+        return EXIT_FAILURE;
+    }
+
+    // Si Bison informa errores sintácticos, la etapa termina indicando un resultado fallido.
+    if (resultado_parser != 0) {
         return EXIT_FAILURE;
     }
 
