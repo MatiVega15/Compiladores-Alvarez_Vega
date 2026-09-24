@@ -2,7 +2,7 @@
 
 ---
 
-## **1. Gramática**
+## **1.1. Gramática**
 
 La **especificación sintáctica del lenguaje C-TDS** es proporcionada por la cátedra. **La gramática define la estructura sintáctica de los programas**, incluyendo declaraciones de variables, declaraciones de funciones, bloques, sentencias, llamadas a funciones y expresiones.
 
@@ -343,6 +343,184 @@ Un literal real está formado por **una o más cifras, seguido de un punto y de 
 ```
 
 Los literales reales siguen la **notación utilizada en C**.
+
+---
+
+## **1.2. Gramática transformada para Bison**
+
+Para implementar el análisis sintáctico mediante **Bison**, se realiza una **transformación de la gramática** especificada anteriormente. Esta transformación permite expresar explícitamente las listas de elementos y separar determinadas construcciones que en la gramática original se presentan mediante los operadores de notación `*`, `+` y `[]`.
+
+La transformación **no modifica el lenguaje generado por la gramática original**, sino que introduce símbolos no terminales auxiliares para facilitar su implementación mediante Bison.
+
+Además, la **precedencia y la asociatividad** de los operadores de las expresiones se especifican mediante las declaraciones de Bison, evitando la necesidad de introducir diferentes niveles de no terminales para cada precedencia.
+
+Las **reglas** utilizadas en el analizador sintáctico son las siguientes.
+
+### *- Programa y declaraciones*
+
+```text
+<program> → <lista_declaraciones>
+
+<lista_declaraciones> → λ
+                      | <type> <id> <declaracion_tipo>
+                      | void <id> <method_decl_resto> <lista_method_decl>
+
+<declaracion_tipo> → <lista_id_resto> ; <lista_declaraciones>
+                   | <method_decl_resto> <lista_method_decl>
+
+<lista_id_resto> → λ
+                 | <lista_id_resto> , <id>
+
+<lista_method_decl> → λ
+                    | <method_decl> <lista_method_decl>
+```
+
+Estas producciones permiten representar la **secuencia de declaraciones globales** y **distinguir entre declaraciones de variables y declaraciones de funciones**.
+
+### *- Declaraciones de funciones*
+
+```text
+<method_decl> → <tipo_method> <id> ( <lista_parametros> ) <block>
+
+<tipo_method> → <type>
+              | void
+
+<method_decl_resto> → ( <lista_parametros> ) <block>
+``` 
+
+El no terminal `<method_decl_resto>` permite **reutilizar la parte común de una declaración de función** una vez reconocidos su tipo y su identificador.
+
+### *- Parámetros*
+
+```text
+<lista_parametros> → λ
+                   | <parametros>
+
+<parametros> → <type> <id>
+             | <parametros> , <type> <id>
+```
+
+Estas producciones permiten **representar tanto funciones sin parámetros como funciones con uno o más parámetros** separados por comas.
+
+### *- Bloques*
+
+```text
+<block> → { <lista_var_decl> <lista_statement> }
+
+<lista_var_decl> → λ
+                 | <lista_var_decl> <var_decl>
+
+<var_decl> → <type> <lista_id> ;
+
+<lista_id> → <id>
+           | <lista_id> , <id>
+```
+
+La separación entre `<lista_var_decl>` y `<lista_statement>` permite mantener la **restricción de que las declaraciones de variables aparecen antes de las sentencias dentro de un bloque**.
+
+Las producciones $\lambda$ permiten representar **bloques vacíos**.
+
+### *- Sentencias*
+
+```text
+<lista_statement> → λ
+                   | <lista_statement> <statement>
+
+<statement> → <id> = <expr> ;
+            | <method_call> ;
+            | if ( <expr> ) <block>
+            | if ( <expr> ) <block> else <block>
+            | while ( <expr> ) <block>
+            | return ;
+            | return <expr> ;
+            | ;
+            | <block>
+```
+
+Estas producciones representan las diferentes **formas de sentencia** definidas por la especificación del lenguaje.
+
+### *- Llamadas a funciones*
+
+```text
+<method_call> → <id> ( <lista_argumentos> )
+
+<lista_argumentos> → λ
+                   | <argumentos>
+
+<argumentos> → <expr>
+            | <argumentos> , <expr>
+```
+
+Estas producciones permiten representar **llamadas a funciones tanto sin argumentos como con uno o más argumentos** separados por comas.
+
+### *- Expresiones*
+
+```text
+<expr> → <id>
+       | <method_call>
+       | <literal>
+       | <expr> + <expr>
+       | <expr> - <expr>
+       | <expr> * <expr>
+       | <expr> / <expr>
+       | <expr> % <expr>
+       | <expr> < <expr>
+       | <expr> > <expr>
+       | <expr> == <expr>
+       | <expr> && <expr>
+       | <expr> || <expr>
+       | - <expr>
+       | ! <expr>
+       | ( <expr> )
+```
+
+Para establecer **la precedencia y la asociatividad de los operadores** y resolver los posibles **conflictos** derivados de las expresiones ambiguas, **Bison** utiliza las siguientes declaraciones, ordenadas **de menor a mayor precedencia**:
+
+```text
+%left OR
+%left AND
+%nonassoc IGUAL
+%nonassoc '<' '>'
+%left '+' '-'
+%left '*' '/' '%'
+%right '!'
+%right UMINUS
+```
+
+El símbolo `UMINUS` es un **símbolo auxiliar** utilizado por **Bison** para asignar una precedencia específica al operador `-` cuando se utiliza como operador unario.
+
+Los operadores `==`, `<` y `>` se declaran como **no asociativos**. Por lo tanto, expresiones como `x == y == z`, `x < y < z` o `x < y > z` no son aceptadas por el analizador sintáctico.
+
+### *- Literales*
+
+```text
+<literal> → <int_literal>
+           | <bool_literal>
+           | <float_literal>
+
+<int_literal> → NRO
+
+<bool_literal> → TRUE
+               | FALSE
+
+<float_literal> → REAL
+```
+
+Los símbolos `NRO`, `REAL`, `TRUE` y `FALSE` corresponden a los **tokens producidos por el analizador léxico**.
+
+### *- Identificadores y tipos*
+
+```text
+<id> → ID
+
+<type> → INT
+       | BOOLEAN
+       | FLOAT
+```
+
+El símbolo `<id>` representa un **identificador reconocido por el analizador léxico**, mientras que `<type>` agrupa los **tres tipos disponibles para variables y funciones**.
+
+La gramática transformada introduce únicamente los **símbolos auxiliares** necesarios para la implementación del analizador sintáctico.
 
 ---
 
