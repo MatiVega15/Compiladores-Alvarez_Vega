@@ -2,12 +2,18 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#include "AnalizadorSintactico.tab.h"
 
 /*
  * Analizador léxico de C-TDS.
  *
  * Reconoce los elementos léxicos definidos por la especificación
  * del lenguaje y registra los errores léxicos.
+ *
+ * Además, entrega los tokens reconocidos al analizador sintáctico
+ * de Bison junto con su ubicación y, cuando corresponde, su valor.
  *
  * La variable modo_debug permite controlar la salida del lexer.
  *  - Si vale 0, el lexer no muestra los tokens reconocidos.
@@ -25,6 +31,19 @@ int modo_debug = 0;
 
 /* Archivo de salida .lex. */
 FILE *salida_lexico = NULL;
+
+/*
+ * Registra la ubicación del token actual para Bison
+ * y avanza la columna hasta el final del lexema.
+ */
+#define REGISTRAR_UBICACION()                       \
+    do {                                            \
+        yylloc.first_line = yylineno;               \
+        yylloc.last_line = yylineno;                \
+        yylloc.first_column = yycolumn;             \
+        yylloc.last_column = yycolumn + yyleng - 1; \
+        yycolumn += yyleng;                         \
+    } while (0)
 
 /* Prototipos de funciones auxiliares. */
 static void registrar_token (const char *tipo, const char *lexema);
@@ -51,56 +70,56 @@ DIGITO      [0-9]
     
     /* - Palabras reservadas - */
 
-"int"                               { registrar_token ("PALABRA RESERVADA", yytext); yycolumn += yyleng; }
-"boolean"                           { registrar_token ("PALABRA RESERVADA", yytext); yycolumn += yyleng; }
-"float"                             { registrar_token ("PALABRA RESERVADA", yytext); yycolumn += yyleng; }
-"void"                              { registrar_token ("PALABRA RESERVADA", yytext); yycolumn += yyleng; }
+"int"                               { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return INT; }
+"boolean"                           { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return BOOLEAN; }
+"float"                             { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return FLOAT; }
+"void"                              { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return VOID; }
 
-"if"                                { registrar_token ("PALABRA RESERVADA", yytext); yycolumn += yyleng; }
-"else"                              { registrar_token ("PALABRA RESERVADA", yytext); yycolumn += yyleng; }
-"while"                             { registrar_token ("PALABRA RESERVADA", yytext); yycolumn += yyleng; }
-"return"                            { registrar_token ("PALABRA RESERVADA", yytext); yycolumn += yyleng; }
+"if"                                { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return IF; }
+"else"                              { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return ELSE; }
+"while"                             { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return WHILE; }
+"return"                            { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return RETURN; }
 
-"true"                              { registrar_token ("PALABRA RESERVADA", yytext); yycolumn += yyleng; }
-"false"                             { registrar_token ("PALABRA RESERVADA", yytext); yycolumn += yyleng; }
+"true"                              { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return TRUE; }
+"false"                             { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return FALSE; }
 
     /* - Literales - */
 
-{DIGITO}+"."{DIGITO}+               { registrar_token ("LITERAL REAL", yytext); yycolumn += yyleng; }
-{DIGITO}+                           { registrar_token ("LITERAL ENTERO", yytext); yycolumn += yyleng; }     
+{DIGITO}+"."{DIGITO}+               { registrar_token ("LITERAL REAL", yytext); REGISTRAR_UBICACION (); yylval.real = atof (yytext); return REAL; }
+{DIGITO}+                           { registrar_token ("LITERAL ENTERO", yytext); REGISTRAR_UBICACION (); yylval.numero = atoi (yytext); return NRO; }
 
-    /* - identificadores - */
+    /* - Identificadores - */
 
-{LETRA}({LETRA}|{DIGITO}|_)*        { registrar_token ("IDENTIFICADOR", yytext); yycolumn += yyleng; }
+{LETRA}({LETRA}|{DIGITO}|_)*        { registrar_token ("IDENTIFICADOR", yytext); REGISTRAR_UBICACION (); yylval.identificador = strdup (yytext); return ID; }
 
     /* - Operadores - */
 
-"=="                                { registrar_token ("OPERADOR", yytext); yycolumn += yyleng; }
-"<"                                 { registrar_token ("OPERADOR", yytext); yycolumn += yyleng; }
-">"                                 { registrar_token ("OPERADOR", yytext); yycolumn += yyleng; }
+"=="                                { registrar_token ("OPERADOR", yytext); REGISTRAR_UBICACION (); return IGUAL; }
+"<"                                 { registrar_token ("OPERADOR", yytext); REGISTRAR_UBICACION (); return '<'; }
+">"                                 { registrar_token ("OPERADOR", yytext); REGISTRAR_UBICACION (); return '>'; }
 
-"&&"                                { registrar_token ("OPERADOR", yytext); yycolumn += yyleng; }
-"||"                                { registrar_token ("OPERADOR", yytext); yycolumn += yyleng; }
-"!"                                 { registrar_token ("OPERADOR", yytext); yycolumn += yyleng; }
+"&&"                                { registrar_token ("OPERADOR", yytext); REGISTRAR_UBICACION (); return AND; }
+"||"                                { registrar_token ("OPERADOR", yytext); REGISTRAR_UBICACION (); return OR; }
+"!"                                 { registrar_token ("OPERADOR", yytext); REGISTRAR_UBICACION (); return '!'; }
 
-"="                                 { registrar_token ("OPERADOR", yytext); yycolumn += yyleng; }
-"+"                                 { registrar_token ("OPERADOR", yytext); yycolumn += yyleng; }
-"-"                                 { registrar_token ("OPERADOR", yytext); yycolumn += yyleng; }
-"*"                                 { registrar_token ("OPERADOR", yytext); yycolumn += yyleng; }
-"/"                                 { registrar_token ("OPERADOR", yytext); yycolumn += yyleng; }
-"%"                                 { registrar_token ("OPERADOR", yytext); yycolumn += yyleng; }
+"="                                 { registrar_token ("OPERADOR", yytext); REGISTRAR_UBICACION (); return '='; }
+"+"                                 { registrar_token ("OPERADOR", yytext); REGISTRAR_UBICACION (); return '+'; }
+"-"                                 { registrar_token ("OPERADOR", yytext); REGISTRAR_UBICACION (); return '-'; }
+"*"                                 { registrar_token ("OPERADOR", yytext); REGISTRAR_UBICACION (); return '*'; }
+"/"                                 { registrar_token ("OPERADOR", yytext); REGISTRAR_UBICACION (); return '/'; }
+"%"                                 { registrar_token ("OPERADOR", yytext); REGISTRAR_UBICACION (); return '%'; }
 
     /* - Delimitadores - */
 
-"("                                 { registrar_token ("DELIMITADOR", yytext); yycolumn += yyleng; }
-")"                                 { registrar_token ("DELIMITADOR", yytext); yycolumn += yyleng; }
+"("                                 { registrar_token ("DELIMITADOR", yytext); REGISTRAR_UBICACION (); return '('; }
+")"                                 { registrar_token ("DELIMITADOR", yytext); REGISTRAR_UBICACION (); return ')'; }
 
-"{"                                 { registrar_token ("DELIMITADOR", yytext); yycolumn += yyleng; }
-"}"                                 { registrar_token ("DELIMITADOR", yytext); yycolumn += yyleng; }
+"{"                                 { registrar_token ("DELIMITADOR", yytext); REGISTRAR_UBICACION (); return '{'; }
+"}"                                 { registrar_token ("DELIMITADOR", yytext); REGISTRAR_UBICACION (); return '}'; }
 
-";"                                 { registrar_token ("DELIMITADOR", yytext); yycolumn += yyleng; }
-","                                 { registrar_token ("DELIMITADOR", yytext); yycolumn += yyleng; }
-"."                                 { registrar_token ("DELIMITADOR", yytext); yycolumn += yyleng; }
+";"                                 { registrar_token ("DELIMITADOR", yytext); REGISTRAR_UBICACION (); return ';'; }
+","                                 { registrar_token ("DELIMITADOR", yytext); REGISTRAR_UBICACION (); return ','; }
+"."                                 { registrar_token ("DELIMITADOR", yytext); REGISTRAR_UBICACION (); return '.'; }
 
     /* - Comentarios - */
 
