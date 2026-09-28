@@ -1,3 +1,5 @@
+#include "AST.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,6 +16,10 @@ extern FILE *salida_lexico;
 
 extern int yyparse (void);
 extern FILE *salida_sintactico;
+
+/* ========== Árbol Sintáctico Abstracto (AST) ========== */
+
+extern NodoAST *arbol;
 
 /* ========== Etapas del compilador ========== */
 
@@ -44,10 +50,11 @@ typedef struct {
 
 static int procesar_argumentos (int argc, char *argv [], Configuracion *configuracion);
 static int analizar_lexicamente (const Configuracion *configuracion, FILE *salida);
-static int analizar_sintacticamente (const Configuracion *configuracion, FILE *salida);
+static int analizar_sintacticamente (const Configuracion *configuracion, FILE *salida, const char *nombre_salida);
 static Etapa obtener_etapa (const char *nombre);
 static const char *nombre_etapa (Etapa etapa);
 static char *generar_nombre_salida (const char *archivo_entrada, Etapa etapa);
+static char *generar_nombre_dot (const char *nombre_salida);
 static int termina_con (const char *cadena, const char *sufijo);
 
 /* ========== Función principal ========== */
@@ -120,7 +127,7 @@ int main (int argc, char *argv []) {
 
     // Se ejecuta el análisis sintáctico.
     else {
-        resultado = analizar_sintacticamente (&configuracion, salida);
+        resultado = analizar_sintacticamente (&configuracion, salida, nombre_salida);
     }
     
     fclose (salida);
@@ -320,7 +327,7 @@ static int analizar_lexicamente (const Configuracion *configuracion, FILE *salid
  * La salida contiene únicamente la información
  * generada por el análisis sintáctico.
  */
-static int analizar_sintacticamente (const Configuracion *configuracion, FILE *salida) {
+static int analizar_sintacticamente (const Configuracion *configuracion, FILE *salida, const char *nombre_salida) {
     FILE *entrada;
     int resultado_parser;
 
@@ -364,6 +371,47 @@ static int analizar_sintacticamente (const Configuracion *configuracion, FILE *s
     if (resultado_parser != 0) {
         return EXIT_FAILURE;
     }
+
+    // En modo debug, se muestra el AST por consola y se genera su archivo DOT.
+    if (configuracion -> debug) {
+        char *nombre_dot;
+        FILE *archivo_dot;
+        
+        // Se imprime por consola.
+        imprimir_arbol (arbol);
+
+        nombre_dot = generar_nombre_dot (nombre_salida);
+
+        if (nombre_dot == NULL) {
+            fprintf (stderr, "ERROR: No se pudo generar el nombre del archivo DOT.\n");
+
+            liberar_arbol (arbol);
+            arbol = NULL;
+
+            return EXIT_FAILURE;
+        }
+
+        archivo_dot = fopen (nombre_dot, "w");
+
+        if (archivo_dot == NULL) {
+            fprintf (stderr, "ERROR: No se pudo crear el archivo %s.\n", nombre_dot);
+
+            free (nombre_dot);
+            liberar_arbol (arbol);
+            arbol = NULL;
+
+            return EXIT_FAILURE;
+        }
+
+        // Se genera el archivo DOT.
+        generar_dot (arbol, archivo_dot);
+
+        fclose (archivo_dot);
+        free (nombre_dot);
+    }
+
+    liberar_arbol (arbol);
+    arbol = NULL;
 
     return EXIT_SUCCESS;
 }
@@ -468,6 +516,48 @@ static char *generar_nombre_salida (const char *archivo_entrada, Etapa etapa) {
     memcpy (resultado, archivo_entrada, longitud);
 
     // Se agrega la nueva extensión.
+    strcpy (resultado + longitud, extension);
+
+    return resultado;
+}
+
+/**
+ * Genera el nombre del archivo DOT a partir del
+ * nombre del archivo de salida sintáctico.
+ * 
+ * Ejemplo:
+ * 
+ *      programa.sint -> programa.dot
+ */
+static char *generar_nombre_dot (const char *nombre_salida) {
+    const char *extension = ".dot";
+    const char *punto;
+    size_t longitud;
+    size_t longitud_extension;
+    char *resultado;
+
+    // Se busca el último punto del nombre de archivo.
+    punto = strrchr (nombre_salida, '.');
+
+    if (punto != NULL) {
+        longitud = (size_t) (punto - nombre_salida);
+    }
+    else {
+        longitud = strlen (nombre_salida);
+    }
+
+    longitud_extension = strlen (extension);
+
+    resultado = malloc (longitud + longitud_extension + 1);
+
+    if (resultado == NULL) {
+        return NULL;
+    }
+
+    // Se copia el nombre sin la extensión original.
+    memcpy (resultado, nombre_salida, longitud);
+
+    // Se agrega la extensión .dot.
     strcpy (resultado + longitud, extension);
 
     return resultado;
