@@ -42,6 +42,7 @@
 │       ├── TS/
 │       ├── Test/
 │       └── main.c
+│
 ├── Proyecto/
 │   ├── Docs/
 │   │   ├── Documentacion.md
@@ -50,9 +51,12 @@
 │   │   └── Proyecto - Especificación del Lenguaje.pdf
 │   ├── Makefile
 │   └── Src/
+│       ├── AST/
+│       ├── Common/
 │       ├── Lexer/
 │       ├── Parser/
 │       ├── Test/
+│       │   ├── AST/
 │       │   ├── Lexico/
 │       │   │   ├── Invalidas/
 │       │   │   └── Validas/
@@ -60,6 +64,7 @@
 │       │       ├── Invalidas/
 │       │       └── Validas/
 │       └── main.c
+│
 ├── .gitignore
 └── README.md
 ```
@@ -126,7 +131,7 @@ El trabajo se aborda de una manera incremental, mediante las siguientes etapas:
 5. Generación de **código objeto**.
 6. **Optimizador** y extensiones.
 
-Actualmente se encuentran implementadas las etapas de **análisis léxico** y **análisis sintáctico**.
+Actualmente se encuentran implementadas las etapas de **análisis léxico**, **análisis sintáctico** y **generación del árbol sintáctico abstracto (AST)**.
 
 ## *Compilación y ejecución*
 
@@ -171,7 +176,7 @@ El **objetivo `tests`** permite ejecutar todas las pruebas correspondientes a la
 make tests
 ```
 
-Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico** y del **análisis sintáctico**.
+Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico** y del **árbol sintáctico abstracto (AST)**.
 
 Para **ejecutar solamente las pruebas del análisis léxico**:
 
@@ -182,6 +187,12 @@ Para **ejecutar solamente las pruebas del análisis sintáctico**:
 
 ```bash
 make tests-sintactico
+```
+
+Para **ejecutar solamente las pruebas independientes del AST**:
+
+```bash
+make tests-ast
 ```
 
 Para **limpiar** los archivos generados:
