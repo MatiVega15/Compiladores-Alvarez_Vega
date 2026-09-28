@@ -21,15 +21,21 @@ RESULTADOS_SINTACTICO_DIR = $(RESULTADOS_DIR)/Sintactico
 RESULTADOS_SINTACTICO_VALIDAS_DIR = $(RESULTADOS_SINTACTICO_DIR)/Validas
 RESULTADOS_SINTACTICO_INVALIDAS_DIR = $(RESULTADOS_SINTACTICO_DIR)/Invalidas
 
+AST_TEST_DIR = $(TEST_DIR)/AST
+RESULTADOS_AST_DIR = $(RESULTADOS_DIR)/AST
+
 # ========== Archivos fuente ==========
 
 LEXER_SRC = Src/Lexer/AnalizadorLexico.lex
 PARSER_SRC = Src/Parser/AnalizadorSintactico.y
+AST_SRC = Src/AST/AST.c
 MAIN_SRC = Src/main.c
 
 # ========== Archivos de cabecera ==========
 
 PARSER_H = $(BUILD_DIR)/AnalizadorSintactico.tab.h
+TIPOS_H = Src/Common/Tipos.h
+AST_H = Src/AST/AST.h
 
 # ========== Archivos generados ==========
 
@@ -48,9 +54,11 @@ PRUEBAS_LEXICO_INVALIDAS = $(wildcard $(LEXICO_INVALIDAS_DIR)/*.ctds)
 PRUEBAS_SINTACTICO_VALIDAS = $(wildcard $(SINTACTICO_VALIDAS_DIR)/*.ctds)
 PRUEBAS_SINTACTICO_INVALIDAS = $(wildcard $(SINTACTICO_INVALIDAS_DIR)/*.ctds)
 
+PRUEBAS_AST = $(wildcard $(AST_TEST_DIR)/*.c)
+
 # ========== Objetivos ==========
 
-.PHONY: all tests tests-lexico tests-sintactico clean
+.PHONY: all tests tests-lexico tests-sintactico tests-ast clean
 
 # ========== Compilación del compilador ==========
 
@@ -60,7 +68,7 @@ all: $(BIN)
 # Enlazado final.
 $(BIN): $(MAIN_SRC) $(PARSER_C) $(LEXER_C)
 	@mkdir -p $(BUILD_DIR)
-	@gcc -I$(BUILD_DIR) $(MAIN_SRC) $(PARSER_C) $(LEXER_C) -o $(BIN)
+	@gcc -I$(BUILD_DIR) -ISrc/AST -ISrc/Common $(MAIN_SRC) $(PARSER_C) $(LEXER_C) $(AST_SRC) -o $(BIN)
 
 # ========== Generación del analizador sintáctico ==========
 
@@ -79,7 +87,7 @@ $(LEXER_C): $(LEXER_SRC) $(PARSER_H)
 # ========== Ejecución de todas las pruebas ==========
 
 # Ejecuta todas las pruebas disponibles.
-tests: tests-lexico tests-sintactico
+tests: tests-lexico tests-sintactico tests-ast
 	@echo "========================================="
 	@echo "      TODAS LAS PRUEBAS FINALIZADAS"
 	@echo "========================================="
@@ -168,15 +176,21 @@ tests-sintactico: $(BIN)
 	for prueba in $(PRUEBAS_SINTACTICO_VALIDAS); do \
 		nombre=$$(basename $$prueba .ctds); \
 		salida=$(RESULTADOS_SINTACTICO_VALIDAS_DIR)/$$nombre.sint; \
+		dot=$(RESULTADOS_SINTACTICO_VALIDAS_DIR)/$$nombre.dot; \
+		png=$(RESULTADOS_SINTACTICO_VALIDAS_DIR)/$$nombre.png; \
 		error=$(RESULTADOS_SINTACTICO_VALIDAS_DIR)/$$nombre.err; \
 		echo "---- $$nombre ----"; \
-		$(BIN) -target parse -o $$salida $$prueba \
+		$(BIN) -debug -target parse -o $$salida $$prueba \
+			> /dev/null \
 			2> $$error; \
 		resultado=$$?; \
 		if [ ! -s $$error ]; then \
 			rm -f $$error; \
 		fi; \
 		if [ $$resultado -eq 0 ]; then \
+			if [ -f $$dot ]; then \
+				dot -Tpng $$dot -o $$png; \
+			fi; \
 			echo "RESULTADO: OK"; \
 			ok=$$((ok + 1)); \
 		else \
@@ -203,6 +217,50 @@ tests-sintactico: $(BIN)
 			ok=$$((ok + 1)); \
 		else \
 			echo "RESULTADO: FALLIDA (se esperaba error)"; \
+			fallidas=$$((fallidas + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	echo "======================"; \
+	echo "Pruebas correctas: $$ok"; \
+	echo "Pruebas fallidas: $$fallidas"; \
+	echo "======================"; \
+	echo "";
+
+# ========== Pruebas del AST ==========
+
+# Ejecuta todas las pruebas independientes del AST.
+tests-ast:
+	@mkdir -p $(BUILD_DIR) $(RESULTADOS_AST_DIR)
+
+	@fallidas=0; \
+	ok=0; \
+	echo ""; \
+	echo "========================================="; \
+	echo "             PRUEBAS DEL AST"; \
+	echo "========================================="; \
+	echo ""; \
+	for prueba in $(PRUEBAS_AST); do \
+		nombre=$$(basename $$prueba .c); \
+		ejecutable=$(BUILD_DIR)/$$nombre; \
+		salida=$(RESULTADOS_AST_DIR)/$$nombre.txt; \
+		dot=$(RESULTADOS_AST_DIR)/$$nombre.dot; \
+		png=$(RESULTADOS_AST_DIR)/$$nombre.png; \
+		echo "---- $$nombre ----"; \
+		gcc -ISrc/AST -ISrc/Common $(AST_SRC) $$prueba -o $$ejecutable; \
+		resultado=$$?; \
+		if [ $$resultado -eq 0 ]; then \
+			$$ejecutable > $$salida; \
+			resultado=$$?; \
+		fi; \
+		if [ $$resultado -eq 0 ]; then \
+			if [ -f $$dot ]; then \
+				dot -Tpng $$dot -o $$png; \
+			fi; \
+			echo "RESULTADO: OK"; \
+			ok=$$((ok + 1)); \
+		else \
+			echo "RESULTADO: FALLIDA"; \
 			fallidas=$$((fallidas + 1)); \
 		fi; \
 		echo ""; \
