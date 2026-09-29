@@ -539,7 +539,11 @@ Luego del análisis léxico y sintáctico, el proyecto incorpora la representaci
 
 El AST es construido durante el **análisis sintáctico**, a partir de las acciones semánticas asociadas a las producciones de **Bison**. Cada construcción reconocida por el parser genera los nodos correspondientes y establece las relaciones entre ellos.
 
-En etapas posteriores, a cada nodo del AST se le vinculará su correspondiente elemento de la tabla de símbolos.
+En paralelo, el proyecto incorpora una **tabla de símbolos (TS)** que permite registrar y organizar la información asociada a los identificadores y demás entidades declaradas en el programa, como variables, funciones y parámetros.
+
+La TS organiza estos elementos de acuerdo con los distintos **niveles de ámbito** del programa y permite realizar búsquedas sobre ellos durante etapas posteriores del compilador.
+
+El AST mantiene **referencias** que permiten vincular, en etapas posteriores, los **nodos que correspondan con los elementos de la tabla de símbolos**.
 
 ### *2.1 Árbol sintáctico abstracto (AST)*
 
@@ -562,6 +566,7 @@ Cada nodo del AST se representa mediante la estructura `NodoAST`, que contiene:
 - La **cantidad** actual de hijos.
 - La **capacidad** disponible del arreglo de hijos.
 - La **línea y columna** asociadas a la construcción dentro del código fuente.
+- Una **referencia al símbolo** correspondiente de la tabla de símbolos (TS), cuando exista.
 
 El **tipo de nodo** permite distinguir las distintas construcciones del lenguaje. La implementación actual contempla nodos para:
 
@@ -685,6 +690,8 @@ La función `liberar_arbol ()` **recorre recursivamente el árbol** y libera:
 
 Esta estrategia **permite liberar el árbol completo desde su raíz** sin requerir que cada etapa conozca individualmente todos los nodos que fueron creados.
 
+Las referencias a símbolos de la TS **no se liberan junto con el AST**, ya que los símbolos son administrados por la tabla de símbolos.
+
 La implementación también verifica los **errores de reserva de memoria** y finaliza la ejecución cuando no es posible reservar o ampliar correctamente las estructuras necesarias.
 
 #### *2.1.9 Representación textual del AST*
@@ -718,7 +725,15 @@ Esta funcionalidad permite **comprobar visualmente** que la estructura construid
 
 #### *2.1.11 Relación con la tabla de símbolos (TS)*
 
-En la implementación actual del proyecto, **todavía no se asocian nodos con las entradas correspondientes de la tabla de símbolos**.
+El AST mantiene una **referencia a la entrada correspondiente a la tabla de símbolos (TS)** mediante el campo `Simbolo *simbolo` de cada nodo.
+
+Esta referencia permite que, en las etapas posteriores del compilador, **los nodos que representan declaraciones, funciones, parmámetros, identificadores y llamadas a funciones puedan asociarse a la información almacenada en la tabla de símbolos**.
+
+Al crear un nodo del AST, **esta referencia se inicializa como `NULL`**. La asociación efectiva entre los nodos del AST y las entradas de la TS se realiza durante el **análisis semántico**.
+
+El AST **no es propietario de los símbolos**. La memoria de las estructuras `Simbolo` pertenece a la tabla de símbolos, por lo que `liberar_arbol ()` no libera las referencias almacenadas en este campo.
+
+De esta manera, se mantiene una **separación clara de responsabilidades**: el AST conserva la representación estructurada del programa y referencias a información semántica, mientras que la TS administra las entradas y su memoria.
 
 #### *2.1.12 Cambios respecto del Pre-Proyecto*
 
@@ -775,6 +790,169 @@ Los resultados de las pruebas **no forman parte del repositorio** y se encuentra
 Además de estas pruebas independientes, el AST se **verifica directamente mediante las pruebas válidas del análisis sintáctico**, ya que el parser construye un árbol durante su ejecución.
 
 En dichas pruebas, el **modo de depuración** permite generar los archivos `.dot` y posteriormente convertirlos a `.png`, facilitando la inspección visual de la estructura obtenida.
+
+### *2.2 Tabla de símbolos (TS)*
+
+La tabla de símbolos (TS) fue implementada como una estructura que permite **registrar, organizar y consultar la información asociada a las entidades declaradas en el programa**.
+
+La **implementación** se encuentra separada en un módulo propio:
+
+- [`TS.h`](../Src/TS/TS.h).
+- [`TS.c`](../Src/TS/TS.c).
+- [`Tipos.h`](../Src/Common/Tipos.h).
+
+La TS permite almacenar información de **variables, funciones y parámetros**, asociando a cada símbolo un nombre, un tipo de dato y una clase. Además, mantiene información relacionada con su estado de inicialización y una dirección para poder utilizar en etapas posteriores del compilador.
+
+La tabla organiza los símbolos mediante **niveles de ámbito**, permitiendo representar distintos contextos de declaración y realizar búsquedas desde el nivel más interno hacia los niveles exteriores.
+
+#### *2.2.1 Diseño de los símbolos*
+
+Cada símbolo de la TS se representa mediante la **estructura `Simbolo`**, que contiene:
+
+- El **nombre** del identificador.
+- El **tipo de dato** asociado, representado mediante `TipoDato`.
+- La **clase del símbolo**, representada mediante `ClaseSimbolo`.
+- El estado de **inicialización** del símbolo.
+- La **dirección** asociada al símbolo, cuando corresponda.
+- Un puntero al **siguiente símbolo** del mismo nivel.
+
+Las **clases de símbolos** contempladas actualmente son:
+
+- `SIMBOLO_VARIABLE`, para **variables** declaradas en el programa.
+- `SIMBOLO_FUNCION`, para **funciones**.
+- `SIMBOLO_PARAMETRO`, para **parámetros** de funciones.
+
+La incorporación de `SIMBOLO_PARAMETRO` permite **distinguir los parámetros de las variables y funciones**, manteniendo esta información disponible para las etapas posteriores del compilador.
+
+#### *2.2.2 Representación de los niveles de ámbito*
+
+Los símbolos se organizan mediante **estructuras `Nivel`**.
+
+Cada nivel contiene:
+
+- Una **lista enlazada de símbolos** pertenecientes al nivel.
+- Una **referencia al nivel anterior**.
+
+La tabla de símbolos completa se representa mediante `TablaSimbolos`, que mantiene un puntero al **nivel actualmente abierto**.
+
+Los niveles se organizan como una **pila**. Al abrir un nuevo nivel, este pasa a ser el nivel actual y conserva una referencia al nivel que se encontraba abierto anteriormente.
+
+Esta organización permite representar **ámbitos anidados** y facilita la búsqueda de identificadores respetando la visibilidad determinada por el nivel en el que fueron declarados.
+
+#### *2.2.3 Inicialización de la tabla de símbolos*
+
+La función `iniciar_TS ()` crea una **nueva tabla de símbolos** y genera inicialmente un **nivel vacío**.
+
+De esta forma, la tabla siempre comienza con un **nivel abierto**, sobre el cual pueden realizarse las primeras inserciones.
+
+La función **reserva dinámicamente la memoria** necesaria para la estructura `TablaSimbolos` y para su nivel actual.
+
+#### *2.2.4 Apertura y cierre de niveles*
+
+La función `abrir_nivel ()` permite **crear un nuevo nivel** de la tabla de símbolos.
+
+El nuevo nivel se establece como **nivel actual** y mantiene una referencia al **nivel anterior**.
+
+La función `cerrar_nivel ()` elimina el nivel actualmente abierto y todos los símbolos que contiene. Luego, **el nivel anterior pasa a ser el nivel actual**.
+
+Esta organización permite que los **símbolos declarados dentro de un ámbito** dejen de estar disponibles cuando dicho ámbito se cierra.
+
+#### *2.2.5 Inserción de símbolos*
+
+La función `insertar_elemento ()` permite incorporar un **nuevo símbolo al nivel actual**.
+
+Los símbolos se almacenan mediante una **lista enlazada**, insertándose al comienzo de la lista correspondiente al nivel actual.
+
+La función **retorna** un puntero al símbolo insertado cuando la operación es exitosa, o `NULL` cuando no puede realizarse la inserción.
+
+**No se permiten dos símbolos con el mismo nombre dentro de un mismo nivel**. Esta restricción permite detectar declaraciones duplicadas dentro de un mismo ámbito.
+
+#### *2.2.6 Búsqueda de símbolos*
+
+La función `buscar_elemento ()` permite **localizar un símbolo** a partir de su nombre.
+
+La búsqueda comienza en el **nivel actual** y continúa hacia los niveles exteriores hasta encontrar una coincidencia.
+
+Esta estrategia permite implementar el comportamiento habitual de los **ámbitos anidados**.
+
+Cuando existe un símbolo con el mismo nombre en un nivel interno y en uno externo, la búsqueda encuentra primero el símbolo del nivel interno. De esta forma, **los símbolos de niveles internos pueden ocultar a símbolos con el mismo nombre pertenecientes a niveles exteriores**.
+
+Si el símbolo no se encuentra en niguno de los niveles abiertos, la función retorna `NULL`.
+
+#### *2.2.7 Estado de inicialización*
+
+Cada símbolo mantiene un campo `inicializada` que permite **registrar si ya posee un valor asociado**.
+
+Actualmente, los símbolos correspondientes a **variables** y **funciones** comienzan con estado `inicializada = 0` indicando que todavía no fueron inicializados.
+
+Los **parámetros** comienzan con estado `inicializada = 1` ya que reciben su valor mediante los argumentos de la función al momento de su invocación.
+
+Esta información resulta de utilidad durante el **análisis semántico** para detectar uso de variables que todavía no fueron inicializadas.
+
+#### *2.2.8 Dirección asociada al símbolo*
+
+Cada símbolo contiene un campo `direccion` destinado a almacenar una **ubicación asociada al símbolo**.
+
+Al momento de insertar un nuevo símbolo, este campo se **inicializa** con `direccion = -1`. El valor indica que todavía no existe una dirección asignada.
+
+La asignación efectiva de direcciones corresponde a las etapas posteriores relacionadas con la **representación y generación de código**.
+
+#### *2.2.9 Manejo de memoria*
+
+La implementación de la TS **administra dinámicamente la memoria** utilizada por la tabla, sus niveles y sus símbolos.
+
+La función `iniciar_TS ()` **reserva la memoria** correspondiente a la tabla y crea su nivel inicial.
+
+La función `insertar_elemento ()` **reserva memoria** para cada nuevo símbolo y realiza una copia independiente del nombre.
+
+La función `cerrar_nivel ()` utiliza **`liberar_nivel ()` para liberar**:
+
+1. Los **nombres** almacenados dinámicamente a los símbolos.
+2. Las **estructuras `Simbolo`** pertenecientes al nivel.
+3. La **estructura `Nivel`** correspondiente.
+
+La función `liberar_TS ()` **cierra todos los niveles** que permanezcan abiertos y finalmente **libera la estructura principal de la tabla**. De esta manera, la TS es responsable de administrar la memoria correspondiente a sus símbolos.
+
+#### *2.2.10 Cambios respecto del Pre-Proyecto*
+
+La implementación actual de la tabla de símbolos **amplía la versión desarrollada durante el Pre-Proyecto** para adaptarla a las nuevas construcciones del lenguaje C-TDS.
+
+Entre los principales **cambios** se encuentran:
+
+- Incorporación de la **clase** `SIMBOLO_PARAMETRO`.
+- Incorporación del **estado de inicialización** mediante el campo `inicializada`.
+- Incorporación del **campo** `direccion` para almacenar la ubicación asociada al símbolo.
+- Incorporación de **validaciones** sobre los tipos de datos y las clases de símbolos durante la inserción.
+
+La **organización general mediante niveles, listas enlazadas y búsqueda desde el nivel más interno hacia los niveles exteriores** se mantiene respecto de la implementación del Pre-Proyecto.
+
+#### *2.2.11 Pruebas*
+
+Se incorporaron **8 pruebas independientes** para verificar el funcionamiento del módulo de la tabla de símbolos.
+
+Estas pruebas permiten **verificar el comportamiento de las operaciones fundamentales del módulo**, incluyendo:
+
+- **Inicialización** de la tabla.
+- **Inserción** de uno y varios símbolos.
+- Detección de **símbolos duplicados** dentro de un mismo nivel.
+- Apertura y cierre de **niveles**.
+- Búsqueda de **símbolos inexistentes**.
+- **Ocultamiento** de símbolos de niveles exteriores.
+- **Liberación de la memoria** utilizada por la tabla.
+
+Las pruebas se encuentran **organizadas** en:
+
+```text
+Src/Test/TS/
+```
+
+Los **resultados** generados durante su ejecución se almacenan en:
+
+```text
+Src/Test/Resultados/TS/
+```
+
+Los resultados de las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
 
 ---
 
@@ -1026,6 +1204,28 @@ Src/Test/Resultados/AST/
 
 Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**.
 
+### *Ejecutar las pruebas de la TS*
+
+Para **ejecutar todas las pruebas independientes de la tabla de símbolos (TS)**:
+
+```bash
+make tests-ts
+```
+
+El objetivo compila y ejecuta las **8 pruebas** ubicadas en:
+
+```text
+Src/Test/TS/
+```
+
+Los **resultados** de estas pruebas se generan en:
+
+```text
+Src/Test/Resultados/TS/
+```
+
+Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**.
+
 ### *Ejecutar todas las pruebas*
 
 El objetivo:
@@ -1040,7 +1240,8 @@ En el estado actual del proyecto, esto equivale a ejecutar:
 
 1. Las pruebas del **análisis léxico**.
 2. Las pruebas del **análisis sintáctico**.
-3. Las pruebas independientes del **AST**. 
+3. Las pruebas independientes del **AST**.
+4. Las pruebas independientes de la **TS**.
 
 Este objetivo se encuentra **preparado para incorporar las pruebas de las etapas posteriores** a medida que sean implementadas.
 
