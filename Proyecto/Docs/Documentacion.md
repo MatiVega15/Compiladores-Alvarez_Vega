@@ -191,9 +191,7 @@ Los archivos `.err` **solamente se conservan cuando contienen información**. De
 
 El análisis sintáctico fue implementado utilizando **Bison**, a partir de la gramática del lenguaje C-TDS definida previamente en la especificación.
 
-Su función es **verificar que la secuencia de tokens producida por el analizador léxico respete la estructura sintáctica del lenguaje**.
-
-En esta etapa no se construye todavía el árbol sintáctico abstracto (AST) ni se realizan comprobaciones semánticas.
+Su función es **verificar que la secuencia de tokens producida por el analizador léxico respete la estructura sintáctica del lenguaje** y, como resultado de las acciones semánticas asociadas a las producciones, **construir el árbol sintáctico abstracto (AST)** correspondiente al programa reconocido.
 
 El analizador sintáctico se encuentra **integrado con el analizador léxico**, recibiendo los tokens generados por **Flex** junto con sus valores semánticos y su ubicación dentro del archivo fuente.
 
@@ -214,6 +212,18 @@ Se tomó esta **decisión de diseño** por los siguientes motivos:
 - La utilización de una producción general del estilo `<expr> <bin_op> <expr>` producía **conflictos shift/reduce**. Por tal motivo, se decidió eliminar los no terminales `<bin_op>`, `<arith_op>`, `<cond_op>` y `<rel_op>`, incorporando una producción específica para cada operador y utilizando las declaraciones de precedencia y asociatividad de Bison.
 
 *Para revisar a detalle la gramática transformada que se utilizó y la manera de afrontar las precedencias y asociatividades, consultar [Gramática transformada](Especificacion.md#12-gramática-transformada-para-bison).*
+
+Además de las listas representadas mediante producciones auxiliares de la gramática, las acciones semánticas del parser requieren **listas temporales de nodos del AST** para construcciones cuya cantidad de elementos puede variar, como declaraciones, parámetros y argumentos.
+
+Para resolver esta necesidad, se **implementó una estructura auxiliar privada denominada `ListaNodos`**. Esta estructura almacena temporalmente punteros a nodos y permite construir las listas de manera incremental antes de incorporarlas al AST definitivo.
+
+Se tomó la decisión de mantener `ListaNodos` **fuera del módulo AST** porque se trata de una estructura propia del proceso de reconocimiento sintáctico y no de una construcción del lenguaje. De esta manera, **el AST mantiene únicamente nodos que representan construcciones reales del programa**, mientras que las estructuras utilizadas para facilitar las acciones de Bison permanecen encapsuladas dentro del parser.
+
+Las listas utilizan **crecimiento dinámico**, aumentando su capacidad cuando se alcanza el límite actual. Además, las operaciones de transferencia de elementos permiten incorporar los nodos de una lista temporal a otra sin duplicar los nodos ni modificar su propiedad.
+
+Esta separación también permite simplificar el **manejo de memoria**: `ListaNodos` almacena punteros, pero no es propietaria de los nodos que contiene. Al liberar una lista temporal, se libera únicamente la estructura auxiliar, mientras que los nodos son liberados posteriormente junto con el AST al que fueron incorporados.
+
+Las acciones semánticas de Bison utilizan estas listas para **construir progresivamente el árbol**. Una vez que una construcción sintáctica está completa, los nodos temporales son transferidos al nodo correspondiente del AST.
 
 El analizador sintáctico utiliza además `%locations` para conservar la **ubicación de los elementos sintácticos** y `%define parse.error detailed` para obtener **mensajes de error sintáctico** más descriptivos.
 
@@ -248,6 +258,12 @@ El **orden en que se registran las construcciones** en el archivo `.sint` no nec
 
 La salida `.sint` es **independiente de los valores semánticos utilizados internamente por Bison**. Su objetivo es documentar el resultado de esta etapa de compilación sin interferir con el funcionamiento del parser.
 
+Además, si el **modo de depuración** se encuentra activo, la ejecución exitosa muestra por pantalla una **representación textual del AST** asociado al programa, y genera un **archivo .dot con la estructura del AST**. Así, puede obtenerse una **representación visual usando Graphviz** con el comando:
+
+```bash
+dot -Tpng -o salida.png archivo.dot
+```
+
 En caso de producirse un **error sintáctico**, el mensaje de error se informa mediante la salida estándar de errores (`stderr`) y la ejecución de esta etapa finaliza indicando que el análisis no fue exitoso.
 
 #### *1.2.3 Ubicación de errores*
@@ -255,6 +271,8 @@ En caso de producirse un **error sintáctico**, el mensaje de error se informa m
 El analizador sintáctico utiliza las ubicaciones proporcionadas por **Bison** mediante `%locations`.
 
 La información de ubicación se obtiene a través de `yylloc`, que contiene la **posición del elemento sintáctico** actualmente analizado.
+
+Además de utilizarse para informar errores, **esta información se conserva al crear los nodos del AST**, almacenando en cada nodo la línea y columna correspondientes a la construcción reconocida.
 
 Cuando se produce un **error sintáctico**, `yyerror ()` informa:
 
@@ -297,6 +315,63 @@ Por ejemplo:
 
 Estos mensajes permiten observar el orden en que Bison reduce las expresiones y comprobar el comportamiento de las **reglas de precedencia y asociatividad**.
 
+Además, en el **modo depuración** se genera una **representación textual** de la estructura del programa reconocido, correspondiente al AST. 
+
+Por ejemplo:
+
+```text
+PROGRAMA
+   DECLARACION FUNCIÓN [BOOLEAN]
+      IDENTIFICADOR: main
+      BLOQUE
+         DECLARACION VARIABLE [BOOLEAN]
+            IDENTIFICADOR: resultado
+         =
+            IDENTIFICADOR: resultado
+            ||
+               &&
+                  TRUE
+                  FALSE
+               !
+                  TRUE
+```
+
+Por su parte, el **modo depuración** deja preparado un **archivo .dot** con la estructura del AST, que posteriormente puede ser convertido a **.png** con **Graphviz**.
+
+Por ejemplo:
+
+```text
+digraph AST {
+    nodo0 [label="PROGRAMA"];
+    nodo1 [label="DECLARACION FUNCIÓN [BOOLEAN]"];
+    nodo2 [label="IDENTIFICADOR: main"];
+    nodo1 -> nodo2;
+    nodo3 [label="BLOQUE"];
+    nodo4 [label="DECLARACION VARIABLE [BOOLEAN]"];
+    nodo5 [label="IDENTIFICADOR: resultado"];
+    nodo4 -> nodo5;
+    nodo3 -> nodo4;
+    nodo6 [label="="];
+    nodo7 [label="IDENTIFICADOR: resultado"];
+    nodo6 -> nodo7;
+    nodo8 [label="||"];
+    nodo9 [label="&&"];
+    nodo10 [label="TRUE"];
+    nodo9 -> nodo10;
+    nodo11 [label="FALSE"];
+    nodo9 -> nodo11;
+    nodo8 -> nodo9;
+    nodo12 [label="!"];
+    nodo13 [label="TRUE"];
+    nodo12 -> nodo13;
+    nodo8 -> nodo12;
+    nodo6 -> nodo8;
+    nodo3 -> nodo6;
+    nodo1 -> nodo3;
+    nodo0 -> nodo1;
+}
+```
+
 El modo de depuración se mantiene **separado de la generación del archivo `.sint`**. De esta manera, la salida de depuración destinada al desarrollador no se mezcla con la salida correspondiente al resultado de la etapa.
 
 #### *1.2.5 Integración con el análisis léxico*
@@ -328,10 +403,10 @@ Las **constantes lógicas** `TRUE` y `FALSE` no llevan un valor semántico propi
 La integración permite mantener una **separación clara de responsabilidades**:
 
 - **Flex** reconoce los componentes léxicos.
-- **Bison** verifica la estructura sintáctica.
+- **Bison** verifica la estructura sintáctica y construye el AST.
 - **main.c** coordina la ejecución de ambas etapas.
 
-En esta etapa, el analizador sintáctico utiliza los **valores semánticos** únicamente para permitir el reconocimiento de los tokens correspondientes. La construcción del AST y el procesamiento semántico serán incorporados en etapas posteriores.
+Los **valores semánticos** proporcionados por el lexer son utilizados por las acciones del parser para construir los nodos correspondientes. Por ejemplo, los identificadores y literales reconocidos por Flex proporcionan la información necesaria para crear los nodos hoja del AST.
 
 #### *1.2.6 Cambios respecto del Pre-Proyecto*
 
@@ -370,9 +445,11 @@ Entre los **principales cambios** se encuentran:
 - Incorporación de las **reglas de precedencia y asociatividad** correspondientes a los operadores.
 - Incorporación de **mensajes de depuración** para observar las reducciones de expresiones.
 
-A diferencia del Pre-Proyecto, donde las acciones del parser estaban orientadas a la **construcción del AST**, en la implementación actual estas acciones todavía no construyen el AST.
+Además de ampliar las construcciones reconocidas, la implementación actual incorpora la **construcción del AST durante el análisis sintáctico**. Las acciones semánticas asociadas a las producciones crean los nodos correspondientes y los relacionan mediante sus hijos.
 
-En esta etapa, las acciones se utilizan principalmente para **registrar las construcciones sintácticas reconocidas** y generar la salida `.sint`.
+Para manejar construcciones con una cantidad variable de elementos se incorporó la **estructura auxiliar `ListaNodos`**. Esta estructura permite construir temporalmente listas de declaraciones, parámetros y argumentos y transferir posteriormente sus nodos al AST.
+
+A diferencia del Pre-Proyecto, la implementación actual separa explícitamente las **estructuras temporales utilizadas por el parser**, como las listas de declaraciones, parámetros y argumentos, de la representación definitiva del programa. **Esta decisión evita utilizar nodos del AST como simples contenedores auxiliares y permite mantener una representación coherente del árbol**.
 
 #### *1.2.7 Pruebas*
 
@@ -380,6 +457,8 @@ Se incorporaron **120 pruebas** para el análisis sintáctico, divididas en:
 
 - **55 pruebas válidas**, destinadas a verificar que programas sintácticamente correctos sean aceptados.
 - **65 pruebas inválidas**, destinadas a verificar que construcciones que no pertenecen a la gramática sean rechazadas.
+
+Además de verificar la aceptación o rechazo de cada entrada, las pruebas válidas permiten comprobar la **estructura del AST generado** mediante los archivos correspondientes y la inspección de los árboles obtenidos.
 
 Las **pruebas válidas** cubren:
 
@@ -452,6 +531,429 @@ Para cada prueba se genera el **archivo `.sint`** correspondiente. En las prueba
 
 Los archivos `.err` **solamente se conservan cuando contienen información**. De esta manera, las pruebas válidas que no producen errores no generan archivos de error vacíos.
 
+Por otro lado, las pruebas válidas también generan **archivos .dot y .png** con el AST generado, para poder verificar visualmente que el parser está construyendo los árboles esperados para las etapas posteriores.
+
+## *2. Generación del árbol sintáctico abstracto (AST) y generación de la tabla de símbolos (TS)*
+
+Luego del análisis léxico y sintáctico, el proyecto incorpora la representación estructurada del programa mediante un **árbol sintáctico abstracto (AST)**.
+
+El AST es construido durante el **análisis sintáctico**, a partir de las acciones semánticas asociadas a las producciones de **Bison**. Cada construcción reconocida por el parser genera los nodos correspondientes y establece las relaciones entre ellos.
+
+En paralelo, el proyecto incorpora una **tabla de símbolos (TS)** que permite registrar y organizar la información asociada a los identificadores y demás entidades declaradas en el programa, como variables, funciones y parámetros.
+
+La TS organiza estos elementos de acuerdo con los distintos **niveles de ámbito** del programa y permite realizar búsquedas sobre ellos durante etapas posteriores del compilador.
+
+El AST mantiene **referencias** que permiten vincular, en etapas posteriores, los **nodos que correspondan con los elementos de la tabla de símbolos**.
+
+### *2.1 Árbol sintáctico abstracto (AST)*
+
+El AST fue implementado como una **estructura jerárquica de nodos** que representa las construcciones relevantes del programa, eliminando información sintáctica que no resulta necesaria para las etapas posteriores del compilador.
+
+La **implementación** se encuentra separada en un módulo propio:
+
+- [`AST.h`](../Src/AST/AST.h).
+- [`AST.c`](../Src/AST/AST.c).
+- [`Tipos.h`](../Src/Common/Tipos.h).
+
+#### *2.1.1 Diseño de los nodos*
+
+Cada nodo del AST se representa mediante la estructura `NodoAST`, que contiene:
+
+- El **tipo de nodo**, representado mediante el enumerado `TipoNodo`.
+- El **tipo de dato asociado**, representado mediante `TipoDato`.
+- Un **valor**, cuando la construcción necesita almacenar información adicional.
+- Un arreglo dinámico de **hijos**.
+- La **cantidad** actual de hijos.
+- La **capacidad** disponible del arreglo de hijos.
+- La **línea y columna** asociadas a la construcción dentro del código fuente.
+- Una **referencia al símbolo** correspondiente de la tabla de símbolos (TS), cuando exista.
+
+El **tipo de nodo** permite distinguir las distintas construcciones del lenguaje. La implementación actual contempla nodos para:
+
+- El **programa** y las **declaraciones**.
+- Las **funciones** y sus **parámetros**.
+- Los **bloques** y las **sentencias**.
+- Las **asignaciones** y **llamadas** a funciones.
+- Las sentencias **`if`, `while`, `return`** y **sentencias vacías**.
+- Los operadores **aritméticos**.
+- Los operadores **relacionales**.
+- Los operadores **lógicos**.
+- Los operadores **unarios**.
+- Los **identificadores** y **literales**.
+
+#### *2.1.2 Representación de valores*
+
+Para almacenar **información** asociada a determinados nodos se utiliza la unión `ValorNodo`.
+
+Actualmente se contemplan:
+
+- `numero`, para los literales **enteros**.
+- `real`, para los literales **reales**.
+- `identificador`, para los **identificadores** y nombres de **llamadas** a funciones.
+
+Los nodos que no necesitan almacenar un valor adicional no utilizan estos campos.
+
+Esta separación permite que la estructura del nodo sea común par todas las construcciones del lenguaje, **manteniendo únicamente la información adicional necesaria en cada caso**.
+
+Las cadenas correspondientes a identificadores se **almacenan dinámicamente**. Esto permite que cada nodo mantenga su propio lexema y que la memoria pueda ser liberada correctamente al destruir el árbol. 
+
+#### *2.1.3 Tipos de datos*
+
+Los **tipos de datos** del lenguaje se representan mediante el enumerado `TipoDato`, definido en `Tipos.h`.
+
+Actualmente se contemplan:
+
+- `TIPO_INT`.
+- `TIPO_BOOLEAN`.
+- `TIPO_FLOAT`.
+- `TIPO_VOID`.
+- `TIPO_NO_DEFINIDO`.
+
+Cuando se crea un nodo, su tipo de dato se establece **inicialmente como `TIPO_NO_DEFINIDO`**.
+
+**El tipo puede establecerse durante la construcción sintáctica cuando la información ya se encuentra disponible**, por ejemplo en declaraciones de variables, funciones y parámetros.
+
+En las construcciones cuyo tipo depende de **información que todavía no fue determinada**, se mantiene `TIPO_NO_DEFINIDO` para que pueda ser resuelto durante las etapas posteriores.
+
+Esta decisión permite **separar la construcción sintáctica del análisis semántico**, evitando realizar durante la creación del AST comprobaciones que corresponden a etapas posteriores.
+
+#### *2.1.4 Representación n-aria*
+
+El AST utiliza una **representación n-aria**, es decir, un nodo puede tener una **cantidad variable de hijos**.
+
+Esta decisión resulta adecuada para **construcciones que pueden contener una cantidad variable de elementos**, como:
+
+- **Programas** con múltiples declaraciones.
+- **Bloques** con múltiples declaraciones y sentencias.
+- **Declaraciones** de variables con múltiples identificadores.
+- **Funciones** con múltiples parámetros.
+- **Llamadas** con múltiples argumentos.
+
+Por otro lado, las **operaciones binarias** tienen exactamente dos hijos y las **operaciones unarias** tienen un único hijo.
+
+Esta representación **evita introducir nodos intermedios que no representan construcciones reales del lenguaje** únicamente para poder almacenar listas de elementos.
+
+#### *2.1.5 Arreglo dinámico de hijos*
+
+Los hijos de cada nodo se almacenan mediante un **arreglo dinámico de punteros** a `NodoAST`.
+
+Al crear un nodo, el arreglo **comienza sin capacidad reservada**. Cuando se agrega el primer hijo, se reserva espacio y, cuando la capacidad se alcanza, esta **se incrementa geométricamente**.
+
+La capacidad comienza en `2` elementos y posteriormente se duplica:
+
+```text
+2 → 4 → 8 → 16 → ...
+```
+
+Esta estrategia **evita realizar una operación de `realloc` por cada nuevo hijo** y permite que las construcciones con una cantidad variable de elementos puedan **crecer de manera eficiente**.
+
+La **operación** responsable de esta tarea es `agregar_hijo ()`.
+
+#### *2.1.6 Construcción del AST durante el análisis sintáctico*
+
+Los nodos del AST se construyen directamente desde las **acciones semánticas** del parser.
+
+Cada producción relevante de la gramática **crea el nodo correspondiente y agrega como hijos los nodos que representan sus componentes**.
+
+Por ejemplo:
+
+- Una **asignación** genera un nodo `AST_ASIGNACION` con el identificador destino y la expresión como hijos.
+- Una **operación binaria** genera un nodo correspondiente al operador con sus dos operandos como hijos.
+- Una **operación unaria** genera un nodo con un único hijo.
+- Un **`return`** puede tener cero o un hijo dependiendo de si posee expresión.
+- Un **`if`** posee la condición y el bloque correspondiente, y agrega un tercer hijo cuando existe `else`.
+- Una **llamada a función** almacena el nombre de la función y sus argumentos.
+- Una **función** contiene su identificador, sus parámetros y su bloque.
+
+#### *2.1.7 Ubicación de los nodos*
+
+Cada nodo del AST **almacena la línea y columna** asociada a la construcción sintáctica que representa.
+
+Esta información se obtiene mediante las **ubicaciones proporcionadas por Bison** y se conserva al momento de crear los nodos mediante `crear_nodo ()`.
+
+La ubicación permite **mantener información del código fuente dentro del árbol** y constituye una base para las etapas posteriores, especialmente para la generación de mensajes de error durante el análisis semántico.
+
+#### *2.1.8 Manejo de memoria*
+
+La implementación del AST incluye **mecanismos específicos para administrar la memoria** utilizada por los nodos y sus hijos.
+
+La función `crear_nodo ()` **reserva memoria** para cada nodo.
+
+La función `agregar_hijo ()` **administra dinámicamente el arreglo** de hijos.
+
+La función `liberar_arbol ()` **recorre recursivamente el árbol** y libera:
+
+1. Los **subárboles** correspondientes a cada hijo.
+2. Las **cadenas dinámicas** almacenadas en los nodos que corresponda.
+3. El **arreglo** de hijos.
+4. El propio **nodo**.
+
+Esta estrategia **permite liberar el árbol completo desde su raíz** sin requerir que cada etapa conozca individualmente todos los nodos que fueron creados.
+
+Las referencias a símbolos de la TS **no se liberan junto con el AST**, ya que los símbolos son administrados por la tabla de símbolos.
+
+La implementación también verifica los **errores de reserva de memoria** y finaliza la ejecución cuando no es posible reservar o ampliar correctamente las estructuras necesarias.
+
+#### *2.1.9 Representación textual del AST*
+
+Se implementó la función `imprimir_arbol ()` para obtener una **representación jerárquica del AST** mediante la salida estándar.
+
+La función recorre recursivamente el árbol e **imprime cada nodo con una indentación correspondiente a su nivel**.
+
+Cuando corresponde, también muestra:
+
+- El **valor** del nodo.
+- El **tipo** de dato asociado.
+
+Esta representación se utiliza principalmente durante el **modo de depuración**, permitiendo inspeccionar rápidamente la estructura generada por el parser sin necesidad de utilizar una herramienta gráfica.
+
+#### *2.1.10 Generación de archivos DOT*
+
+Además de la representación textual, el módulo AST permite generar una **representación del árbol en formato DOT**, mediante la función `generar_dot ()`.
+
+A cada nodo se le asigna un **identificador numérico** y se genera una relación dirigida entre cada nodo padre y sus hijos.
+
+El archivo resultante puede procesarse con **Graphviz** para obtener una representación gráfica del árbol:
+
+```bash
+dot -Tpng -o salida.png archivo.dot
+```
+
+La generación de DOT se utiliza actualmente durante el **modo depuración** del análisis sintáctico.
+
+Esta funcionalidad permite **comprobar visualmente** que la estructura construida por las acciones semánticas de Bison coincide con la estructura esperada para el programa analizado.
+
+#### *2.1.11 Relación con la tabla de símbolos (TS)*
+
+El AST mantiene una **referencia a la entrada correspondiente a la tabla de símbolos (TS)** mediante el campo `Simbolo *simbolo` de cada nodo.
+
+Esta referencia permite que, en las etapas posteriores del compilador, **los nodos que representan declaraciones, funciones, parmámetros, identificadores y llamadas a funciones puedan asociarse a la información almacenada en la tabla de símbolos**.
+
+Al crear un nodo del AST, **esta referencia se inicializa como `NULL`**. La asociación efectiva entre los nodos del AST y las entradas de la TS se realiza durante el **análisis semántico**.
+
+El AST **no es propietario de los símbolos**. La memoria de las estructuras `Simbolo` pertenece a la tabla de símbolos, por lo que `liberar_arbol ()` no libera las referencias almacenadas en este campo.
+
+De esta manera, se mantiene una **separación clara de responsabilidades**: el AST conserva la representación estructurada del programa y referencias a información semántica, mientras que la TS administra las entradas y su memoria.
+
+#### *2.1.12 Cambios respecto del Pre-Proyecto*
+
+La implementación actual del AST **amplía considerablemente** la representación utilizada durante el Pre-Proyecto.
+
+Entre los principales cambios se encuentran:
+
+- Incorporación de nodos para **funciones** y sus **parámetros**.
+- Incorporación de **bloques**.
+- Incorporación de **llamadas** a funciones.
+- Incorporación de **`if`, `else` y `while`**.
+- Incorporación de **sentencias vacías**.
+- Incorporación de todos los **operadores** definidos por C-TDS.
+- Incorporación de operadores **unarios**.
+- Incorporación de literales **reales**.
+- Incorporación de información de **columna**.
+- Incorporación de una **capacidad dinámica** para el arreglo de hijos.
+- Incorporación de **reales** en el almacenamiento `union`.
+- Incorporación de la representación **`TIPO_FLOAT`**.
+- **Separación** entre el AST definitivo y las listas temporales utilizadas por el parser.
+
+En particular, el uso de un **arreglo de hijos con capacidad dinámica** reemplaza la estrategia utilizada en el Pre-Proyecto, donde el arreglo se redimensionaba en cada incorporación de un nuevo hijo.
+
+La implementación actual proporciona una **representación más general para las construcciones del lenguaje C-TDS**, manteniendo al mismo tiempo separadas las responsabilidades del análisis sintáctico, la representación sintáctica y las futuras etapas semánticas.
+
+#### *2.1.13 Pruebas*
+
+Se incorporaron **8 pruebas independientes** para verificar el funcionamiento del módulo AST sin depender del analizador sintáctico.
+
+Estas pruebas permiten **verificar el comportamiento de operaciones fundamentales del módulo**, incluyendo:
+
+- Creación de **nodos**.
+- Asociación de **tipos** de datos.
+- Incorporación de **hijos**.
+- Construcción de **árboles** con diferentes cantidades de hijos.
+- **Impresión jerárquica**.
+- Generación de **archivos DOT**.
+- **Liberación** recursiva de la memoria utilizada por el árbol.
+
+Las pruebas se encuentran **organizadas** en:
+
+```text
+Src/Test/AST/
+```
+
+Los **resultados** generados durante su ejecución se almacenan en:
+
+```text
+Src/Test/Resultados/AST/
+```
+
+Los resultados de las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
+
+Además de estas pruebas independientes, el AST se **verifica directamente mediante las pruebas válidas del análisis sintáctico**, ya que el parser construye un árbol durante su ejecución.
+
+En dichas pruebas, el **modo de depuración** permite generar los archivos `.dot` y posteriormente convertirlos a `.png`, facilitando la inspección visual de la estructura obtenida.
+
+### *2.2 Tabla de símbolos (TS)*
+
+La tabla de símbolos (TS) fue implementada como una estructura que permite **registrar, organizar y consultar la información asociada a las entidades declaradas en el programa**.
+
+La **implementación** se encuentra separada en un módulo propio:
+
+- [`TS.h`](../Src/TS/TS.h).
+- [`TS.c`](../Src/TS/TS.c).
+- [`Tipos.h`](../Src/Common/Tipos.h).
+
+La TS permite almacenar información de **variables, funciones y parámetros**, asociando a cada símbolo un nombre, un tipo de dato y una clase. Además, mantiene información relacionada con su estado de inicialización y una dirección para poder utilizar en etapas posteriores del compilador.
+
+La tabla organiza los símbolos mediante **niveles de ámbito**, permitiendo representar distintos contextos de declaración y realizar búsquedas desde el nivel más interno hacia los niveles exteriores.
+
+#### *2.2.1 Diseño de los símbolos*
+
+Cada símbolo de la TS se representa mediante la **estructura `Simbolo`**, que contiene:
+
+- El **nombre** del identificador.
+- El **tipo de dato** asociado, representado mediante `TipoDato`.
+- La **clase del símbolo**, representada mediante `ClaseSimbolo`.
+- El estado de **inicialización** del símbolo.
+- La **dirección** asociada al símbolo, cuando corresponda.
+- Un puntero al **siguiente símbolo** del mismo nivel.
+
+Las **clases de símbolos** contempladas actualmente son:
+
+- `SIMBOLO_VARIABLE`, para **variables** declaradas en el programa.
+- `SIMBOLO_FUNCION`, para **funciones**.
+- `SIMBOLO_PARAMETRO`, para **parámetros** de funciones.
+
+La incorporación de `SIMBOLO_PARAMETRO` permite **distinguir los parámetros de las variables y funciones**, manteniendo esta información disponible para las etapas posteriores del compilador.
+
+#### *2.2.2 Representación de los niveles de ámbito*
+
+Los símbolos se organizan mediante **estructuras `Nivel`**.
+
+Cada nivel contiene:
+
+- Una **lista enlazada de símbolos** pertenecientes al nivel.
+- Una **referencia al nivel anterior**.
+
+La tabla de símbolos completa se representa mediante `TablaSimbolos`, que mantiene un puntero al **nivel actualmente abierto**.
+
+Los niveles se organizan como una **pila**. Al abrir un nuevo nivel, este pasa a ser el nivel actual y conserva una referencia al nivel que se encontraba abierto anteriormente.
+
+Esta organización permite representar **ámbitos anidados** y facilita la búsqueda de identificadores respetando la visibilidad determinada por el nivel en el que fueron declarados.
+
+#### *2.2.3 Inicialización de la tabla de símbolos*
+
+La función `iniciar_TS ()` crea una **nueva tabla de símbolos** y genera inicialmente un **nivel vacío**.
+
+De esta forma, la tabla siempre comienza con un **nivel abierto**, sobre el cual pueden realizarse las primeras inserciones.
+
+La función **reserva dinámicamente la memoria** necesaria para la estructura `TablaSimbolos` y para su nivel actual.
+
+#### *2.2.4 Apertura y cierre de niveles*
+
+La función `abrir_nivel ()` permite **crear un nuevo nivel** de la tabla de símbolos.
+
+El nuevo nivel se establece como **nivel actual** y mantiene una referencia al **nivel anterior**.
+
+La función `cerrar_nivel ()` elimina el nivel actualmente abierto y todos los símbolos que contiene. Luego, **el nivel anterior pasa a ser el nivel actual**.
+
+Esta organización permite que los **símbolos declarados dentro de un ámbito** dejen de estar disponibles cuando dicho ámbito se cierra.
+
+#### *2.2.5 Inserción de símbolos*
+
+La función `insertar_elemento ()` permite incorporar un **nuevo símbolo al nivel actual**.
+
+Los símbolos se almacenan mediante una **lista enlazada**, insertándose al comienzo de la lista correspondiente al nivel actual.
+
+La función **retorna** un puntero al símbolo insertado cuando la operación es exitosa, o `NULL` cuando no puede realizarse la inserción.
+
+**No se permiten dos símbolos con el mismo nombre dentro de un mismo nivel**. Esta restricción permite detectar declaraciones duplicadas dentro de un mismo ámbito.
+
+#### *2.2.6 Búsqueda de símbolos*
+
+La función `buscar_elemento ()` permite **localizar un símbolo** a partir de su nombre.
+
+La búsqueda comienza en el **nivel actual** y continúa hacia los niveles exteriores hasta encontrar una coincidencia.
+
+Esta estrategia permite implementar el comportamiento habitual de los **ámbitos anidados**.
+
+Cuando existe un símbolo con el mismo nombre en un nivel interno y en uno externo, la búsqueda encuentra primero el símbolo del nivel interno. De esta forma, **los símbolos de niveles internos pueden ocultar a símbolos con el mismo nombre pertenecientes a niveles exteriores**.
+
+Si el símbolo no se encuentra en niguno de los niveles abiertos, la función retorna `NULL`.
+
+#### *2.2.7 Estado de inicialización*
+
+Cada símbolo mantiene un campo `inicializada` que permite **registrar si ya posee un valor asociado**.
+
+Actualmente, los símbolos correspondientes a **variables** y **funciones** comienzan con estado `inicializada = 0` indicando que todavía no fueron inicializados.
+
+Los **parámetros** comienzan con estado `inicializada = 1` ya que reciben su valor mediante los argumentos de la función al momento de su invocación.
+
+Esta información resulta de utilidad durante el **análisis semántico** para detectar uso de variables que todavía no fueron inicializadas.
+
+#### *2.2.8 Dirección asociada al símbolo*
+
+Cada símbolo contiene un campo `direccion` destinado a almacenar una **ubicación asociada al símbolo**.
+
+Al momento de insertar un nuevo símbolo, este campo se **inicializa** con `direccion = -1`. El valor indica que todavía no existe una dirección asignada.
+
+La asignación efectiva de direcciones corresponde a las etapas posteriores relacionadas con la **representación y generación de código**.
+
+#### *2.2.9 Manejo de memoria*
+
+La implementación de la TS **administra dinámicamente la memoria** utilizada por la tabla, sus niveles y sus símbolos.
+
+La función `iniciar_TS ()` **reserva la memoria** correspondiente a la tabla y crea su nivel inicial.
+
+La función `insertar_elemento ()` **reserva memoria** para cada nuevo símbolo y realiza una copia independiente del nombre.
+
+La función `cerrar_nivel ()` utiliza **`liberar_nivel ()` para liberar**:
+
+1. Los **nombres** almacenados dinámicamente a los símbolos.
+2. Las **estructuras `Simbolo`** pertenecientes al nivel.
+3. La **estructura `Nivel`** correspondiente.
+
+La función `liberar_TS ()` **cierra todos los niveles** que permanezcan abiertos y finalmente **libera la estructura principal de la tabla**. De esta manera, la TS es responsable de administrar la memoria correspondiente a sus símbolos.
+
+#### *2.2.10 Cambios respecto del Pre-Proyecto*
+
+La implementación actual de la tabla de símbolos **amplía la versión desarrollada durante el Pre-Proyecto** para adaptarla a las nuevas construcciones del lenguaje C-TDS.
+
+Entre los principales **cambios** se encuentran:
+
+- Incorporación de la **clase** `SIMBOLO_PARAMETRO`.
+- Incorporación del **estado de inicialización** mediante el campo `inicializada`.
+- Incorporación del **campo** `direccion` para almacenar la ubicación asociada al símbolo.
+- Incorporación de **validaciones** sobre los tipos de datos y las clases de símbolos durante la inserción.
+
+La **organización general mediante niveles, listas enlazadas y búsqueda desde el nivel más interno hacia los niveles exteriores** se mantiene respecto de la implementación del Pre-Proyecto.
+
+#### *2.2.11 Pruebas*
+
+Se incorporaron **8 pruebas independientes** para verificar el funcionamiento del módulo de la tabla de símbolos.
+
+Estas pruebas permiten **verificar el comportamiento de las operaciones fundamentales del módulo**, incluyendo:
+
+- **Inicialización** de la tabla.
+- **Inserción** de uno y varios símbolos.
+- Detección de **símbolos duplicados** dentro de un mismo nivel.
+- Apertura y cierre de **niveles**.
+- Búsqueda de **símbolos inexistentes**.
+- **Ocultamiento** de símbolos de niveles exteriores.
+- **Liberación de la memoria** utilizada por la tabla.
+
+Las pruebas se encuentran **organizadas** en:
+
+```text
+Src/Test/TS/
+```
+
+Los **resultados** generados durante su ejecución se almacenan en:
+
+```text
+Src/Test/Resultados/TS/
+```
+
+Los resultados de las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
+
 ---
 
 ## *Programa principal*
@@ -475,9 +977,9 @@ El análisis léxico continúa procesando la entrada cuando encuentra errores, p
 
 Por su parte, el análisis sintáctico finaliza el procesamiento tras encontrar el **primer error sintáctico**, también con un código de retorno establecido.
 
-La **generación del archivo de salida** y la configuración del modo de depuración son coordinadas por `main.c`. Dependiendo de la etapa seleccionada, la salida generada corresponde a un archivo `.lex` o `.sint`.
+La **generación del archivo de salida** y la configuración del modo de depuración son coordinadas por `main.c`. Dependiendo de la etapa seleccionada, la salida generada corresponde a un archivo `.lex` o `.sint`. En el caso del análisis sintáctico, cuando se activa el modo de depuración, también se genera un archivo `.dot` con la representación del AST.
 
-El **reconocimiento de los tokens** es responsabilidad del analizador léxico, mientras que la **validación de la estructura sintáctica** corresponde al analizador sintáctico.
+El **reconocimiento de los tokens** es responsabilidad del analizador léxico, mientras que la **validación de la estructura sintáctica** y la **construcción del AST** corresponden al analizador sintáctico.
 
 ---
 
@@ -585,7 +1087,9 @@ c-tds -debug programa.ctds
 
 La información mostrada depende de la etapa seleccionada. En el análisis léxico se muestran los **tokens reconocidos junto con su línea y columna**, mientras que en el análisis sintáctico también pueden mostrarse las **reducciones y construcciones reconocidas** por el parser.
 
-El modo de depuración es **independiente** de los archivos de salida generados por el compilador.
+Además, durante el análisis sintáctico, el modo de depuración permite **mostrar el AST por consola y generar un archivo `.dot` con su representación**, a partir del cual puede obtenerse una representación gráfica mediante Graphviz.
+
+El modo de depuración es **independiente** del archivo de salida principal del compilador.
 
 ### *Optimizaciones*
 
@@ -670,11 +1174,57 @@ El objetivo **ejecuta las 120 pruebas** y muestra por consola el resultado de ca
 
 Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**.
 
+Las **pruebas válidas** generan archivos `.sint` y, al ejecutarse en modo de depuración, también archivos `.dot`. Estos últimos se convierten a imágenes `.png` mediante Graphviz.
+
 Los **archivos de salida** se generan en:
 
 ```text
 Src/Test/Resultados/Sintactico/
 ```
+
+### *Ejecutar las pruebas del AST*
+
+Para **ejecutar todas las pruebas independientes del árbol sintáctico abstracto (AST)**:
+
+```bash
+make tests-ast
+```
+
+El objetivo compila y ejecuta las **8 pruebas** ubicadas en:
+
+```text
+Src/Test/AST/
+```
+
+Los **resultados** de estas pruebas se generan en:
+
+```text
+Src/Test/Resultados/AST/
+```
+
+Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**.
+
+### *Ejecutar las pruebas de la TS*
+
+Para **ejecutar todas las pruebas independientes de la tabla de símbolos (TS)**:
+
+```bash
+make tests-ts
+```
+
+El objetivo compila y ejecuta las **8 pruebas** ubicadas en:
+
+```text
+Src/Test/TS/
+```
+
+Los **resultados** de estas pruebas se generan en:
+
+```text
+Src/Test/Resultados/TS/
+```
+
+Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**.
 
 ### *Ejecutar todas las pruebas*
 
@@ -686,7 +1236,14 @@ make tests
 
 **ejecuta todas las pruebas correspondientes a las etapas implementadas**.
 
-En el estado actual del proyecto, esto equivale a ejecutar las pruebas del **análisis léxico**, seguidas de las pruebas del **análisis sintáctico**. Este objetivo se encuentra **preparado para incorporar las pruebas de las etapas posteriores** a medida que sean implementadas.
+En el estado actual del proyecto, esto equivale a ejecutar:
+
+1. Las pruebas del **análisis léxico**.
+2. Las pruebas del **análisis sintáctico**.
+3. Las pruebas independientes del **AST**.
+4. Las pruebas independientes de la **TS**.
+
+Este objetivo se encuentra **preparado para incorporar las pruebas de las etapas posteriores** a medida que sean implementadas.
 
 ### *Ejecutar el compilador manualmente*
 
