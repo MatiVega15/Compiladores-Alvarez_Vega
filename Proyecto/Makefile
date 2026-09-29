@@ -24,11 +24,15 @@ RESULTADOS_SINTACTICO_INVALIDAS_DIR = $(RESULTADOS_SINTACTICO_DIR)/Invalidas
 AST_TEST_DIR = $(TEST_DIR)/AST
 RESULTADOS_AST_DIR = $(RESULTADOS_DIR)/AST
 
+TS_TEST_DIR = $(TEST_DIR)/TS
+RESULTADOS_TS_DIR = $(RESULTADOS_DIR)/TS
+
 # ========== Archivos fuente ==========
 
 LEXER_SRC = Src/Lexer/AnalizadorLexico.lex
 PARSER_SRC = Src/Parser/AnalizadorSintactico.y
 AST_SRC = Src/AST/AST.c
+TS_SRC = Src/TS/TS.c
 MAIN_SRC = Src/main.c
 
 # ========== Archivos de cabecera ==========
@@ -36,6 +40,7 @@ MAIN_SRC = Src/main.c
 PARSER_H = $(BUILD_DIR)/AnalizadorSintactico.tab.h
 TIPOS_H = Src/Common/Tipos.h
 AST_H = Src/AST/AST.h
+TS_H = Src/TS/TS.h
 
 # ========== Archivos generados ==========
 
@@ -56,9 +61,11 @@ PRUEBAS_SINTACTICO_INVALIDAS = $(wildcard $(SINTACTICO_INVALIDAS_DIR)/*.ctds)
 
 PRUEBAS_AST = $(wildcard $(AST_TEST_DIR)/*.c)
 
+PRUEBAS_TS = $(wildcard $(TS_TEST_DIR)/*.c)
+
 # ========== Objetivos ==========
 
-.PHONY: all tests tests-lexico tests-sintactico tests-ast clean
+.PHONY: all tests tests-lexico tests-sintactico tests-ast tests-ts clean
 
 # ========== Compilación del compilador ==========
 
@@ -68,7 +75,7 @@ all: $(BIN)
 # Enlazado final.
 $(BIN): $(MAIN_SRC) $(PARSER_C) $(LEXER_C)
 	@mkdir -p $(BUILD_DIR)
-	@gcc -I$(BUILD_DIR) -ISrc/AST -ISrc/Common $(MAIN_SRC) $(PARSER_C) $(LEXER_C) $(AST_SRC) -o $(BIN)
+	@gcc -I$(BUILD_DIR) -ISrc/AST -ISrc/Common -ISrc/TS $(MAIN_SRC) $(PARSER_C) $(LEXER_C) $(AST_SRC) $(TS_SRC) -o $(BIN)
 
 # ========== Generación del analizador sintáctico ==========
 
@@ -87,7 +94,7 @@ $(LEXER_C): $(LEXER_SRC) $(PARSER_H)
 # ========== Ejecución de todas las pruebas ==========
 
 # Ejecuta todas las pruebas disponibles.
-tests: tests-lexico tests-sintactico tests-ast
+tests: tests-lexico tests-sintactico tests-ast tests-ts
 	@echo "========================================="
 	@echo "      TODAS LAS PRUEBAS FINALIZADAS"
 	@echo "========================================="
@@ -257,6 +264,45 @@ tests-ast:
 			if [ -f $$dot ]; then \
 				dot -Tpng $$dot -o $$png; \
 			fi; \
+			echo "RESULTADO: OK"; \
+			ok=$$((ok + 1)); \
+		else \
+			echo "RESULTADO: FALLIDA"; \
+			fallidas=$$((fallidas + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	echo "======================"; \
+	echo "Pruebas correctas: $$ok"; \
+	echo "Pruebas fallidas: $$fallidas"; \
+	echo "======================"; \
+	echo "";
+
+# ========== Pruebas de la tabla de símbolos ==========
+
+# Ejecuta todas las pruebas independientes de la tabla de símbolos.
+tests-ts:
+	@mkdir -p $(BUILD_DIR) $(RESULTADOS_TS_DIR)
+
+	@fallidas=0; \
+	ok=0; \
+	echo ""; \
+	echo "============================================="; \
+	echo "       PRUEBAS DE LA TABLA DE SÍMBOLOS"; \
+	echo "============================================="; \
+	echo ""; \
+	for prueba in $(PRUEBAS_TS); do \
+		nombre=$$(basename $$prueba .c); \
+		ejecutable=$(BUILD_DIR)/$$nombre; \
+		salida=$(RESULTADOS_TS_DIR)/$$nombre.txt; \
+		echo "---- $$nombre ----"; \
+		gcc -ISrc/TS -ISrc/Common $(TS_SRC) $$prueba -o $$ejecutable; \
+		resultado=$$?; \
+		if [ $$resultado -eq 0 ]; then \
+			$$ejecutable > $$salida; \
+			resultado=$$?; \
+		fi; \
+		if [ $$resultado -eq 0 ]; then \
 			echo "RESULTADO: OK"; \
 			ok=$$((ok + 1)); \
 		else \
