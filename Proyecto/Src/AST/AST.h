@@ -6,6 +6,15 @@
 #include <stdio.h>
 
 /**
+ * Declaración adelantada de Simbolo.
+ * 
+ * El Árbol Sintáctico Abstracto (AST) mantiene referencias
+ * a símbolos de la Tabla de Símbolos (TS), pero no necesita
+ * conocer su definición completa.
+ */
+typedef struct Simbolo Simbolo;
+
+/**
  * Representa los distintos tipos de nodos que pueden
  * aparecer en el Árbol Sintáctico Abstracto (AST).
  */
@@ -83,6 +92,7 @@ typedef union {
  * - Un arreglo de punteros a sus nodos hijos.
  * - Una capacidad dinámica para el arreglo.
  * - La línea y la columna del código fuente asociada al nodo.
+ * - Una referencia al símbolo correspondiente, si existe.
  */
 typedef struct NodoAST {
     TipoNodo tipo;
@@ -95,6 +105,8 @@ typedef struct NodoAST {
 
     int linea;
     int columna;
+
+    Simbolo *simbolo;
 } NodoAST;
 
 /**

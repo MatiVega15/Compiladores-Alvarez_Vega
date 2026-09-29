@@ -29,6 +29,9 @@ NodoAST *crear_nodo (TipoNodo tipo, int linea, int columna) {
     nodo -> hijos = NULL;
     nodo -> cantidad_hijos = 0;
     nodo -> capacidad_hijos = 0;
+    
+    // Comienza sin un símbolo de la TS asociado.
+    nodo -> simbolo = NULL;
 
     nodo -> linea = linea;
     nodo -> columna = columna;
