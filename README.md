@@ -55,8 +55,10 @@
 │       ├── Common/
 │       ├── Lexer/
 │       ├── Parser/
+│       ├── TS/
 │       ├── Test/
 │       │   ├── AST/
+│       │   ├── TS/
 │       │   ├── Lexico/
 │       │   │   ├── Invalidas/
 │       │   │   └── Validas/
@@ -131,7 +133,7 @@ El trabajo se aborda de una manera incremental, mediante las siguientes etapas:
 5. Generación de **código objeto**.
 6. **Optimizador** y extensiones.
 
-Actualmente se encuentran implementadas las etapas de **análisis léxico**, **análisis sintáctico** y **generación del árbol sintáctico abstracto (AST)**.
+Actualmente se encuentran implementadas las etapas de **análisis léxico**, **análisis sintáctico**, **generación del árbol sintáctico abstracto (AST)** y **generación de la tabla de símbolos (TS)**.
 
 ## *Compilación y ejecución*
 
@@ -176,7 +178,7 @@ El **objetivo `tests`** permite ejecutar todas las pruebas correspondientes a la
 make tests
 ```
 
-Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico** y del **árbol sintáctico abstracto (AST)**.
+Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico**, del **árbol sintáctico abstracto (AST)** y de la **tabla de símbolos (TS)**.
 
 Para **ejecutar solamente las pruebas del análisis léxico**:
 
@@ -193,6 +195,12 @@ Para **ejecutar solamente las pruebas independientes del AST**:
 
 ```bash
 make tests-ast
+```
+
+Para **ejecutar solamente las pruebas independientes de la TS**:
+
+```bash
+make tests-ts
 ```
 
 Para **limpiar** los archivos generados:
