@@ -1,0 +1,7 @@
+void f () {
+}
+
+void main () {
+    int x;
+    x = 10 + f ();
+}

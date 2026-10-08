@@ -1,0 +1,7 @@
+int f () {
+    return; // Falta un valor int.
+}
+
+void main () {
+    f ();
+}

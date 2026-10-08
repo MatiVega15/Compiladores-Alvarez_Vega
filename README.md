@@ -55,6 +55,7 @@
 │       ├── Common/
 │       ├── Lexer/
 │       ├── Parser/
+│       ├── Semantico/
 │       ├── TS/
 │       ├── Test/
 │       │   ├── AST/
@@ -62,7 +63,10 @@
 │       │   ├── Lexico/
 │       │   │   ├── Invalidas/
 │       │   │   └── Validas/
-│       │   └── Sintactico/
+│       │   ├── Sintactico/
+│       │   │   ├── Invalidas/
+│       │   │   └── Validas/
+│       │   └── Semantico/
 │       │       ├── Invalidas/
 │       │       └── Validas/
 │       └── main.c
@@ -133,7 +137,7 @@ El trabajo se aborda de una manera incremental, mediante las siguientes etapas:
 5. Generación de **código objeto**.
 6. **Optimizador** y extensiones.
 
-Actualmente se encuentran implementadas las etapas de **análisis léxico**, **análisis sintáctico**, **generación del árbol sintáctico abstracto (AST)** y **generación de la tabla de símbolos (TS)**.
+Actualmente se encuentran implementadas las etapas de **análisis léxico**, **análisis sintáctico**, **generación del árbol sintáctico abstracto (AST)**, **generación de la tabla de símbolos (TS)** y **análisis semántico**.
 
 ## *Compilación y ejecución*
 
@@ -156,7 +160,7 @@ Para **ejecutar el compilador**:
 ./build/c-tds archivo.ctds
 ```
 
-Por defecto, se ejecuta la última etapa implementada, actualmente el **análisis sintáctico**, generando un archivo `.sint`.
+Por defecto, se ejecuta la última etapa implementada, actualmente el **análisis semántico**, generando un archivo `.sem`.
 
 Las etapas también pueden seleccionarse mediante `-target`. Por ejemplo, para el **análisis léxico**:
 
@@ -178,7 +182,7 @@ El **objetivo `tests`** permite ejecutar todas las pruebas correspondientes a la
 make tests
 ```
 
-Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico**, del **árbol sintáctico abstracto (AST)** y de la **tabla de símbolos (TS)**.
+Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico**, del **árbol sintáctico abstracto (AST)**, de la **tabla de símbolos (TS)** y del **análisis semántico**.
 
 Para **ejecutar solamente las pruebas del análisis léxico**:
 
@@ -201,6 +205,12 @@ Para **ejecutar solamente las pruebas independientes de la TS**:
 
 ```bash
 make tests-ts
+```
+
+Para **ejecutar solamente las pruebas del análisis semántico**:
+
+```bash
+make tests-semantico
 ```
 
 Para **limpiar** los archivos generados:

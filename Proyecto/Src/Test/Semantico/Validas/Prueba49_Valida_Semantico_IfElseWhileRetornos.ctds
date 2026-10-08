@@ -1,0 +1,22 @@
+int procesar (int val) {
+    if (val > 10) {
+        int temp;
+        temp  = val * 2;
+        return temp;
+    }
+    else {
+        int temp;
+        temp = val + 5;
+        while (temp > 10) {
+            val = val + 1;
+            return val;
+        }
+        return temp;
+    }
+    return 10;
+}
+
+void main () {
+    int r;
+    r = procesar (15);
+}

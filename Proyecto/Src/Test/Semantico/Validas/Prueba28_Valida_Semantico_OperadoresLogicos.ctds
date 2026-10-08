@@ -1,0 +1,13 @@
+void main () {
+    boolean b1, b2, b3;
+
+    b1 = true;
+    b2 = false;
+
+    b3 = b1 && b2;
+    b3 = b1 || b2;
+
+    // Expresiones combinadas.
+    b3 = b1 || b2 && b1;
+    b3 = b1 && b2 || b1;
+}

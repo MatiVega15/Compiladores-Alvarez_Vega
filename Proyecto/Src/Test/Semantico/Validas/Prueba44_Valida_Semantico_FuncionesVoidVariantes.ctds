@@ -1,0 +1,12 @@
+void procesar_uno () {
+    return; // Return vacío válido en void.
+}
+
+void procesar_dos () {
+    // Alcanza el final de la función sin return explícito.
+}
+
+void main () {
+    procesar_uno ();
+    procesar_dos ();
+}

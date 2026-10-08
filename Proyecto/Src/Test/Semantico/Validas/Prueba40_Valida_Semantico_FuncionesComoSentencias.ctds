@@ -1,0 +1,15 @@
+void ejecutar_accion () {
+
+}
+
+int calcular_valor () {
+    return 100;
+}
+
+void main () {
+    // Función void como sentencia.
+    ejecutar_accion ();
+
+    // Función con retorno como sentencia (se descarta su valor).
+    calcular_valor ();
+}

@@ -1,0 +1,8 @@
+void main () {
+    boolean res;
+    int a, b, c, d;
+    boolean e;
+
+    a = 1; b = 2; c = 3; d = 3; e = false;
+    res = (a < b) && (c == d || !e);
+}

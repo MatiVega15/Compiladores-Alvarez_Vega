@@ -1,0 +1,11 @@
+void main () {
+    int x;
+    x = 10;
+
+    {
+        float x;
+        x = 3.14; // Usa el x local (float).
+    }
+
+    x = 20; // Usa el x original (int).
+}

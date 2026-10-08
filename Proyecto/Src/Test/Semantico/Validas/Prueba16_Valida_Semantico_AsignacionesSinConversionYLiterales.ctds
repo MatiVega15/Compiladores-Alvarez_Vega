@@ -1,0 +1,16 @@
+void main () {
+    int i1, i2;
+    float f1, f2;
+    boolean b1, b2;
+
+    // Literales.
+    i1 = 42;
+    f1 = 3.1415;
+    b1 = true;
+    b2 = false;
+
+    // Asignaciones sin conversión.
+    i2 = i1;
+    f2 = f1;
+    b1 = b2;
+}

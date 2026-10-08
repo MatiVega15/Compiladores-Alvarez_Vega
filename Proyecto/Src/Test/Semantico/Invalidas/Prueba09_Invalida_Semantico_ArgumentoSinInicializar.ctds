@@ -1,0 +1,11 @@
+int duplicar (int val) {
+    return val * 2;
+}
+
+int main () {
+    int x;
+    int res;
+
+    res = duplicar (x); // 'x' sin inicializar.
+    return res;
+}

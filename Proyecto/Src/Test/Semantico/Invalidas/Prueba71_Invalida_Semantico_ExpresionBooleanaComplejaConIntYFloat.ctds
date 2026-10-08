@@ -1,0 +1,14 @@
+boolean validar (int val) {
+    return val > 0;
+}
+
+void main () {
+    boolean resultado;
+    int x;
+    int y;
+
+    x = 10;
+    y = -3;
+
+    resultado = ! validar (x) && (y < 5 || (true && 42)) || (x == 10) && ! (false || 10.9);
+}

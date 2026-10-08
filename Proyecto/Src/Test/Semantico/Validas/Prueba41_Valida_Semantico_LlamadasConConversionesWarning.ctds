@@ -1,0 +1,18 @@
+float calcular_flotante (float f) {
+    return f;
+}
+
+int calcular_entero (int i) {
+    return i;
+}
+
+void main () {
+    float rf;
+    int ri;
+
+    // Parámetro float, argumento int (warning).
+    rf = calcular_flotante (10);
+
+    // Parámetro int, argumento float (warning).
+    ri = calcular_entero (5.5);
+}

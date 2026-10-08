@@ -1,0 +1,12 @@
+void main () {
+    int i1, i2;
+    float f1, f2;
+
+    i1 = -10;
+    i2 = -i1;           // -int.
+    i2 = -(5 + 2);      // -(expresión int).
+
+    f1 = -3.5;
+    f2 = -f1;           // -float.
+    f2 = -(2.0 * 3.0);  // -(expresión float).
+}

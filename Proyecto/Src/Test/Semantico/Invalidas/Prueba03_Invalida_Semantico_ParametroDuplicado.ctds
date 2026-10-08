@@ -1,0 +1,5 @@
+int funcion_duplicada (int x, int x) {
+    return x;
+}
+
+void main () {}

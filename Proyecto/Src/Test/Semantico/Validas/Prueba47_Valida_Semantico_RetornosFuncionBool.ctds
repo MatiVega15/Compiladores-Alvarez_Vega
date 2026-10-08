@@ -1,0 +1,15 @@
+boolean funcion_bool_uno () {
+    return true;    // return bool_expr.
+}
+
+boolean funcion_bool_dos () {
+    boolean b;
+    b = false;
+    return b;   // return bool_variable.
+}
+
+void main () {
+    boolean status;
+    status = funcion_bool_uno ();
+    status = funcion_bool_dos ();
+}

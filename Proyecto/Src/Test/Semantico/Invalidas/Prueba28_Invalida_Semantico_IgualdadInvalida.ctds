@@ -1,0 +1,17 @@
+void main () {
+    int i;
+    float f;
+    boolean b;
+    boolean res;
+
+    i = 10;
+    f = 3.5;
+    b = true;
+
+    res = (i == f); // int == float.
+    res = (f == i); // float == int.
+    res = (i == b); // int == boolean.
+    res = (b == i); // boolean == int.
+    res = (f == b); // float == boolean.
+    res = (b == f); // boolean == float.
+}

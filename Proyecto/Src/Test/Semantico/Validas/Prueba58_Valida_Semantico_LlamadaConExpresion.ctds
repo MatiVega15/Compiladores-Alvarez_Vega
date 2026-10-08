@@ -1,0 +1,9 @@
+int duplicar (int val) {
+    return val * 2;
+}
+
+void main () {
+    int res;
+    // Expresión aritmética en argumento.
+    res = duplicar (5 + 3);
+}

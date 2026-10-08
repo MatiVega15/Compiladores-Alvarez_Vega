@@ -1,0 +1,8 @@
+void main () {
+    boolean flag;
+    float f;
+
+    f = 3.14;
+    // boolean = float.
+    flag = f;
+}

@@ -1,0 +1,6 @@
+void main () {
+    int mi_var;
+    mi_var = 10;
+    // Variable usada como función.
+    mi_var ();
+}

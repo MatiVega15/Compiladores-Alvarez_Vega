@@ -1,0 +1,4 @@
+void main () {
+    int res;
+    res = 10 / (2 - 2);
+}

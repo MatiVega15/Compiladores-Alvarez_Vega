@@ -1,0 +1,6 @@
+int conflicto (int x) {
+    int x;
+    return x;
+}
+
+void main () {}

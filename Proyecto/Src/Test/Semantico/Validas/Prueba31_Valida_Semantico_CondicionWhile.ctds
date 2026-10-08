@@ -1,0 +1,17 @@
+void main () {
+    int x, y;
+    boolean b;
+
+    x = 0;
+    y = 10;
+    b = true;
+
+    while (true) {}
+    while (false) {}
+
+    while (x > y) {}
+    while (x == y) {}
+
+    while (!b) {}
+    while ((x < y) || b) {}
+}

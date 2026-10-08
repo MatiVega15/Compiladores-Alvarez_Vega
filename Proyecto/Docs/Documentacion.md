@@ -543,7 +543,7 @@ En paralelo, el proyecto incorpora una **tabla de símbolos (TS)** que permite r
 
 La TS organiza estos elementos de acuerdo con los distintos **niveles de ámbito** del programa y permite realizar búsquedas sobre ellos durante etapas posteriores del compilador.
 
-El AST mantiene **referencias** que permiten vincular, en etapas posteriores, los **nodos que correspondan con los elementos de la tabla de símbolos**.
+El AST mantiene **referencias** que permiten vincular, durante el análisis semántico, los **nodos que correspondan con los elementos de la tabla de símbolos**.
 
 ### *2.1 Árbol sintáctico abstracto (AST)*
 
@@ -954,32 +954,367 @@ Src/Test/Resultados/TS/
 
 Los resultados de las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
 
+## *3. Análisis semántico*
+
+El análisis semántico fue implementado en lenguaje **C**, utilizando el **arbol sintáctico abstracto (AST)** construido durante el análisis sintáctico y la **tabla de símbolos (TS)** para verificar la información asociada a los identificadores y las declaraciones del programa.
+
+Su función es **analizar semánticamente el AST generado por el parser**, asociando los identificadores con sus símbolos, determinando los tipos de las expresiones y verificando las restricciones semánticas definidas para el lenguaje C-TDS.
+
+*Las restricciones semánticas que debe cumplir un programa se encuentran definidas en la sección [Restricciones semánticas](Especificacion.md#3-restricciones-semánticas) de la especificación del lenguaje.*
+
+En esta sección se documentan las **decisiones de implementación y los mecanismos utilizados para realizar dichas verificaciones**, sin repetir las reglas ya especificadas.
+
+El analizador semántico se encuentra implementado en:
+
+- [AnalizadorSemantico.h](../Src/Semantico/AnalizadorSemantico.h).
+- [AnalizadorSemantico.c](../Src/Semantico/AnalizadorSemantico.c).
+
+La implementación se integra con el AST, la TS y el programa principal para realizar el análisis después de que la entrada haya sido reconocida sintácticamente.
+
+### *3.1 Diseño y decisiones*
+
+La implementación del análisis semántico utiliza una **estructura de contexto** denominada `ContextoSemantico`.
+
+Esta estructura concentra la **información** necesaria durante el recorrido del AST:
+
+- La **Tabla de Símbolos** utilizada durante el análisis.
+- La cantidad de **errores semánticos** encontrados.
+- El archivo de salida `.sem`.
+- El estado del **modo de depuración**.
+- El nodo correspondiente al programa.
+- El tipo de retorno de la función que se está analizando.
+
+Esta **decisión de diseño** permite evitar que las distintas funciones auxiliares deban recibir individualmente toda la información necesaria para realizar el análisis.
+
+El análisis se encuentra dividido en **funciones auxiliares** especializadas según el tipo de construcción del AST. De esta manera, el recorrido general del árbol se mantiene separado de las verificaciones específicas de cada construcción.
+
+Por ejemplo, existen **funciones específicas** para analizar:
+
+- Declaraciones de **variables**.
+- Declaraciones de **funciones**.
+- **Parámetros**.
+- **Bloques**.
+- **Asignaciones**.
+- **Condicionales**.
+- **Sentencias** `while`.
+- **Sentencias** `return`.
+- **Identificadores**.
+- Operaciones **aritméticas**.
+- Operaciones **lógicas**.
+- **Comparaciones**.
+- **Igualdades**.
+- **Llamadas** a funciones.
+
+Esta separación permite mantener cada comprobación localizada y facilita la **extensión** del analizador.
+
+#### *3.1.1 Integración con la tabla de símbolos*
+
+El análisis semántico utiliza la tabla de símbolos como **estructura central para resolver identificadores y administrar los ámbitos**.
+
+Al analizar una declaración, **se crea el símbolo** correspondiente y se lo incorpora al **nivel actual** de la tabla. Al encontrar posteriormente un identificador, se realiza una **búsqueda** desde el nivel actual hacia los niveles exteriores.
+
+Cuando se encuentra el símbolo correspondiente, el nodo `AST_IDENTIFICADOR` queda **asociado** directamente mediante su campo `simbolo`.
+
+Esta asociación permite que las etapas posteriores puedan **acceder a la información de la declaración** sin tener que volver a resolver el nombre del identificador.
+
+Los ámbitos de funciones y bloques se administran mediante las operaciones de **apertura y cierre de niveles** de la tabla de símbolos.
+
+Los **bloques anidados** pueden crear nuevos niveles, permitiendo mantener separados los identificadores declarados en distintos ámbitos.
+
+#### *3.1.2 Análisis de funciones*
+
+Las **funciones** se registran en la tabla de símbolos antes de analizar su cuerpo.
+
+Esta decisión permite que el **análisis del cuerpo** pueda resolver correctamente el símbolo correspondiente a la propia función.
+
+Al analizar una función se guarda temporalmente el **tipo de retorno** anterior y se establece el tipo correspondiente a la nueva función en `tipo_retorno_actual`.
+
+Luego se abre el **ámbito de la función**, se analizan sus **parámetros** y se procesa el **bloque** de la función.
+
+Una vez finalizado el análisis, se **cierra el ámbito** y se restaura el tipo de retorno anterior.
+
+Además, se implementó una **búsqueda** sobre el AST mediante `buscar_declaracion_funcion ()`. Esta función permite recuperar la declaración de una función a partir de su nombre, principalmente para acceder a la **información de sus parámetros** al analizar una llamada.
+
+#### *3.1.3 Determinación de tipos*
+
+Cada expresión analizada obtiene un **tipo** que se almacena en el campo `tipo_dato` del nodo AST.
+
+El **análisis de expresiones** se encuentra centralizado en `analizar_expresion ()`, que deriva el procesamiento hacia funciones específicas según el tipo de nodo.
+
+El uso de `TIPO_NO_DEFINIDO` permite **continuar el análisis cuando una expresión contiene un error semántico**, evitando propagar innecesariamente el mismo error hacia las expresiones que dependen de ella.
+
+Las **verificaciones** relacionadas con los tipos se implementan mediante funciones auxiliares como `es_tipo_numerico ()`, `tipos_compatibles ()` y `tipo_resultado_aritmetico ()`.
+
+Las **reglas** concretas de compatibilidad y determinación de tipos se encuentran documentadas en la especificación del lenguaje.
+
+#### *3.1.4 Inicialización de variables*
+
+La información sobre la **inicialización** se almacena en cada `Simbolo` mediante el campo `inicializada`.
+
+Las **variables** se incorporan inicialmente como no inicializadas, mientras que los **parámetros** se consideran inicializados al ingresar al ámbito de una función.
+
+Cuando una **asignación** válida modifica una variable o parámetro, el símbolo correspondiente se marca como inicializado.
+
+Al utilizar un **identificador** dentro de una expresión, `analizar_identificador ()` consulta este estado antes de permitir su utilización.
+
+De esta manera, la **tabla de símbolos** no solamente permite resolver el nombre y tipo de un identificador, sino que también **conserva información necesaria para las verificaciones semánticas posteriores**.
+
+#### *3.1.4 Llamadas a funciones*
+
+Las **llamadas** a funciones se analizan mediante `analizar_llamada ()`.
+
+Primero se busca el **símbolo** correspondiente a la función en la tabla de símbolos. Posteriormente se recupera su **declaración** desde el AST y se comparan los **argumentos** proporcionados con los **parámetros** declarados.
+
+El análisis de los argumentos se encuentra separado en `analizar_argumentos ()`, lo que permite mantener independiente la **resolución de la función** y la **verificación de sus argumentos**.
+
+El **tipo de retorno de la función** se asigna al nodo `AST_LLAMADA`, permitiendo utilizar posteriormente la llamada como parte de una expresión cuando corresponda.
+
+Las **llamadas a funciones** `void` utilizadas como expresiones son detectadas desde `analizar_expresion ()`.
+
+#### *3.1.5 Análisis de retornos*
+
+El **tipo de retorno de la función actual** se mantiene en `tipo_retorno_actual`.
+
+Al encontrar un `AST_RETURN`, el analizador utiliza esta información para **verificar el retorno** correspondiente.
+
+Además de comprobar cada sentencia `return`, se incorporó un **análisis estructural** mediante las funciones `garantiza_retorno_bloque ()` y `garantiza_retorno_sentencia ()`.
+
+Estas funciones recorren la estructura de los bloques, condicionales y demás sentencias para **determinar si una función no `void` posee un retorno garantizado en todos los caminos de ejecución que pueden finalizar la función**.
+
+#### *3.1.6 Evaluación de expresiones constantes*
+
+Se incorporó una **función auxiliar** denominada `evaluar_constante_numerica ()` para determinar el **valor** de determinadas expresiones numéricas cuando sus operandos pueden conocerse durante el análisis semántico.
+
+La evaluación contempla constantes **enteras y reales, menos unario y operaciones aritméticas** entre constantes.
+
+Esta funcionalidad se utiliza principalmente para **detectar divisiones y operaciones módulo cuyo divisor puede determinarse estáticamente como cero**.
+
+Cuando el valor de una expresión depende de una variable o de información que no puede determinarse durante el análisis semántico, **la evaluación constante no produce un resultado**.
+
+#### *3.1.7 Errores y advertencias*
+
+Los **errores semánticos** se centralizan mediante `error_semantico ()`.
+
+Esta función informa la ubicación del **error**, escribe el mensaje correspondiente y aumenta el **contador de errores** del contexto semántico.
+
+También se implementó `warning_semantico ()` para **situaciones que no impiden continuar el análisis**.
+
+**Los errores y advertencias se mantienen separados de los mensajes de depuración**, evitando mezclar información destinada al usuario con información utilizada para observar el funcionamiento interno del analizador.
+
+### *3.2 Salida del análisis semántico*
+
+Como resultado de la etapa de análisis semántico se genera un **archivo con extensión `.sem`**.
+
+El archivo contiene información relacionada con las **verificaciones realizadas durante el análisis**, incluyendo las declaraciones procesadas, los identificadores asociados y otras operaciones semánticas relevantes.
+
+La **generación de estos mensajes** se encuentra centralizada mediante la función `registrar_semantica ()`.
+
+La función escribe la información en el archivo `.sem` y, cuando corresponde, el **modo de depuración** permite mostrar información adicional por consola.
+
+La salida `.sem` se mantiene separada de la información utilizada internamente por el analizador. Su objetivo es **registrar el resultado de la etapa semántica** sin modificar el funcionamiento del AST ni de la tabla de símbolos.
+
+Si el análisis encuentra **uno o más errores semánticos**, la etapa finaliza indicando que la entrada no superó el análisis.
+
+Cuando el análisis es exitoso y se encuentra habilitado el modo de depuración, también puede generarse el **AST enriquecido** con la información obtenida durante esta etapa.
+
+En este caso, los nodos pueden mostrar información que no estaba disponible durante la construcción sintáctica, ya que fueron **propagados** durante el análisis semántico.
+
+### *3.3 Ubicación de errores*
+
+La información de **ubicación** utilizada por el análisis semántico proviene de las posiciones almacenadas previamente en los nodos del AST durante el análisis sintáctico.
+
+Cada nodo contiene su **línea y columna de origen**, por lo que el analizador semántico puede utilizar directamente esta información al detectar un error.
+
+Los **errores** se informan utilizando el siguiente formato:
+
+```text
+ERROR SEMÁNTICO: línea X, columna Y - mensaje.
+```
+
+Por ejemplo:
+
+```text
+ERROR SEMÁNTICO: línea 4, columna 5 - La variable 'x' no fue declarada.
+```
+
+La utilización de las posiciones almacenadas en el AST permite que las funciones semánticas puedan **informar el lugar correspondiente** sin depender nuevamente del analizador léxico.
+
+Cuando una verificación utiliza un nodo específico, se toma la **ubicación** de ese nodo para señalar de forma más precisa el origen del problema.
+
+### *3.4 Modo de depuración*
+
+El análisis semántico utiliza para **depuración** la variable `modo_debug`, configurada por `main.c` mediante la opción `-debug`.
+
+Cuando el **modo de depuración** se encuentra activo, se muestran mensajes asociados al recorrido y procesamiento del AST.
+
+Estos **mensajes** permiten observar, entre otras cuestiones:
+
+- Entrada y salida de bloques.
+- Apertura y cierre de ámbitos.
+- Declaraciones procesadas.
+- Tipos determinados para expresiones.
+- Análisis de asignaciones.
+- Análisis de llamadas.
+- Análisis de retornos.
+
+Por ejemplo:
+
+```text
+[SEM] Entrando al programa.
+[SEM] Declaración de variable analizada.
+[SEM] Abriendo ámbito de bloque.
+[SEM] Condición de if analizada.
+[SEM] Cerrando ámbito de bloque.
+```
+
+El **modo de depuración** también permite generar una **representación del AST** después del análisis semántico.
+
+A diferencia de la representación generada inmediatamente después del parser, esta versión del árbol puede incluir la **información obtenida durante el análisis semántico**.
+
+**El modo de depuración se mantiene separado de la salida `.sem`**, de manera que la información utilizada para diagnosticar el funcionamiento interno del analizador no se mezcla con la salida formal de la etapa.
+
+### *3.5 Integración con el análisis sintáctico*
+
+El análisis semántico se ejecuta sobre el **AST generado por el analizador sintáctico**.
+
+La separación entre ambas etapas permite mantener una **división clara de responsabilidades**:
+
+* **Flex** reconoce los componentes léxicos.
+* **Bison** verifica la estructura sintáctica y construye el AST.
+* **El analizador semántico** interpreta la información del AST y verifica las restricciones semánticas.
+* **La tabla de símbolos** conserva la información de declaraciones y ámbitos.
+
+El **parser** no realiza búsquedas en la tabla de símbolos ni realiza comprobaciones semánticas. Su responsabilidad termina con la **construcción del AST**.
+
+Posteriormente, `main.c` **crea o inicializa la tabla de símbolos y ejecuta `analizar_semantica ()`** sobre el árbol obtenido.
+
+Esta separación permite que el AST funcione como **punto de comunicación** entre las etapas sintáctica y semántica.
+
+La **información de línea y columna** construida durante el análisis sintáctico también es reutilizada directamente por el análisis semántico para informar errores.
+
+### *3.6 Cambios respecto del Pre-Proyecto*
+
+El análisis semántico actual representa una **ampliación considerable** respecto de la implementación realizada durante el Pre-Proyecto.
+
+La versión inicial estaba orientada principalmente a las construcciones básicas del lenguaje, mientras que la implementación actual incorpora el análisis de las construcciones necesarias para el **lenguaje C-TDS completo**.
+
+Entre los principales **cambios** se encuentran:
+
+- Incorporación de **ámbitos anidados**.
+- Análisis de **declaraciones globales y locales**.
+- Análisis de **funciones y parámetros**.
+- Control del **tipo de retorno de las funciones**.
+- Análisis de **llamadas y argumentos**.
+- Control del estado de **inicialización de variables**.
+- Análisis de **retornos obligatorios**.
+- Detección de determinadas operaciones con **divisor constante igual a cero**.
+- Incorporación de ubicación de columna en los **errores semánticos**.
+- Incorporación de **advertencias semánticas**.
+- Generación de información específica en archivos `.sem`.
+- Incorporación de un **modo de depuración** para observar el recorrido semántico.
+
+### *3.7 Pruebas*
+
+Se incorporó un conjunto de **135 pruebas** para el análisis semántico, dividido en:
+
+* **63 pruebas válidas**, destinadas a comprobar que programas que cumplen las restricciones semánticas sean aceptados.
+* **72 pruebas inválidas**, destinadas a comprobar que programas que violan alguna restricción semántica sean rechazados.
+
+Las pruebas se encuentran **organizadas** en:
+
+```text
+Src/Test/Semantico/
+├── Validas/
+└── Invalidas/
+```
+
+Los **resultados** generados durante la ejecución se almacenan en:
+
+```text
+Src/Test/Resultados/Semantico/
+├── Validas/
+└── Invalidas/
+```
+
+Los resultados generados durante las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
+
+Las **pruebas válidas** permiten verificar, entre otras cuestiones:
+
+- Declaraciones y usos de **identificadores**.
+- Distintos **niveles de ámbito**.
+- **Declaraciones locales**.
+- **Funciones y parámetros**.
+- **Asignaciones**.
+- **Expresiones** de distintos tipos.
+- **Operaciones** aritméticas y lógicas.
+- **Comparaciones**.
+- **Llamadas** a funciones.
+- **Retornos**.
+- **Inicialización** de variables.
+- **Combinaciones** de las construcciones anteriores.
+
+Las **pruebas inválidas** permiten verificar situaciones como:
+
+- Uso de identificadores **no declarados**.
+- Declaraciones **duplicadas**.
+- **Incompatibilidades** de tipos.
+- Operaciones con operandos **incorrectos**.
+- Llamadas con argumentos **incorrectos**.
+- Uso **incorrecto** de funciones `void`.
+- Retornos **incompatibles**.
+- Funciones **sin retorno garantizado**.
+- Uso de variables **sin inicializar**.
+- Operaciones con **divisor constante igual a cero**.
+- **Combinaciones** que producen múltiples errores semánticos.
+
+Para cada prueba se genera el **archivo `.sem`** correspondiente.
+
+En las pruebas inválidas se conserva además un **archivo `.err`** cuando se producen mensajes por `stderr`. Este archivo también contiene las **advertencias semánticas**, por lo que pueden generarse incluso en pruebas válidas.
+
+Los archivos `.err` solamente se conservan cuando contienen información. De esta manera, **las pruebas que no producen errores no generan archivos de error vacíos**.
+
+Cuando se ejecutan las pruebas en **modo `-debug`**, también pueden generarse los archivos `.dot` y `.png` correspondientes al AST enriquecido con la información semántica.
+
 ---
 
 ## *Programa principal*
 
 Se incorporó [main.c](../Src/main.c), encargado de **coordinar la ejecución del compilador y de gestionar la interfaz de línea de comandos**.
 
-En la etapa actual, el programa principal permite ejecutar el **análisis léxico** y el **análisis sintáctico** del archivo fuente. Las etapas posteriores se encuentran contempladas en la interfaz, pero todavía no están implementadas.
+En la etapa actual, el programa principal permite ejecutar el **análisis léxico**, el **análisis sintáctico** y el **análisis semántico** del archivo fuente. Las etapas posteriores se encuentran contempladas en la interfaz, pero todavía no están implementadas.
 
 El **procesamiento** actual consiste en:
 
 1. Lectura y validación de los **argumentos** de la línea de comandos.
 2. Determinación de la **etapa de compilación** que debe ejecutarse.
-3. Apertura del **archivo fuente**.
-4. Ejecución de la **etapa seleccionada**:
+3. Generación del **nombre del archivo de salida**.
+4. Creación del **archivo de salida** correspondiente.
+5. Ejecución de la **etapa seleccionada**:
    - **Análisis léxico** mediante Flex, para la etapa `scan`.
    - **Análisis sintáctico** mediante Bison, utilizando los tokens proporcionados por Flex, para la etapa `parse`.
-5. Generación del **archivo de salida** correspondiente a la etapa seleccionada.
-6. Finalización indicando, mediante el código de retorno, si el análisis fue **exitoso** o si se produjeron **errores**.
+   - **Análisis semántico**, utilizando el AST construido por el parser y una tabla de símbolos, cuando no se especifica `-target`.
+6. Generación de los **archivos auxiliares** correspondientes cuando se encuentra activado el **modo de depuración**.
+7. **Liberación** de las estructuras utilizadas durante el análisis y finalización indicando, mediante el código de retorno, si la ejecución fue **exitosa** o si se produjeron **errores**.
 
 El análisis léxico continúa procesando la entrada cuando encuentra errores, permitiendo detectar **múltiples errores** en una misma ejecución. Al finalizar, el programa indica mediante su **código de retorno** si el análisis fue exitoso.
 
 Por su parte, el análisis sintáctico finaliza el procesamiento tras encontrar el **primer error sintáctico**, también con un código de retorno establecido.
 
-La **generación del archivo de salida** y la configuración del modo de depuración son coordinadas por `main.c`. Dependiendo de la etapa seleccionada, la salida generada corresponde a un archivo `.lex` o `.sint`. En el caso del análisis sintáctico, cuando se activa el modo de depuración, también se genera un archivo `.dot` con la representación del AST.
+El análisis semántico continúa procesando la entrada cuando encuentra errores, permitiendo detectar **múltiples errores** en una misma ejecución. Al finalizar, el programa indica mediante su **código de retorno** si el análisis fue exitoso.
 
-El **reconocimiento de los tokens** es responsabilidad del analizador léxico, mientras que la **validación de la estructura sintáctica** y la **construcción del AST** corresponden al analizador sintáctico.
+De esta manera, no es necesario corregir un error para que aparezca automáticamente otro. **Se brindan todos los errores encontrados de una vez**. Sin embargo, hay que ser cuidadosos al analizarlos, ya que un error detectado puede ser únicamente causa de otro error previo propagado.
+
+Cuando el análisis sintáctico se ejecuta como parte del **procesamiento completo**, el AST generado se conserva para realizar posteriormente el análisis semántico.
+
+En cambio, cuando se solicita explícitamente **`-target parse`**, el AST solamente se utiliza para completar esa etapa y posteriormente es liberado.
+
+La **generación del archivo de salida** y la configuración del modo de depuración son coordinadas por `main.c`. Dependiendo de la etapa seleccionada, la salida generada corresponde a un archivo `.lex`, `.sint` o `.sem`.
+
+En el caso del **análisis sintáctico**, cuando se activa el modo de depuración, también se genera un archivo `.dot` con la representación del AST.
+
+Cuando se ejecuta el **análisis semántico** con -debug, se genera el archivo .dot después del análisis semántico, por lo que representa el AST enriquecido con la información obtenida durante esta etapa.
+
+El **reconocimiento de los tokens** es responsabilidad del analizador léxico, mientras que la **validación de la estructura sintáctica** y la **construcción del AST** corresponden al analizador sintáctico. El **análisis semántica** utiliza posteriormente ese AST junto con la tabla de símbolos propia de la etapa.
 
 ---
 
@@ -995,7 +1330,7 @@ El archivo de entrada debe tener extensión `.ctds` y no puede comenzar con `-`.
 
 ### *Ejecución por defecto*
 
-Si no se especifica una etapa, **se ejecuta el análisis sintáctico**, que constituye la última etapa actualmente implementada.
+Si no se especifica una etapa mediante `target`, **se ejecuta hasta el análisis semántico**, que constituye la última etapa actualmente implementada.
 
 ```bash
 c-tds programa.ctds
@@ -1004,8 +1339,10 @@ c-tds programa.ctds
 En este caso se genera automáticamente:
 
 ```text
-programa.sint
+programa.sem
 ```
+
+El archivo `.sem` corresponde al resultado de la última etapa ejecutada, es decir, el **análisis semántico**.
 
 ### *Selección de etapa*
 
@@ -1036,6 +1373,8 @@ O:
 c-tds -target parse programa.ctds
 ```
 
+Actualmente no existe un `-target sem`. El **análisis semántico** se ejecuta automáticamente cuando no se especifica un `-target`.
+
 Las **etapas todavía no implementadas** son reconocidas por la interfaz y producen un mensaje indicando que la etapa aún no se encuentra disponible.
 
 ### *Nombre del archivo de salida*
@@ -1064,10 +1403,13 @@ Actualmente las **extensiones generadas automáticamente** son las siguientes:
 | :--- | :--- |
 | `scan` | `.lex` |
 | `parse` | `.sint` |
+| ejecución completa | `.sem` |
 | `codinter` | `.ci` |
 | `assembly` | `.ass` |
 
 Las extensiones correspondientes a `codinter` y `assembly` se encuentran contempladas por la interfaz, aunque **dichas etapas todavía no están implementadas**.
+
+Con la implementación actual, si no se aclara una etapa previa, el compilador llega hasta el **análisis semántico**, generando un archivo de extensión `.sem`.
 
 ### *Modo de depuración*
 
@@ -1088,6 +1430,8 @@ c-tds -debug programa.ctds
 La información mostrada depende de la etapa seleccionada. En el análisis léxico se muestran los **tokens reconocidos junto con su línea y columna**, mientras que en el análisis sintáctico también pueden mostrarse las **reducciones y construcciones reconocidas** por el parser.
 
 Además, durante el análisis sintáctico, el modo de depuración permite **mostrar el AST por consola y generar un archivo `.dot` con su representación**, a partir del cual puede obtenerse una representación gráfica mediante Graphviz.
+
+Cuando se ejecuta el **procesamiento completo** con `-debug`, el archivo `.dot` se genera después del análisis semántico, por lo que contiene el **AST enriquecido** con la información semántica obtenida durante esa etapa.
 
 El modo de depuración es **independiente** del archivo de salida principal del compilador.
 
@@ -1226,6 +1570,26 @@ Src/Test/Resultados/TS/
 
 Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**.
 
+### *Ejecutar las pruebas semánticas*
+
+Para **ejecutar todas las pruebas del análisis semántico**:
+
+```bash
+make tests-semantico
+```
+
+El objetivo **ejecuta las 135 pruebas** y muestra por consola el resultado de cada una.
+
+Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**.
+
+Tanto las **pruebas válidas como inválidas** generan archivos `.sem` y, al ejecutarse en modo de depuración, también archivos `.dot`. Estos últimos se convierten a imágenes `.png` mediante Graphviz.
+
+Los **archivos de salida** se generan en:
+
+```text
+Src/Test/Resultados/Semantico/
+```
+
 ### *Ejecutar todas las pruebas*
 
 El objetivo:
@@ -1242,6 +1606,7 @@ En el estado actual del proyecto, esto equivale a ejecutar:
 2. Las pruebas del **análisis sintáctico**.
 3. Las pruebas independientes del **AST**.
 4. Las pruebas independientes de la **TS**.
+5. Las pruebas del **análisis semántico**.
 
 Este objetivo se encuentra **preparado para incorporar las pruebas de las etapas posteriores** a medida que sean implementadas.
 

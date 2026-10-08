@@ -1,0 +1,13 @@
+int evaluar (int x) {
+    if (x > 0) {
+        return 1;
+    }
+    else {
+        return -1;
+    }
+}
+
+void main () {
+    int res;
+    res = evaluar (5);
+}

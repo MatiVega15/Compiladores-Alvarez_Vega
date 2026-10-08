@@ -1,0 +1,10 @@
+void main () {
+    int res1;
+    int res2;
+
+    // Módulo por cero literal.
+    res1 = 10 % 0;
+
+    // Módulo por expresión constante.
+    res2 = 10 % (2 - 2);
+}

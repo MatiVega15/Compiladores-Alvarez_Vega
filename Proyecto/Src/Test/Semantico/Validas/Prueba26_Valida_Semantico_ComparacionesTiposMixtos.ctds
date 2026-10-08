@@ -1,0 +1,13 @@
+void main () {
+    int i;
+    float f;
+    boolean b;
+
+    i = 5;
+    f = 7.1;
+
+    b = i < f;  // int < float.
+    b = f < i;  // float < int.
+    b = i > f;  // int > float.
+    b = f > i;  // float > int.
+}

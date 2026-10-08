@@ -1,0 +1,9 @@
+void f_cero () {}
+int f_uno (int a) { return a; }
+float f_varios (int a, float b, boolean c) { return b; }
+
+void main () {
+    f_cero ();
+    f_uno (5);
+    f_varios (10, 2.5, true);
+}

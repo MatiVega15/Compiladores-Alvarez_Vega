@@ -1,0 +1,8 @@
+float calcular_promedio () {
+    return 3.14;
+}
+
+void main () {
+    float f;
+    f = calcular_promedio ();
+}

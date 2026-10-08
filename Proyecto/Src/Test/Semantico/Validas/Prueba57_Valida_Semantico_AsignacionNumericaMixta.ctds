@@ -1,0 +1,7 @@
+void main () {
+    float f_res;
+    int i_val;
+    i_val = 10;
+    // Asignación mixta.
+    f_res = i_val + 3.5 * 2;
+}

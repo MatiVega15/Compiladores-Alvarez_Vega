@@ -1,0 +1,8 @@
+int duplicar (int n) {
+    return n * 2;
+}
+
+void main () {
+    int resultado;
+    resultado = duplicar (21);
+}

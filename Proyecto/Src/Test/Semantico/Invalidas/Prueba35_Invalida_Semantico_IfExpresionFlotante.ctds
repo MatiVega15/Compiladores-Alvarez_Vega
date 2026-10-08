@@ -1,0 +1,9 @@
+void main () {
+    float f;
+    f = 2.5;
+
+    if (f * 2.0) {
+        int y;
+        y = 10;
+    }
+}

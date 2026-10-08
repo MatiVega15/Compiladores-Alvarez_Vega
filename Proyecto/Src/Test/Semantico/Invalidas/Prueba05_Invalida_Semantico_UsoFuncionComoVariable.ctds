@@ -1,0 +1,9 @@
+int mi_funcion () {
+    return 10;
+}
+
+void main () {
+    int res;
+    // Función usada como variable.
+    res = mi_funcion + 5;
+}

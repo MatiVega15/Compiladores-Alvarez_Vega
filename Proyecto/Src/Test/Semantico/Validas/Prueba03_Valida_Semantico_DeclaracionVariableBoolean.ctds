@@ -1,0 +1,7 @@
+boolean main () {
+    boolean bandera;
+
+    bandera = true;
+
+    return bandera;
+}

@@ -1,0 +1,10 @@
+void foo (int x, int y) {
+    int z;
+    z = x + y;
+}
+
+void main () {
+    int a;
+    a = 5;
+    foo (a);  // Sobra un argumento.
+}

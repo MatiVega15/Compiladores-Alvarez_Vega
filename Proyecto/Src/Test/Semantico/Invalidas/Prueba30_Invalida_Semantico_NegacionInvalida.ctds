@@ -1,0 +1,11 @@
+void main () {
+    int i;
+    float f;
+    boolean res;
+
+    i = 10;
+    f = 3.5;
+
+    res = !i;   // !int.
+    res = !f;   // !float.
+}

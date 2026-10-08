@@ -1,0 +1,11 @@
+float calcular (float a) {
+    return a * 2.5;
+}
+
+void main () {
+    float resultado;
+    int base;
+    base = 10;
+
+    resultado = (base + 5.2) * calcular (4.0) - (true / 2);
+}
