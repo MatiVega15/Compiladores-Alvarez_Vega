@@ -27,12 +27,21 @@ RESULTADOS_AST_DIR = $(RESULTADOS_DIR)/AST
 TS_TEST_DIR = $(TEST_DIR)/TS
 RESULTADOS_TS_DIR = $(RESULTADOS_DIR)/TS
 
+SEMANTICO_TEST_DIR = $(TEST_DIR)/Semantico
+SEMANTICO_VALIDAS_DIR = $(SEMANTICO_TEST_DIR)/Validas
+SEMANTICO_INVALIDAS_DIR = $(SEMANTICO_TEST_DIR)/Invalidas
+
+RESULTADOS_SEMANTICO_DIR = $(RESULTADOS_DIR)/Semantico
+RESULTADOS_SEMANTICO_VALIDAS_DIR = $(RESULTADOS_SEMANTICO_DIR)/Validas
+RESULTADOS_SEMANTICO_INVALIDAS_DIR = $(RESULTADOS_SEMANTICO_DIR)/Invalidas
+
 # ========== Archivos fuente ==========
 
 LEXER_SRC = Src/Lexer/AnalizadorLexico.lex
 PARSER_SRC = Src/Parser/AnalizadorSintactico.y
 AST_SRC = Src/AST/AST.c
 TS_SRC = Src/TS/TS.c
+SEMANTICO_SRC = Src/Semantico/AnalizadorSemantico.c
 MAIN_SRC = Src/main.c
 
 # ========== Archivos de cabecera ==========
@@ -41,6 +50,7 @@ PARSER_H = $(BUILD_DIR)/AnalizadorSintactico.tab.h
 TIPOS_H = Src/Common/Tipos.h
 AST_H = Src/AST/AST.h
 TS_H = Src/TS/TS.h
+SEMANTICO_H = Src/Semantico/AnalizadorSemantico.h
 
 # ========== Archivos generados ==========
 
@@ -63,9 +73,12 @@ PRUEBAS_AST = $(wildcard $(AST_TEST_DIR)/*.c)
 
 PRUEBAS_TS = $(wildcard $(TS_TEST_DIR)/*.c)
 
+PRUEBAS_SEMANTICO_VALIDAS = $(wildcard $(SEMANTICO_VALIDAS_DIR)/*.ctds)
+PRUEBAS_SEMANTICO_INVALIDAS = $(wildcard $(SEMANTICO_INVALIDAS_DIR)/*.ctds)
+
 # ========== Objetivos ==========
 
-.PHONY: all tests tests-lexico tests-sintactico tests-ast tests-ts clean
+.PHONY: all tests tests-lexico tests-sintactico tests-ast tests-ts tests-semantico clean
 
 # ========== Compilación del compilador ==========
 
@@ -75,7 +88,7 @@ all: $(BIN)
 # Enlazado final.
 $(BIN): $(MAIN_SRC) $(PARSER_C) $(LEXER_C)
 	@mkdir -p $(BUILD_DIR)
-	@gcc -I$(BUILD_DIR) -ISrc/AST -ISrc/Common -ISrc/TS $(MAIN_SRC) $(PARSER_C) $(LEXER_C) $(AST_SRC) $(TS_SRC) -o $(BIN)
+	@gcc -I$(BUILD_DIR) -ISrc/AST -ISrc/Common -ISrc/TS -ISrc/Semantico $(MAIN_SRC) $(PARSER_C) $(LEXER_C) $(AST_SRC) $(TS_SRC) $(SEMANTICO_SRC) -o $(BIN)
 
 # ========== Generación del analizador sintáctico ==========
 
@@ -94,7 +107,7 @@ $(LEXER_C): $(LEXER_SRC) $(PARSER_H)
 # ========== Ejecución de todas las pruebas ==========
 
 # Ejecuta todas las pruebas disponibles.
-tests: tests-lexico tests-sintactico tests-ast tests-ts
+tests: tests-lexico tests-sintactico tests-ast tests-ts tests-semantico
 	@echo "========================================="
 	@echo "      TODAS LAS PRUEBAS FINALIZADAS"
 	@echo "========================================="
@@ -307,6 +320,82 @@ tests-ts:
 			ok=$$((ok + 1)); \
 		else \
 			echo "RESULTADO: FALLIDA"; \
+			fallidas=$$((fallidas + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	echo "======================"; \
+	echo "Pruebas correctas: $$ok"; \
+	echo "Pruebas fallidas: $$fallidas"; \
+	echo "======================"; \
+	echo "";
+
+# ========== Pruebas del análisis semántico ==========
+
+# Ejecuta todas las pruebas del análisis semántico.
+tests-semantico: $(BIN)
+	@mkdir -p $(RESULTADOS_SEMANTICO_VALIDAS_DIR)
+	@mkdir -p $(RESULTADOS_SEMANTICO_INVALIDAS_DIR)
+
+	@fallidas=0; \
+	ok=0; \
+	echo ""; \
+	echo "==========================================="; \
+	echo "      PRUEBAS DEL ANÁLISIS SEMÁNTICO"; \
+	echo "==========================================="; \
+	echo ""; \
+	echo "========== PRUEBAS VÁLIDAS =========="; \
+	echo ""; \
+	for prueba in $(PRUEBAS_SEMANTICO_VALIDAS); do \
+		nombre=$$(basename $$prueba .ctds); \
+		salida=$(RESULTADOS_SEMANTICO_VALIDAS_DIR)/$$nombre.sem; \
+		dot=$(RESULTADOS_SEMANTICO_VALIDAS_DIR)/$$nombre.dot; \
+		png=$(RESULTADOS_SEMANTICO_VALIDAS_DIR)/$$nombre.png; \
+		error=$(RESULTADOS_SEMANTICO_VALIDAS_DIR)/$$nombre.err; \
+		echo "---- $$nombre ----"; \
+		$(BIN) -debug -o $$salida $$prueba \
+			> /dev/null \
+			2> $$error; \
+		resultado=$$?; \
+		if [ ! -s $$error ]; then \
+			rm -f $$error; \
+		fi; \
+		if [ $$resultado -eq 0 ]; then \
+			if [ -f $$dot ]; then \
+				dot -Tpng $$dot -o $$png; \
+			fi; \
+			echo "RESULTADO: OK"; \
+			ok=$$((ok + 1)); \
+		else \
+			echo "RESULTADO: FALLIDA (se esperaba éxito)"; \
+			fallidas=$$((fallidas + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	echo "========== PRUEBAS INVÁLIDAS =========="; \
+	echo ""; \
+	for prueba in $(PRUEBAS_SEMANTICO_INVALIDAS); do \
+		nombre=$$(basename $$prueba .ctds); \
+		salida=$(RESULTADOS_SEMANTICO_INVALIDAS_DIR)/$$nombre.sem; \
+		dot=$(RESULTADOS_SEMANTICO_INVALIDAS_DIR)/$$nombre.dot; \
+		png=$(RESULTADOS_SEMANTICO_INVALIDAS_DIR)/$$nombre.png; \
+		error=$(RESULTADOS_SEMANTICO_INVALIDAS_DIR)/$$nombre.err; \
+		echo "---- $$nombre ----"; \
+		$(BIN) -debug -o $$salida $$prueba \
+			> /dev/null \
+			2> $$error; \
+		resultado=$$?; \
+		if [ ! -s $$error ]; then \
+			rm -f $$error; \
+		fi; \
+		if [ $$resultado -ne 0 ]; then \
+			if [ -f $$dot ]; then \
+				dot -Tpng $$dot -o $$png; \
+			fi; \
+			echo "RESULTADO: OK"; \
+			ok=$$((ok + 1)); \
+		else \
+			echo "RESULTADO: FALLIDA (se esperaba error)"; \
 			fallidas=$$((fallidas + 1)); \
 		fi; \
 		echo ""; \
