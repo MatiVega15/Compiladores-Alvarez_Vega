@@ -1,4 +1,6 @@
 #include "AST.h"
+#include "TS.h"
+#include "AnalizadorSemantico.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,6 +43,9 @@ typedef struct {
     // Última etapa que debe ejecutarse.
     Etapa etapa;
 
+    // Indica si el usuario especificó un -target.
+    int target_especificado;
+
     int debug;
     int optimizar;
     int optimizar_todo;
@@ -51,9 +56,10 @@ typedef struct {
 static int procesar_argumentos (int argc, char *argv [], Configuracion *configuracion);
 static int analizar_lexicamente (const Configuracion *configuracion, FILE *salida);
 static int analizar_sintacticamente (const Configuracion *configuracion, FILE *salida, const char *nombre_salida);
+static int analizar_semanticamente (const Configuracion *configuracion, FILE *salida);
 static Etapa obtener_etapa (const char *nombre);
 static const char *nombre_etapa (Etapa etapa);
-static char *generar_nombre_salida (const char *archivo_entrada, Etapa etapa);
+static char *generar_nombre_salida (const char *archivo_entrada, Etapa etapa, int target_especificado);
 static char *generar_nombre_dot (const char *nombre_salida);
 static int termina_con (const char *cadena, const char *sufijo);
 
@@ -69,6 +75,7 @@ int main (int argc, char *argv []) {
     configuracion.archivo_entrada = NULL;
     configuracion.archivo_salida = NULL;
     configuracion.etapa = ETAPA_PARSE;
+    configuracion.target_especificado = 0;
     configuracion.debug = 0;
     configuracion.optimizar = 0;
     configuracion.optimizar_todo = 0;
@@ -85,7 +92,7 @@ int main (int argc, char *argv []) {
         return EXIT_FAILURE;
     }
 
-    // Actualmente solo están implementadas las etapas scan y parse.
+    // Actualmente solo están implementadas las etapas scan, parse y el análisis semántico.
     if (configuracion.etapa > ETAPA_PARSE) {
         fprintf (stderr, "ERROR: La etapa '%s' todavía no está implementada.\n", nombre_etapa (configuracion.etapa));
 
@@ -101,7 +108,7 @@ int main (int argc, char *argv []) {
         }
     }
     else {
-        nombre_salida = generar_nombre_salida (configuracion.archivo_entrada, configuracion.etapa);
+        nombre_salida = generar_nombre_salida (configuracion.archivo_entrada, configuracion.etapa, configuracion.target_especificado);
     }
 
     if (nombre_salida == NULL) {
@@ -128,6 +135,69 @@ int main (int argc, char *argv []) {
     // Se ejecuta el análisis sintáctico.
     else {
         resultado = analizar_sintacticamente (&configuracion, salida, nombre_salida);
+    
+        // Si el target es parse, el AST ya no es necesario.
+        if (resultado == EXIT_SUCCESS && configuracion.target_especificado && configuracion.etapa == ETAPA_PARSE) {
+            liberar_arbol (arbol);
+            arbol = NULL;
+        }
+        else if (resultado == EXIT_SUCCESS && !configuracion.target_especificado) {
+            fclose (salida);
+            salida = fopen (nombre_salida, "w");
+
+            if (salida == NULL) {
+                fprintf (stderr, "ERROR: No se pudo abrir el archivo '%s'.\n", nombre_salida);
+                liberar_arbol (arbol);
+                arbol = NULL;
+                free (nombre_salida);
+
+                return EXIT_FAILURE;
+            }
+
+            resultado = analizar_semanticamente (&configuracion, salida);
+
+            // Se genera un archivo DOT del AST enriquecido por el semántico.
+            if (configuracion.debug) {
+                char *nombre_dot;
+                FILE *archivo_dot;
+                
+                nombre_dot = generar_nombre_dot (nombre_salida);
+
+                if (nombre_dot == NULL) {
+                    fprintf (stderr, "ERROR: No se pudo generar el nombre del archivo DOT.\n");
+
+                    liberar_arbol (arbol);
+                    arbol = NULL;
+                    fclose (salida);
+                    free (nombre_salida);
+
+                    return EXIT_FAILURE;
+                }
+
+                archivo_dot = fopen (nombre_dot, "w");
+
+                if (archivo_dot == NULL) {
+                    fprintf (stderr, "ERROR: No se pudo crear el archivo %s.\n", nombre_dot);
+
+                    free (nombre_dot);
+                    liberar_arbol (arbol);
+                    arbol = NULL;
+                    fclose (salida);
+                    free (nombre_salida);
+
+                    return EXIT_FAILURE;
+                }
+
+                // Se genera el archivo DOT.
+                generar_dot (arbol, archivo_dot);
+
+                fclose (archivo_dot);
+                free (nombre_dot);
+            }
+
+            liberar_arbol (arbol);
+            arbol = NULL;
+        }
     }
     
     fclose (salida);
@@ -202,6 +272,7 @@ static int procesar_argumentos (int argc, char *argv [], Configuracion *configur
             }
 
             configuracion -> etapa = etapa;
+            configuracion -> target_especificado = 1;
         }
 
         // Optimización.
@@ -372,46 +443,84 @@ static int analizar_sintacticamente (const Configuracion *configuracion, FILE *s
         return EXIT_FAILURE;
     }
 
-    // En modo debug, se muestra el AST por consola y se genera su archivo DOT.
+    // En modo debug, se muestra el AST por consola.
     if (configuracion -> debug) {
-        char *nombre_dot;
-        FILE *archivo_dot;
-        
         // Se imprime por consola.
         imprimir_arbol (arbol);
 
-        nombre_dot = generar_nombre_dot (nombre_salida);
+        // Se genera un archivo DOT si se solicita la etapa parse.
+        if (configuracion -> target_especificado && configuracion -> etapa == ETAPA_PARSE) {
+            char *nombre_dot;
+            FILE *archivo_dot;
+            
+            nombre_dot = generar_nombre_dot (nombre_salida);
 
-        if (nombre_dot == NULL) {
-            fprintf (stderr, "ERROR: No se pudo generar el nombre del archivo DOT.\n");
+            if (nombre_dot == NULL) {
+                fprintf (stderr, "ERROR: No se pudo generar el nombre del archivo DOT.\n");
 
-            liberar_arbol (arbol);
-            arbol = NULL;
+                return EXIT_FAILURE;
+            }
 
-            return EXIT_FAILURE;
-        }
+            archivo_dot = fopen (nombre_dot, "w");
 
-        archivo_dot = fopen (nombre_dot, "w");
+            if (archivo_dot == NULL) {
+                fprintf (stderr, "ERROR: No se pudo crear el archivo %s.\n", nombre_dot);
 
-        if (archivo_dot == NULL) {
-            fprintf (stderr, "ERROR: No se pudo crear el archivo %s.\n", nombre_dot);
+                free (nombre_dot);
 
+                return EXIT_FAILURE;
+            }
+
+            // Se genera el archivo DOT.
+            generar_dot (arbol, archivo_dot);
+
+            fclose (archivo_dot);
             free (nombre_dot);
-            liberar_arbol (arbol);
-            arbol = NULL;
-
-            return EXIT_FAILURE;
         }
-
-        // Se genera el archivo DOT.
-        generar_dot (arbol, archivo_dot);
-
-        fclose (archivo_dot);
-        free (nombre_dot);
     }
 
-    liberar_arbol (arbol);
-    arbol = NULL;
+    return EXIT_SUCCESS;
+}
+
+/* ========== Análisis semántico ========== */
+
+/**
+ * Ejecuta el análisis semántico.
+ * 
+ * Utiliza el AST construido por el parser y una nueva
+ * TS para verificar las reglas semánticas.
+ * 
+ * El resultado se registra en el archivo de salida
+ * correspondiente a la etapa semántica.
+ */
+static int analizar_semanticamente (const Configuracion *configuracion, FILE *salida) {
+    TablaSimbolos *ts;
+    
+    int errores;
+
+    // El análisis semántico requiere un AST válido.
+    if (arbol == NULL) {
+        fprintf (stderr, "ERROR: no existe un AST para realizar el análisis semántico.\n");
+        return EXIT_FAILURE;
+    }
+
+    // Se crea la Tabla de Símbolos.
+    ts = iniciar_TS ();
+
+    if (ts == NULL) {
+        fprintf (stderr, "ERROR: No se pudo inicializar la Tabla de Símbolos.\n");
+        return EXIT_FAILURE;
+    }
+
+    // Se ejecuta el análisis semántico.
+    errores = analizar_semantica (arbol, ts, salida, configuracion -> debug);
+
+    // La Tabla de Símbolos deja de ser necesaria al finalizar el análisis.
+    liberar_TS (ts);
+
+    if (errores != 0) {
+        return EXIT_FAILURE;
+    }
 
     return EXIT_SUCCESS;
 }
@@ -463,35 +572,45 @@ static const char *nombre_etapa (Etapa etapa) {
  * Genera el nombre del archivo de salida correspondiente
  * a la etapa del compilador.
  * 
+ * Cuando no se especifica un target, actualmente se utiliza
+ * la extensión correspondiente a la etapa corriente.
+ * 
  * Ejemplos:
  * 
  *      programa.ctds -> programa.lex
  *      programa.ctds -> programa.sint
+ *      programa.ctds -> programa.sem
  *      programa.ctds -> programa.ci
  *      programa.ctds -> programa.ass
  */
-static char *generar_nombre_salida (const char *archivo_entrada, Etapa etapa) {
+static char *generar_nombre_salida (const char *archivo_entrada, Etapa etapa, int target_especificado) {
     const char *extension;
     const char *punto;
     size_t longitud;
     size_t longitud_extension;
     char *resultado;
 
-    switch (etapa) {
-        case ETAPA_SCAN:
-            extension = ".lex";
-            break;
-        case ETAPA_PARSE:
-            extension = ".sint";
-            break;
-        case ETAPA_CODINTER:
-            extension = ".ci";
-            break;
-        case ETAPA_ASSEMBLY:
-            extension = ".ass";
-            break;
-        default:
-            return NULL;
+    // Si no se especificó target, la etapa corriente actualmente es el análisis semántico.
+    if (!target_especificado) {
+        extension = ".sem";
+    }
+    else {
+        switch (etapa) {
+            case ETAPA_SCAN:
+                extension = ".lex";
+                break;
+            case ETAPA_PARSE:
+                extension = ".sint";
+                break;
+            case ETAPA_CODINTER:
+                extension = ".ci";
+                break;
+            case ETAPA_ASSEMBLY:
+                extension = ".ass";
+                break;
+            default:
+                return NULL;
+        }
     }
 
     // Se busca el último punto del nombre de archivo.
@@ -523,11 +642,12 @@ static char *generar_nombre_salida (const char *archivo_entrada, Etapa etapa) {
 
 /**
  * Genera el nombre del archivo DOT a partir del
- * nombre del archivo de salida sintáctico.
+ * nombre del archivo de salida de la etapa actual.
  * 
  * Ejemplo:
  * 
  *      programa.sint -> programa.dot
+ *      programa.sem -> programa.dot
  */
 static char *generar_nombre_dot (const char *nombre_salida) {
     const char *extension = ".dot";
