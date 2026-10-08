@@ -146,7 +146,7 @@ Una declaración de función puede **devolver un tipo** (`int`, `boolean` o `flo
 
 #### **- Bloque**
 
-Un bloque **comienza y termina con llaves**. Dentro de él pueden aparecer **cero o más declaraciones de variables** y **cero o más declaraciones de sentencias**.
+Un bloque **comienza y termina con llaves**. Dentro de él pueden aparecer **cero o más declaraciones de variables** y **cero o más sentencias**.
 
 Es decir, se permiten **bloques vacíos**, y también **bloques con declaraciones pero sin sentencias y viceversa**.
 
@@ -185,7 +185,11 @@ Las sentencias permiten realizar **asignaciones, llamadas a funciones, estructur
 \end{aligned}
 ```
 
-Las asignaciones solamente se permiten sobre los tipos básicos `int` y `boolean`, pero se permiten coerciones/truncamientos entre `int` y `float`.
+Las asignaciones se permiten sobre variables y parámetros de tipo `int`, `float` o `boolean`. El **tipo de la expresión asignada** debe ser compatible con el tipo de la ubicación de acuerdo con las reglas de compatibilidad y coerción del lenguaje.
+
+Se permiten **conversiones implícitas** entre los tipos numéricos `int` y `float`. La conversión de `int` a `float` conserva el valor numérico, mientras que la conversión de `float` a `int` trunca la parte decimal.
+
+No se permiten conversiones implícitas entre `boolean` y los tipos numéricos.
 
 #### **- Llamada a funciones**
 
@@ -271,7 +275,7 @@ Los literales pueden ser **enteros, booleanos o reales**.
 
 #### **- Identificadores**
 
-Un identificador **comienza con una letra y puede continuar con cero o más letras o dígitos**. Las letras pueden ser **mayúsculas o minúsculas** en cualquier posición, y se permite el uso de **'_'**.
+Un identificador **comienza con una letra y puede continuar con cero o más letras, dígitos o guiones bajos**. Las letras pueden ser **mayúsculas o minúsculas** en cualquier posición.
 
 ```math
 \langle id \rangle \rightarrow
@@ -320,7 +324,7 @@ Un literal entero está formado por **uno o más dígitos**. Se permite la prese
 \langle digit \rangle\ \langle digit \rangle^*
 ```
 
-Los literales enteros corresponden a **números enteros con signo de 32 bits**, por lo que sus valores se encuentran en el rango `-2147483648` a `2147483647`.
+Los valores enteros representables por el lenguaje utilizan una representación **con signo de 32 bits**, por lo que sus valores deben encontrarse dentro del rango `-2147483648` a `2147483647`. El signo negativo se interpreta mediante el operador unario `-` y no forma parte del literal entero.
 
 #### **- Literales booleanos**
 
@@ -575,3 +579,154 @@ Ambos tipos de comentarios **son ignorados por el analizador léxico**.
 ### *Espacios*
 
 Los **espacios, tabulaciones, comentarios y saltos de línea** se consideran separadores y son ignorados por el analizador léxico, por medio de las expresiones `[ \t\r]+` y `\n`.
+
+---
+
+## **3. Restricciones semánticas**
+
+Las reglas sintácticas definidas anteriormente determinan si un programa está correctamente formado desde el punto de vista de la estructura del lenguaje. Sin embargo, **un programa puede ser sintácticamente válido y no cumplir determinadas condiciones necesarias para que su significado sea correcto**.
+
+Las **restricciones semánticas** complementan las reglas sintácticas y deben ser verificadas por el **analizador semántico** utilizando la información del árbol sintáctico abstracto (AST) y de la tabla de símbolos (TS).
+
+Si se detecta una violación de alguna de estas reglas, el compilador deberá generar un **mensaje de error semántico** que describa el problema detectado. Si no se detecta ninguna violación, no deberá generarse ningún informe de error semántico.
+
+### *3.1 Declaraciones y ámbitos*
+
+1. Ningún identificador puede ser declarado **más de una vez** dentro de un **mismo ámbito**.
+2. Los identificadores deben ser **declarados antes de ser utilizados**.
+3. Una función únicamente puede ser invocada desde **código ubicado después de su declaración**.
+4. Los distintos ámbitos se encuentran **anidados**. Un identificador declarado en un ámbito interno puede **ocultar** a otro identificador con el mismo nombre perteneciente a un ámbito exterior.
+5. Un identificador utilizado como `location` debe corresponder a una **variable global**, una **variable local** o un **parámetro** de la función actual.
+6. Una función **no puede utilizarse como `location`** de una asignación.
+
+### *3.2 Función `main`*
+
+Todo programa **debe contener** una función denominada `main`.
+
+La función `main` **no puede recibir parámetros**.
+
+La **ejecución** del programa comienza en la función `main`.
+
+### *3.3 Asignaciones*
+
+Una asignación tiene la **forma**:
+
+```text
+<location> = <expr>
+```
+
+La `location` debe corresponder a una **variable o parámetro declarado** y visible en el punto donde se realiza la asignación.
+
+El tipo de la `location` y el tipo de la expresión asignada deben ser **compatibles** de acuerdo con las reglas de tipos del lenguaje.
+
+Los **parámetros** pueden utilizarse como `location` de una asignación. Las modificaciones realizadas sobre un parámetro tienen efecto únicamente dentro del **ámbito** de la función correspondiente, debido a que los parámetros son pasados por valor.
+
+### *3.4 Tipos de expresiones*
+
+Cada expresión posee un **tipo de dato** determinado por sus operandos y por el operador utilizado.
+
+Los **literales** tienen los siguientes tipos:
+
+- Los literales **enteros** tienen tipo `int`.
+- Los literales **booleanos** tienen tipo `boolean`.
+- Los literales **reales** tienen tipo `float`.
+
+Una **referencia** a una variable o parámetro tiene el tipo declarado para dicho identificador.
+
+Una **llamada a una función** tiene como tipo el tipo de retorno de la función invocada. Las funciones `void` no producen un valor y, por lo tanto, una llamada a una función `void` no puede utilizarse como una expresión.
+
+### *3.5 Operadores*
+
+Los operadores **aritméticos** requieren operandos de tipo numérico (`int` o `float`).
+
+Los operadores **relacionales** requieren operandos de tipo numérico (`int` o `float`) y producen un resultado de tipo `boolean`.
+
+El operador de **igualdad** `==` requiere operandos del mismo tipo y produce un resultado de tipo `boolean`.
+
+Los operadores **lógicos** `&&` y `||` requieren operandos de tipo `boolean` y producen un resultado de tipo `boolean`.
+
+El operador de **negación** `!` requiere un operando de tipo `boolean` y produce un resultado de tipo `boolean`.
+
+El operador **menos unario** requiere un operando de tipo numérico (`int` o `float`) y produce un resultado numérico.
+
+### *3.6 Compatibilidad entre tipos numéricos*
+
+Las **operaciones aritméticas** permiten operandos de tipo `int` o `float`.
+
+Cuando una **operación aritmética** **combina un operando `int` y un operando `float`**, el operando `int` se convierte implícitamente a `float` y el resultado de la operación es de tipo `float`.
+
+Cuando **ambos operandos son de tipo `int`**, el resultado es de tipo `int`, excepto en aquellos casos en los que la operación produzca un tipo diferente según las reglas específicas del operador.
+
+La **división entre dos operandos `int`** corresponde a una división entera. Si **al menos uno de los operandos es de tipo `float`**, la división produce un tipo `float`.
+
+El **operador módulo `%`** solamente admite operandos de tipo `int` y produce un resultado de tipo `int`.
+
+En las **operaciones relacionales** `<` y `>`, se permite combinar operandos `int` y `float`. En caso de que **los operandos sean de tipos diferentes**, el operando `int` se convierte implícitamente a `float`.
+
+El operador de **igualdad** `==` requiere que ambos operandos sean del mismo tipo. **No se realiza coerción implícita** entre `int` y `float` para esta operación.
+
+### *3.7 Sentencias condicionales y repetitivas*
+
+La **expresión** asociada a una sentencia `if` debe tener tipo `boolean`.
+
+La **expresión** asociada a una sentencia `while` debe tener tipo `boolean`.
+
+### *3.8 Llamadas a funciones*
+
+En una invocación a una función, la **cantidad de argumentos** debe coincidir con la cantidad de parámetros declarados por la función.
+
+El **tipo de cada argumento** debe ser compatible con el tipo del parámetro formal correspondiente.
+
+Los **argumentos** se evalúan de izquierda a derecha y sus valores son pasados por valor a los parámetros formales.
+
+Una **función `void`** únicamente puede ser **invocada como una sentencia** y no puede utilizarse como parte de una expresión.
+
+Una **función que retorna un valor** puede ser **invocada tanto como una expresión como una sentencia**. Cuando se utiliza como una sentencia, el valor retornado es ignorado.
+
+### *3.9 Sentencias `return`*
+
+Una sentencia `return` debe ser **compatible con el tipo de retorno de la función** en la que aparece.
+
+En una función `void`, la sentencia `return` **no puede contener una expresión**.
+
+En una función que retorna un valor, la sentencia `return` **debe contener una expresión**.
+
+El tipo de la expresión retornada debe ser **compatible con el tipo de retorno** declarado por la función.
+
+### *3.10 Retorno obligatorio de funciones*
+
+Una función que retorna un valor **no puede alcanzar el final de su cuerpo sin ejecutar una sentencia `return`** válida.
+
+Por lo tanto, todos los **caminos posibles** de ejecución de una función que retorna un valor deben finalizar mediante una sentencia `return` que contenga una expresión compatible con el tipo de retorno declarado.
+
+Las funciones `void`, en cambio, **pueden alcanzar el final de su cuerpo sin ejecutar una sentencia `return`**.
+
+### *3.11 Coerciones entre tipos numéricos*
+
+El lenguaje permite **conversiones implícitas** entre los tipos numéricos `int` y `float`.
+
+La **conversión de `int` a `float`** conserva el valor numérico. La **conversión de `float` a `int`** trunca la parte decimal.
+
+Estas conversiones **se permiten en**:
+
+- Asignaciones.
+- Argumentos de funciones.
+- Valores de retorno.
+- Operaciones aritméticas.
+- Operaciones relacionales `<` y `>`.
+
+**No se realizan conversiones implícitas** entre `boolean` y los tipos numéricos.
+
+El operador de **igualdad** `==` requiere operandos del mismo tipo y **no aplica coerciones** entre `int` y `float`.
+
+### *3.12 División y módulo por cero*
+
+El divisor de una operación de división `/` **no puede ser cero**.
+
+El segundo operando de una operación módulo `%` **tampoco puede ser cero**.
+
+Cuando el divisor es una expresión cuyo valor puede determinarse en tiempo de compilación y dicho valor es cero, **el compilador deberá informar un error semántico**.
+
+Cuando el divisor depende de valores que solamente pueden conocerse durante la ejecución, **la condición deberá ser detectada durante la etapa de ejecución correspondiente**.
+
+La comprobación de división o módulo por cero **no modifica las reglas de tipos de los operadores**.
