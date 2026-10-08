@@ -1,0 +1,11 @@
+int auxiliar (int parametro) {
+    return parametro;
+}
+
+int main () {
+    int x;
+
+    x = auxiliar (10);
+
+    return x;
+}

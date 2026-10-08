@@ -1,0 +1,9 @@
+void probar_reasignacion (int a, float b, boolean c) {
+    a = 100;
+    b = 3.14;
+    c = false;
+}
+
+void main () {
+    
+}

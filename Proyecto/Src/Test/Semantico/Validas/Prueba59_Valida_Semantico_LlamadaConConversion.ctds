@@ -1,0 +1,9 @@
+float procesar_decimal (float x) {
+    return x * 1.5;
+}
+
+void main () {
+    float res;
+    // Se pasa un int donde se espera un float.
+    res = procesar_decimal (10);
+}

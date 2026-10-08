@@ -1,0 +1,9 @@
+int f () {
+    while (true) {
+        return 1;
+    }
+}
+
+void main () {
+    f ();
+}

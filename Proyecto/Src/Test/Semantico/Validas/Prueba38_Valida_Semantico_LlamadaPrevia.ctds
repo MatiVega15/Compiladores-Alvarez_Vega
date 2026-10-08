@@ -1,0 +1,14 @@
+int calcular_base () {
+    return 10;
+}
+
+int calcular_total () {
+    int base;
+    base = calcular_base ();
+    return base + 5;
+}
+
+void main () {
+    int res;
+    res = calcular_total ();
+}

@@ -1,0 +1,7 @@
+float f () {
+    return true;
+}
+
+void main () {
+    f ();
+}

@@ -1,0 +1,5 @@
+int main () {
+    int resultado;
+    resultado = 5 + 5 * 2;
+    return resultado;
+}

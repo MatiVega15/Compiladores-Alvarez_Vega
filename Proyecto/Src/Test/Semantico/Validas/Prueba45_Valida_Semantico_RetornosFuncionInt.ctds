@@ -1,0 +1,20 @@
+int funcion_int_uno () {
+    return 10;  // return int_expr.
+}
+
+int funcion_int_dos () {
+    int x;
+    x = 20;
+    return x;   // return int_variable.
+}
+
+int funcion_int_tres () {
+    return 3.14;    // return float_expr (warning).
+}
+
+void main () {
+    int a;
+    a = funcion_int_uno ();
+    a = funcion_int_dos ();
+    a = funcion_int_tres ();
+}

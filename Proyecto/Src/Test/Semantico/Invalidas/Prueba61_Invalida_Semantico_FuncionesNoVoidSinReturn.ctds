@@ -1,0 +1,9 @@
+int entero () {}
+boolean booleano () {}
+float real () {}
+
+void main () {
+    entero ();
+    booleano ();
+    real ();
+}

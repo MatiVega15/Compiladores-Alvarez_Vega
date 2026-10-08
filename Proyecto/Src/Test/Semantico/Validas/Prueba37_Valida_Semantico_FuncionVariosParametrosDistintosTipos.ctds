@@ -1,0 +1,13 @@
+float calcular_total (int cantidad, float precio, boolean descuento) {
+    float total;
+    total = cantidad * precio;
+    if (descuento) {
+        total = total * 0.9;
+    }
+    return total;
+}
+
+void main () {
+    float resultado;
+    resultado = calcular_total (5, 10.5, true);
+}

@@ -1,0 +1,8 @@
+void main () {
+    {
+        int x;
+        x = 10;
+    }
+
+    x = 20; // 'x' no declarada en el ámbito.
+}

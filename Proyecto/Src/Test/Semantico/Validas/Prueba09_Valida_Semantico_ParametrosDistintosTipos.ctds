@@ -1,0 +1,13 @@
+void probar_parametros (int a, float b, boolean c) {
+    int x;
+    float y;
+    boolean z;
+
+    x = a;
+    y = b;
+    z = c;
+}
+
+void main () {
+    
+}

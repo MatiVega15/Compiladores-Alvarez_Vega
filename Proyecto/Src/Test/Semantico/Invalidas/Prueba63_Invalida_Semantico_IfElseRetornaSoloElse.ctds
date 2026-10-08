@@ -1,0 +1,12 @@
+int f () {
+    if (true) {
+        int x;
+        x = 1;
+    } else {
+        return 2;
+    }
+}
+
+void main () {
+    f ();
+}

@@ -1,0 +1,9 @@
+void f () {
+    int x;
+    x = 10;
+}
+
+/*
+    Este programa no contiene
+    ninguna función main.
+*/

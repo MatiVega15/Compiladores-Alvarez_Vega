@@ -1,0 +1,17 @@
+void main () {
+    int x, y;
+    boolean b;
+
+    x = 5;
+    y = 10;
+    b = true;
+
+    if (true) {}
+    if (false) {}
+
+    if (x < y) {}
+    if (x == y) {}
+
+    if (!b) {}    
+    if (b && (x == y)) {}
+}

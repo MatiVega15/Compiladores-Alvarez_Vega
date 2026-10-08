@@ -1,0 +1,5 @@
+boolean main () {
+    boolean status;
+    status = true;
+    return status;
+}

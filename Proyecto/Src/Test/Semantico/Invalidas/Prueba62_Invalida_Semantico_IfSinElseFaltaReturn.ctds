@@ -1,0 +1,9 @@
+int f () {
+    if (true) {
+        return 1;
+    }
+}
+
+void main () {
+    f ();
+}

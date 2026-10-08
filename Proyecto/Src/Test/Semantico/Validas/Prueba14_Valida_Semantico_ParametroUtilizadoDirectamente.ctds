@@ -1,0 +1,9 @@
+void probar_parametro (int p) {
+    int x;
+
+    x = p; // Los parámetros ya vienen inicializados.
+}
+
+void main () {
+    
+}

@@ -1,0 +1,16 @@
+int main () {
+    boolean condicion;
+    int x, y;
+
+    // 'condicion' sin inicializar.
+    if (condicion) {
+        return 1;
+    }
+    else {
+        if (x > y) {
+            return 0;
+        }
+        
+        return 2;
+    }
+}

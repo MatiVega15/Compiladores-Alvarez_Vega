@@ -1,0 +1,20 @@
+int x;  // Variable global.
+
+void test_ambitos () {
+    int x;      // Sombreado de variable global.
+    int res;
+    x = 100;    // Variable local de función.
+
+    {
+        int x;  // Sombreado de variable de función.
+        x = 200;
+    }
+
+    // Vuelve a verse la variable de función tras cerrar el bloque.
+    res = x;
+}
+
+void main () {
+    x = 10; // Uso de variable global.
+    test_ambitos ();
+}

@@ -1,0 +1,8 @@
+boolean verificar () {
+    return true;
+}
+
+void main () {
+    boolean b;
+    b = verificar ();
+}

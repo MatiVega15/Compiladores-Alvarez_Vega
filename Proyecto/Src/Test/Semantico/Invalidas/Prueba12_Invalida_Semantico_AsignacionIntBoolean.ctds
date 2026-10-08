@@ -1,0 +1,8 @@
+void main () {
+    int x;
+    boolean flag;
+
+    flag = true;
+    // int = boolean.
+    x = flag;
+}

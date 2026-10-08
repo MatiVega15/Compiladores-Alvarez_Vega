@@ -1,0 +1,11 @@
+void main () {
+    int i;
+    float f;
+
+    i = 10 / 2;     // -> int.
+    i = 1 / 2;      // -> int.
+    i = 5 / 2;      // -> int.
+    f = 5.0 / 2;    // -> float.
+    f = 5 / 2.0;    // -> float.
+    f = 5.0 / 2.0;  // -> float.
+}

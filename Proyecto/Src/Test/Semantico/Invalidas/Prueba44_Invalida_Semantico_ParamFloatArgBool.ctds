@@ -1,0 +1,10 @@
+void foo (float i) {
+    int x;
+    x = 10;
+}
+
+void main () {
+    boolean b;
+    b = true;
+    foo (b);    // boolean en vez de float.
+}

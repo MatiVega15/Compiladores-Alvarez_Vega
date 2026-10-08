@@ -1,0 +1,16 @@
+void main () {
+    int i1, i2;
+    float f1, f2;
+    boolean b1, b2, b;
+
+    i1 = 5;
+    i2 = 5;
+    f1 = 2.5;
+    f2 = 2.5;
+    b1 = true;
+    b2 = true;
+
+    b = i1 == i2;   // int == int.
+    b = f1 == f2;   // float == float.
+    b = b1 == b2;   // boolean == boolean.
+}

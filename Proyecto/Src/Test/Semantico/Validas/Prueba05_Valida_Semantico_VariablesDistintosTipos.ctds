@@ -1,0 +1,13 @@
+float main () {
+    int x;
+    float y;
+    boolean bandera;
+
+    x = 10;
+    y = 20.5;
+    bandera = true;
+
+    y = x;
+
+    return y;
+}

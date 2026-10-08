@@ -1,0 +1,7 @@
+boolean f () {
+    return; // Falta un valor boolean.
+}
+
+void main () {
+    f ();
+}

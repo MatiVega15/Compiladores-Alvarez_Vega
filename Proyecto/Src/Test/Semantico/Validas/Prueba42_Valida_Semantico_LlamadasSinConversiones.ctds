@@ -1,0 +1,13 @@
+int func_int (int i) { return i; }
+float func_float (float f) { return f; }
+boolean func_bool (boolean b) { return b; }
+
+void main () {
+    int ri;
+    float rf;
+    boolean rb;
+
+    ri = func_int (10);
+    rf = func_float (3.14);
+    rb = func_bool (true);
+}

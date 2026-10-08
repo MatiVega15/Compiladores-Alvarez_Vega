@@ -1,0 +1,14 @@
+int main () {
+    int x;
+    boolean res;
+
+    // 'x' sin inicializar.
+    if (x == 5) {
+        res = true;
+    }
+    else {
+        res = false;
+    }
+
+    return 0;
+}

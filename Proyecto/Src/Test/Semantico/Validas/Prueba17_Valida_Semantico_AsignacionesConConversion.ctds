@@ -1,0 +1,12 @@
+void main () {
+    int i;
+    float f;
+
+    // Asignaciones de literales con conversión cruzada.
+    i = 3.14;
+    f = 42;
+
+    // Asignación de variables con conversión cruzada.
+    i = f;
+    f = i;
+}

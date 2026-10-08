@@ -1,0 +1,9 @@
+float calcular_total (float base, int tasa) {
+    // Retorna una expresión compleja.
+    return base * tasa + 10.5 / 2;
+}
+
+void main () {
+    float total;
+    total = calcular_total (100.0, 5);
+}
