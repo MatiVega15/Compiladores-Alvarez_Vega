@@ -35,22 +35,34 @@ RESULTADOS_SEMANTICO_DIR = $(RESULTADOS_DIR)/Semantico
 RESULTADOS_SEMANTICO_VALIDAS_DIR = $(RESULTADOS_SEMANTICO_DIR)/Validas
 RESULTADOS_SEMANTICO_INVALIDAS_DIR = $(RESULTADOS_SEMANTICO_DIR)/Invalidas
 
+CODINT_TEST_DIR = $(TEST_DIR)/CodigoIntermedio
+RESULTADOS_CODINT_DIR = $(RESULTADOS_DIR)/CodigoIntermedio
+
 # ========== Archivos fuente ==========
 
 LEXER_SRC = Src/Lexer/AnalizadorLexico.lex
 PARSER_SRC = Src/Parser/AnalizadorSintactico.y
+
 AST_SRC = Src/AST/AST.c
 TS_SRC = Src/TS/TS.c
 SEMANTICO_SRC = Src/Semantico/AnalizadorSemantico.c
+
+CUADRUPLOS_SRC = Src/CodigoIntermedio/Cuadruplos.c
+GENERADOR_CI_SRC = Src/CodigoIntermedio/GeneradorCodigoIntermedio.c
+
 MAIN_SRC = Src/main.c
 
 # ========== Archivos de cabecera ==========
 
 PARSER_H = $(BUILD_DIR)/AnalizadorSintactico.tab.h
+
 TIPOS_H = Src/Common/Tipos.h
 AST_H = Src/AST/AST.h
 TS_H = Src/TS/TS.h
 SEMANTICO_H = Src/Semantico/AnalizadorSemantico.h
+
+CUADRUPLOS_H = Src/CodigoIntermedio/Cuadruplos.h
+GENERADOR_CI_H = Src/CodigoIntermedio/GeneradorCodigoIntermedio.h
 
 # ========== Archivos generados ==========
 
@@ -76,9 +88,11 @@ PRUEBAS_TS = $(wildcard $(TS_TEST_DIR)/*.c)
 PRUEBAS_SEMANTICO_VALIDAS = $(wildcard $(SEMANTICO_VALIDAS_DIR)/*.ctds)
 PRUEBAS_SEMANTICO_INVALIDAS = $(wildcard $(SEMANTICO_INVALIDAS_DIR)/*.ctds)
 
+PRUEBAS_CODINT = $(wildcard $(CODINT_TEST_DIR)/*.ctds)
+
 # ========== Objetivos ==========
 
-.PHONY: all tests tests-lexico tests-sintactico tests-ast tests-ts tests-semantico clean
+.PHONY: all tests tests-lexico tests-sintactico tests-ast tests-ts tests-semantico tests-codint clean
 
 # ========== Compilación del compilador ==========
 
@@ -86,9 +100,28 @@ PRUEBAS_SEMANTICO_INVALIDAS = $(wildcard $(SEMANTICO_INVALIDAS_DIR)/*.ctds)
 all: $(BIN)
 
 # Enlazado final.
-$(BIN): $(MAIN_SRC) $(PARSER_C) $(LEXER_C)
+$(BIN): $(MAIN_SRC) $(PARSER_C) $(LEXER_C) \
+		$(AST_SRC) $(TS_SRC) $(SEMANTICO_SRC) \
+		$(CUADRUPLOS_SRC) $(GENERADOR_CI_SRC) \
+		$(AST_H) $(TS_H) $(SEMANTICO_H) \
+		$(CUADRUPLOS_H) $(GENERADOR_CI_H) $(TIPOS_H)
+
 	@mkdir -p $(BUILD_DIR)
-	@gcc -I$(BUILD_DIR) -ISrc/AST -ISrc/Common -ISrc/TS -ISrc/Semantico $(MAIN_SRC) $(PARSER_C) $(LEXER_C) $(AST_SRC) $(TS_SRC) $(SEMANTICO_SRC) -o $(BIN)
+	@gcc -I$(BUILD_DIR) \
+		-ISrc/AST \
+		-ISrc/Common \
+		-ISrc/TS \
+		-ISrc/Semantico \
+		-ISrc/CodigoIntermedio \
+		$(MAIN_SRC) \
+		$(PARSER_C) \
+		$(LEXER_C) \
+		$(AST_SRC) \
+		$(TS_SRC) \
+		$(SEMANTICO_SRC) \
+		$(CUADRUPLOS_SRC) \
+		$(GENERADOR_CI_SRC) \
+		-o $(BIN)
 
 # ========== Generación del analizador sintáctico ==========
 
@@ -107,7 +140,7 @@ $(LEXER_C): $(LEXER_SRC) $(PARSER_H)
 # ========== Ejecución de todas las pruebas ==========
 
 # Ejecuta todas las pruebas disponibles.
-tests: tests-lexico tests-sintactico tests-ast tests-ts tests-semantico
+tests: tests-lexico tests-sintactico tests-ast tests-ts tests-semantico tests-codint
 	@echo "========================================="
 	@echo "      TODAS LAS PRUEBAS FINALIZADAS"
 	@echo "========================================="
@@ -353,7 +386,7 @@ tests-semantico: $(BIN)
 		png=$(RESULTADOS_SEMANTICO_VALIDAS_DIR)/$$nombre.png; \
 		error=$(RESULTADOS_SEMANTICO_VALIDAS_DIR)/$$nombre.err; \
 		echo "---- $$nombre ----"; \
-		$(BIN) -debug -o $$salida $$prueba \
+		$(BIN) -debug -test-sem -o $$salida $$prueba \
 			> /dev/null \
 			2> $$error; \
 		resultado=$$?; \
@@ -381,7 +414,7 @@ tests-semantico: $(BIN)
 		png=$(RESULTADOS_SEMANTICO_INVALIDAS_DIR)/$$nombre.png; \
 		error=$(RESULTADOS_SEMANTICO_INVALIDAS_DIR)/$$nombre.err; \
 		echo "---- $$nombre ----"; \
-		$(BIN) -debug -o $$salida $$prueba \
+		$(BIN) -debug -test-sem -o $$salida $$prueba \
 			> /dev/null \
 			2> $$error; \
 		resultado=$$?; \
@@ -405,6 +438,46 @@ tests-semantico: $(BIN)
 	echo "Pruebas fallidas: $$fallidas"; \
 	echo "======================"; \
 	echo "";
+
+# ========== Pruebas del generador de código intermedio ==========
+
+# Ejecuta todas las pruebas del generador de código intermedio.
+tests-codint: $(BIN)
+	@mkdir -p $(BUILD_DIR) $(RESULTADOS_CODINT_DIR)
+
+	@fallidas=0; \
+	ok=0; \
+	echo ""; \
+	echo "==========================================="; \
+	echo "       PRUEBAS DEL CÓDIGO INTERMEDIO"; \
+	echo "==========================================="; \
+	echo ""; \
+	for prueba in $(PRUEBAS_CODINT); do \
+		nombre=$$(basename $$prueba .ctds); \
+		salida=$(RESULTADOS_CODINT_DIR)/$$nombre.ci; \
+		error=$(RESULTADOS_CODINT_DIR)/$$nombre.err; \
+		echo "---- $$nombre ----"; \
+		$(BIN) -target codinter -o $$salida $$prueba \
+			> /dev/null \
+			2> $$error; \
+		resultado=$$?; \
+		if [ ! -s $$error ]; then \
+			rm -f $$error; \
+		fi; \
+		if [ $$resultado -eq 0 ]; then \
+			echo "RESULTADO: OK"; \
+			ok=$$((ok + 1)); \
+		else \
+			echo "RESULTADO: FALLIDA"; \
+			fallidas=$$((fallidas + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	echo "======================"; \
+	echo "Pruebas correctas: $$ok"; \
+	echo "Pruebas fallidas: $$fallidas"; \
+	echo "======================"; \
+	echo ""
 
 # ========== Limpieza ==========
 
