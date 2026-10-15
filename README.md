@@ -52,6 +52,7 @@
 │   ├── Makefile
 │   └── Src/
 │       ├── AST/
+│       ├── CodigoIntermedio/
 │       ├── Common/
 │       ├── Lexer/
 │       ├── Parser/
@@ -59,6 +60,7 @@
 │       ├── TS/
 │       ├── Test/
 │       │   ├── AST/
+│       │   ├── CodigoIntermedio/
 │       │   ├── TS/
 │       │   ├── Lexico/
 │       │   │   ├── Invalidas/
@@ -137,7 +139,7 @@ El trabajo se aborda de una manera incremental, mediante las siguientes etapas:
 5. Generación de **código objeto**.
 6. **Optimizador** y extensiones.
 
-Actualmente se encuentran implementadas las etapas de **análisis léxico**, **análisis sintáctico**, **generación del árbol sintáctico abstracto (AST)**, **generación de la tabla de símbolos (TS)** y **análisis semántico**.
+Actualmente se encuentran implementadas las etapas de **análisis léxico**, **análisis sintáctico**, **generación del árbol sintáctico abstracto (AST)**, **generación de la tabla de símbolos (TS)**, **análisis semántico** y **generación de código intermedio**.
 
 ## *Compilación y ejecución*
 
@@ -160,7 +162,7 @@ Para **ejecutar el compilador**:
 ./build/c-tds archivo.ctds
 ```
 
-Por defecto, se ejecuta la última etapa implementada, actualmente el **análisis semántico**, generando un archivo `.sem`.
+Por defecto, se ejecuta la última etapa implementada, actualmente la **generación de código intermedio**, produciendo un archivo `.ci`.
 
 Las etapas también pueden seleccionarse mediante `-target`. Por ejemplo, para el **análisis léxico**:
 
@@ -182,7 +184,7 @@ El **objetivo `tests`** permite ejecutar todas las pruebas correspondientes a la
 make tests
 ```
 
-Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico**, del **árbol sintáctico abstracto (AST)**, de la **tabla de símbolos (TS)** y del **análisis semántico**.
+Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico**, del **árbol sintáctico abstracto (AST)**, de la **tabla de símbolos (TS)**, del **análisis semántico** y del **generador de código intermedio**.
 
 Para **ejecutar solamente las pruebas del análisis léxico**:
 
@@ -211,6 +213,12 @@ Para **ejecutar solamente las pruebas del análisis semántico**:
 
 ```bash
 make tests-semantico
+```
+
+Para **ejecutar solamente las pruebas de código intermedio**:
+
+```bash
+make tests-codint
 ```
 
 Para **limpiar** los archivos generados:
