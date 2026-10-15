@@ -17,20 +17,32 @@ TablaSimbolos *iniciar_TS (void) {
         exit (EXIT_FAILURE);
     }
 
-    // La tabla comienza con un nivel abierto.
+    // La tabla comienza con un nivel abierto y sin niveles cerrados.
     ts -> nivel_actual = crear_nivel ();
+    ts -> niveles_cerrados = NULL;
 
     return ts;
 }
 
 void liberar_TS (TablaSimbolos *ts) {
+    Nivel *nivel;
+    
     if (ts == NULL) {
         return;
     }
 
-    // Se cierran y eliminan los niveles iterativamente.
-    while (ts ->nivel_actual != NULL) {
-        cerrar_nivel (ts);
+    // Se liberan los niveles que permanecen abiertos.
+    while (ts -> nivel_actual != NULL) {
+        nivel = ts -> nivel_actual;
+        ts -> nivel_actual = nivel -> anterior;
+        liberar_nivel (nivel);
+    }
+
+    // Se liberan los niveles que fueron cerrados previamente.
+    while (ts -> niveles_cerrados != NULL) {
+        nivel = ts -> niveles_cerrados;
+        ts -> niveles_cerrados = nivel -> siguiente_cerrado;
+        liberar_nivel (nivel);
     }
 
     // Se elimina la Tabla de Símbolos (TS).
@@ -65,8 +77,12 @@ void cerrar_nivel (TablaSimbolos *ts) {
     // El nivel anterior pasa a ser el nuevo nivel actual.
     ts -> nivel_actual = nivel_a_cerrar -> anterior;
 
-    // Se liberan los símbolos y la estructura del nivel.
-    liberar_nivel (nivel_a_cerrar);
+    // El nivel deja de participar en las búsquedas pero se conserva su estructura.
+    nivel_a_cerrar -> anterior = NULL;
+
+    // Se incorpora el nivel a la lista de niveles cerrados.
+    nivel_a_cerrar -> siguiente_cerrado = ts -> niveles_cerrados;
+    ts -> niveles_cerrados = nivel_a_cerrar;
 }
 
 Simbolo *insertar_elemento (TablaSimbolos *ts, const char *nombre, TipoDato tipo, ClaseSimbolo clase) {
@@ -172,9 +188,10 @@ static Nivel *crear_nivel (void) {
         exit (EXIT_FAILURE);
     }
 
-    // El nivel se crea vacío, sin símbolos ni referencia a un nivel anterior.
+    // El nivel se crea vacío, sin símbolos ni referencias.
     nivel -> simbolos = NULL;
     nivel -> anterior = NULL;
+    nivel -> siguiente_cerrado = NULL;
     
     return nivel;
 }

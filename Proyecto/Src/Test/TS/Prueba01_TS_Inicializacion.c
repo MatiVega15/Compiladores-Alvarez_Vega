@@ -47,6 +47,14 @@ int main (void) {
 
     printf ("El nivel inicial no tiene un nivel anterior.\n");
 
+    if (ts -> niveles_cerrados != NULL) {
+        fprintf (stderr, "ERROR: la lista de niveles cerrados debería comenzar vacía.\n");
+        liberar_TS (ts);
+        return 1;
+    }
+
+    printf ("Aún no hay niveles cerrados.\n");
+
     liberar_TS (ts);
 
     printf ("Tabla de símbolos liberada correctamente.\n");
