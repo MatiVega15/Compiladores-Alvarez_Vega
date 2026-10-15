@@ -1,0 +1,29 @@
+int calcular_paso (int val) {
+    return val * 2;
+}
+
+int main () {
+    int contador;
+    int acumulador;
+    boolean activo;
+
+    contador = 0;
+    acumulador = 10;
+    activo = true;
+
+    while (activo && contador < 5) {
+        if (contador == 2) {
+            acumulador = acumulador + calcular_paso (5);
+        }
+        else {
+            acumulador = acumulador + 1;
+        }
+        contador = contador + 1;
+
+        if (acumulador > 25) {
+            activo = false;
+        }
+    }
+
+    return acumulador;
+}

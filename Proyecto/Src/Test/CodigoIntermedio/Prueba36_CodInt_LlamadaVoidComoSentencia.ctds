@@ -1,0 +1,8 @@
+void mostrar () {
+    return;
+}
+
+int main () {
+    mostrar ();
+    return 0;
+}

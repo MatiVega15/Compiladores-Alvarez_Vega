@@ -1,0 +1,11 @@
+int duplicar (int x) {
+    return x * 2;
+}
+
+int main () {
+    int resultado;
+
+    resultado = duplicar (3) + duplicar (5);
+
+    return resultado;
+}

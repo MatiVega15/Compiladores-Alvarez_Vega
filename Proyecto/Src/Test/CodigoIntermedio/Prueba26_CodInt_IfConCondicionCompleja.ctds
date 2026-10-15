@@ -1,0 +1,17 @@
+int main () {
+    int x;
+    boolean a;
+    boolean b;
+
+    x = 5;
+    a = true;
+    b = false;
+
+    if (a && b) {
+        x = 1;
+    } else {
+        x = 2;
+    }
+
+    return x;
+}

@@ -1,0 +1,20 @@
+float calcular (int cantidad, float precio, boolean activo) {
+    float total;
+
+    total = cantidad * precio;
+
+    if (activo) {
+        return total;
+    }
+    else {
+        return 0.0;
+    }
+}
+
+int main () {
+    float resultado;
+
+    resultado = calcular (3, 2.5, true);
+
+    return 0;
+}

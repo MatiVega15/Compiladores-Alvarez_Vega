@@ -1,0 +1,9 @@
+int sumarUno () {
+    return 1;
+}
+
+int main () {
+    int x;
+    x = sumarUno ();
+    return x;
+}

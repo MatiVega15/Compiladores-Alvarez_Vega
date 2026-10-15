@@ -1,0 +1,18 @@
+int main () {
+    int x;
+
+    return 0;
+
+    // Código muerto.
+
+    x = 10;
+
+    if (false) {
+        // Código muerto.
+
+        x = 20;
+        x = x + 5;
+    }
+
+    return x;
+}

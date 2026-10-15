@@ -1,0 +1,8 @@
+void finalizar () {
+    return;
+}
+
+int main () {
+    finalizar ();
+    return 0;
+}
