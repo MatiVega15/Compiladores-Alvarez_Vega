@@ -106,6 +106,14 @@ int main (void) {
         return 1;
     }
 
+    if (z_interno -> tipo != TIPO_INT) {
+        fprintf (stderr, "ERROR: los datos del símbolo 'z' no se conservaron tras cerrar el nivel.\n");
+        liberar_TS (ts);
+        return 1;
+    }
+
+    printf ("El símbolo del nivel cerrado conserva sus datos correctamente.\n");
+
     encontrado = buscar_elemento (ts, "x");
 
     if (encontrado != x_externo) {

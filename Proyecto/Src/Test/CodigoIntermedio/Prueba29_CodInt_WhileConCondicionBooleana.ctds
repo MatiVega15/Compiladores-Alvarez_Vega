@@ -1,0 +1,14 @@
+int main () {
+    int x;
+    boolean continuar;
+
+    x = 0;
+    continuar = true;
+
+    while (continuar) {
+        x = x + 1;
+        continuar = false;
+    }
+
+    return x;
+}

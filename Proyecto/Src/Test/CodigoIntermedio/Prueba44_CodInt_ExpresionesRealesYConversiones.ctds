@@ -1,0 +1,12 @@
+int main () {
+    int entero;
+    float real;
+    float resultado;
+
+    entero = 4;
+    real = 2.0;
+
+    resultado = entero * real + 1.5;
+
+    return 0;
+}

@@ -1,0 +1,9 @@
+int main () {
+    float x;
+    float y;
+
+    x = 2.5;
+    y = x * 4.0 + 1.5;
+    
+    return 0;
+}

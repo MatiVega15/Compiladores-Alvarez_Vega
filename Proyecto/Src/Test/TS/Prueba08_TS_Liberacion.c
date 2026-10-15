@@ -74,6 +74,16 @@ int main (void) {
 
     printf ("Varios niveles y símbolos creados correctamente.\n");
 
+    cerrar_nivel (ts);
+
+    if (ts -> niveles_cerrados == NULL) {
+        fprintf (stderr, "ERROR: el nivel cerrado no se incorporó a la lista correspondiente.\n");
+        liberar_TS (ts);
+        return 1;
+    }
+
+    printf ("Un nivel fue cerrado y conservado correctamente.\n");
+
     liberar_TS (ts);
 
     printf ("Tabla de símbolos liberada correctamente.\n");

@@ -94,6 +94,28 @@ int main (void) {
 
     printf ("Nivel interno cerrado correctamente.\n");
 
+    if (ts -> niveles_cerrados == NULL) {
+        fprintf (stderr, "ERROR: el nivel cerrado no se conservó en la lista de niveles cerrados.\n");
+        liberar_TS (ts);
+        return 1;
+    }
+
+    printf ("Lista de niveles cerrados correctamente actualizada.\n");
+
+    if (ts -> niveles_cerrados -> simbolos != simbolo_interno) {
+        fprintf (stderr, "ERROR: el nivel cerrado no conserva el símbolo esperado.\n");
+        liberar_TS (ts);
+        return 1;  
+    }
+
+    if (simbolo_interno -> tipo != TIPO_FLOAT) {
+        fprintf (stderr, "ERROR: los datos del símbolo interno no se conservaron al cerrar el nivel.\n");
+        liberar_TS (ts);
+        return 1;
+    }
+
+    printf ("El nivel cerrado conserva sus símbolos correctamente.\n");
+
     encontrado = buscar_elemento (ts, "x");
 
     if (encontrado == NULL) {

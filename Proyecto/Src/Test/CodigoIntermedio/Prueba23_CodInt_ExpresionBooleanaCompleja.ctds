@@ -1,0 +1,13 @@
+int main () {
+    boolean a;
+    boolean b;
+    boolean c;
+    boolean resultado;
+
+    a = true;
+    b = false;
+    c = true;
+    resultado = (a && b) || !c;
+    
+    return 0;
+}

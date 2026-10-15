@@ -1,6 +1,8 @@
 #include "AST.h"
 #include "TS.h"
 #include "AnalizadorSemantico.h"
+#include "Cuadruplos.h"
+#include "GeneradorCodigoIntermedio.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,6 +48,8 @@ typedef struct {
     // Indica si el usuario especificó un -target.
     int target_especificado;
 
+    int prueba_semantica;
+
     int debug;
     int optimizar;
     int optimizar_todo;
@@ -56,7 +60,8 @@ typedef struct {
 static int procesar_argumentos (int argc, char *argv [], Configuracion *configuracion);
 static int analizar_lexicamente (const Configuracion *configuracion, FILE *salida);
 static int analizar_sintacticamente (const Configuracion *configuracion, FILE *salida, const char *nombre_salida);
-static int analizar_semanticamente (const Configuracion *configuracion, FILE *salida);
+static int analizar_semanticamente (const Configuracion *configuracion, FILE *salida, TablaSimbolos **ts_salida);
+static int procesar_codigo_intermedio (const Configuracion *configuracion, FILE *salida, TablaSimbolos *ts);
 static Etapa obtener_etapa (const char *nombre);
 static const char *nombre_etapa (Etapa etapa);
 static char *generar_nombre_salida (const char *archivo_entrada, Etapa etapa, int target_especificado);
@@ -74,8 +79,9 @@ int main (int argc, char *argv []) {
     // Configuración por defecto.
     configuracion.archivo_entrada = NULL;
     configuracion.archivo_salida = NULL;
-    configuracion.etapa = ETAPA_PARSE;
+    configuracion.etapa = ETAPA_CODINTER;
     configuracion.target_especificado = 0;
+    configuracion.prueba_semantica = 0;
     configuracion.debug = 0;
     configuracion.optimizar = 0;
     configuracion.optimizar_todo = 0;
@@ -92,9 +98,9 @@ int main (int argc, char *argv []) {
         return EXIT_FAILURE;
     }
 
-    // Actualmente solo están implementadas las etapas scan, parse y el análisis semántico.
-    if (configuracion.etapa > ETAPA_PARSE) {
-        fprintf (stderr, "ERROR: La etapa '%s' todavía no está implementada.\n", nombre_etapa (configuracion.etapa));
+    // La etapa assembly todavía no está implementada.
+    if (configuracion.etapa == ETAPA_ASSEMBLY) {
+        fprintf (stderr, "ERROR: La etapa 'assembly' todavía no está implementada.\n");
 
         return EXIT_FAILURE;
     }
@@ -136,70 +142,89 @@ int main (int argc, char *argv []) {
     else {
         resultado = analizar_sintacticamente (&configuracion, salida, nombre_salida);
     
-        // Si el target es parse, el AST ya no es necesario.
-        if (resultado == EXIT_SUCCESS && configuracion.target_especificado && configuracion.etapa == ETAPA_PARSE) {
-            liberar_arbol (arbol);
-            arbol = NULL;
-        }
-        else if (resultado == EXIT_SUCCESS && !configuracion.target_especificado) {
-            fclose (salida);
-            salida = fopen (nombre_salida, "w");
-
-            if (salida == NULL) {
-                fprintf (stderr, "ERROR: No se pudo abrir el archivo '%s'.\n", nombre_salida);
+        if (resultado == EXIT_SUCCESS) {
+            // Para el target parse, el AST ya no es necesario.
+            if (configuracion.target_especificado && configuracion.etapa == ETAPA_PARSE) {
                 liberar_arbol (arbol);
                 arbol = NULL;
-                free (nombre_salida);
-
-                return EXIT_FAILURE;
             }
 
-            resultado = analizar_semanticamente (&configuracion, salida);
+            // Se continúa con el análisis semántico y el código intermedio.
+            else if (configuracion.etapa == ETAPA_CODINTER) {
+                TablaSimbolos *ts = NULL;
 
-            // Se genera un archivo DOT del AST enriquecido por el semántico.
-            if (configuracion.debug) {
-                char *nombre_dot;
-                FILE *archivo_dot;
-                
-                nombre_dot = generar_nombre_dot (nombre_salida);
+                resultado = analizar_semanticamente (&configuracion, salida, &ts);
+            
+                // Se genera un archivo DOT del AST enriquecido por el semántico.
+                if (configuracion.debug) {
+                    char *nombre_dot;
+                    FILE *archivo_dot;
+                    
+                    nombre_dot = generar_nombre_dot (nombre_salida);
 
-                if (nombre_dot == NULL) {
-                    fprintf (stderr, "ERROR: No se pudo generar el nombre del archivo DOT.\n");
+                    if (nombre_dot == NULL) {
+                        fprintf (stderr, "ERROR: No se pudo generar el nombre del archivo DOT.\n");
 
-                    liberar_arbol (arbol);
-                    arbol = NULL;
-                    fclose (salida);
-                    free (nombre_salida);
+                        liberar_arbol (arbol);
+                        arbol = NULL;
+                        fclose (salida);
+                        free (nombre_salida);
 
-                    return EXIT_FAILURE;
-                }
+                        return EXIT_FAILURE;
+                    }
 
-                archivo_dot = fopen (nombre_dot, "w");
+                    archivo_dot = fopen (nombre_dot, "w");
 
-                if (archivo_dot == NULL) {
-                    fprintf (stderr, "ERROR: No se pudo crear el archivo %s.\n", nombre_dot);
+                    if (archivo_dot == NULL) {
+                        fprintf (stderr, "ERROR: No se pudo crear el archivo %s.\n", nombre_dot);
 
+                        free (nombre_dot);
+                        liberar_arbol (arbol);
+                        arbol = NULL;
+                        fclose (salida);
+                        free (nombre_salida);
+
+                        return EXIT_FAILURE;
+                    }
+
+                    // Se genera el archivo DOT.
+                    generar_dot (arbol, archivo_dot);
+
+                    fclose (archivo_dot);
                     free (nombre_dot);
-                    liberar_arbol (arbol);
-                    arbol = NULL;
-                    fclose (salida);
-                    free (nombre_salida);
-
-                    return EXIT_FAILURE;
                 }
 
-                // Se genera el archivo DOT.
-                generar_dot (arbol, archivo_dot);
+                if (configuracion.prueba_semantica) {
+                    if (ts != NULL) {
+                        liberar_TS (ts);
+                        ts = NULL;
+                    }
 
-                fclose (archivo_dot);
-                free (nombre_dot);
+                    liberar_arbol (arbol);
+                    arbol = NULL;
+                }
+                else {
+                    // Se genera el código intermedio.
+                    if (resultado == EXIT_SUCCESS) {
+                        resultado = procesar_codigo_intermedio (&configuracion, salida, ts);
+                    }
+
+                    // Se libera la tabla después de generar los cuádruplos.
+                    if (ts != NULL) {
+                        liberar_TS (ts);
+                    }
+
+                    liberar_arbol (arbol);
+                    arbol = NULL;
+                }
             }
-
+        }
+        else if (arbol != NULL) {
             liberar_arbol (arbol);
             arbol = NULL;
         }
     }
-    
+
     fclose (salida);
     free (nombre_salida);
 
@@ -273,6 +298,11 @@ static int procesar_argumentos (int argc, char *argv [], Configuracion *configur
 
             configuracion -> etapa = etapa;
             configuracion -> target_especificado = 1;
+        }
+
+        // Modo exclusivo para las pruebas semánticas.
+        else if (strcmp (argv [i], "-test-sem") == 0) {
+            configuracion -> prueba_semantica = 1;
         }
 
         // Optimización.
@@ -421,7 +451,7 @@ static int analizar_sintacticamente (const Configuracion *configuracion, FILE *s
     error_lexico = 0;
 
     // Se indica al parser dónde debe registrar los tokens reconocidos.
-    salida_sintactico = salida;
+    salida_sintactico = configuracion -> etapa == ETAPA_PARSE ? salida : NULL;
 
     // Durante parse, el lexer no genera una salida .lex.
     salida_lexico = NULL;
@@ -492,17 +522,22 @@ static int analizar_sintacticamente (const Configuracion *configuracion, FILE *s
  * 
  * El resultado se registra en el archivo de salida
  * correspondiente a la etapa semántica.
+ * 
+ * La tabla de símbolos se conserva para las etapas
+ * siguientes. La libera main.
  */
-static int analizar_semanticamente (const Configuracion *configuracion, FILE *salida) {
+static int analizar_semanticamente (const Configuracion *configuracion, FILE *salida, TablaSimbolos **ts_salida) {
     TablaSimbolos *ts;
     
     int errores;
 
-    // El análisis semántico requiere un AST válido.
-    if (arbol == NULL) {
-        fprintf (stderr, "ERROR: no existe un AST para realizar el análisis semántico.\n");
+    // Verificación de argumentos.
+    if (arbol == NULL || ts_salida == NULL) {
+        fprintf (stderr, "ERROR: no se puede realizar el análisis semántico.\n");
         return EXIT_FAILURE;
     }
+
+    *ts_salida = NULL;
 
     // Se crea la Tabla de Símbolos.
     ts = iniciar_TS ();
@@ -513,12 +548,51 @@ static int analizar_semanticamente (const Configuracion *configuracion, FILE *sa
     }
 
     // Se ejecuta el análisis semántico.
-    errores = analizar_semantica (arbol, ts, salida, configuracion -> debug);
-
-    // La Tabla de Símbolos deja de ser necesaria al finalizar el análisis.
-    liberar_TS (ts);
+    errores = analizar_semantica (arbol, ts, configuracion -> prueba_semantica ? salida : NULL, configuracion -> debug);
 
     if (errores != 0) {
+        liberar_TS (ts);
+        return EXIT_FAILURE;
+    }
+
+    // El llamador será responsable de liberar la tabla.
+    *ts_salida = ts;
+
+    return EXIT_SUCCESS;
+}
+
+/* ========== Generación de código intermedio ========== */
+
+/**
+ * Genera los cuádruplos a partir del AST validado semánticamente.
+ * 
+ * La tabla de símbolos permanece activa durante la generación.
+ * La libera main.
+ */
+static int procesar_codigo_intermedio (const Configuracion *configuracion, FILE *salida, TablaSimbolos *ts) {
+    ListaCuadruplos *lista;
+
+    // Verificación de argumentos.
+    if (arbol == NULL || ts == NULL || salida == NULL) {
+        fprintf (stderr, "ERROR: No hay información suficiente para generar código intermedio.\n");
+        return EXIT_FAILURE;
+    }
+
+    // Se genera el código intermedio.
+    lista = generar_codigo_intermedio (arbol, configuracion -> debug);
+
+    if (lista == NULL) {
+        fprintf (stderr, "ERROR: No se pudo generar el código intermedio.\n");
+        return EXIT_FAILURE;
+    }
+
+    int resultado = escribir_cuadruplos (lista, salida);
+
+    // La lista se libera mientras la tabla de símbolos sigue vigente.
+    liberar_lista_cuadruplos (lista);
+
+    if (!resultado) {
+        fprintf (stderr, "ERROR: No se pudieron escribir los cuádruplos.\n");
         return EXIT_FAILURE;
     }
 
@@ -579,7 +653,6 @@ static const char *nombre_etapa (Etapa etapa) {
  * 
  *      programa.ctds -> programa.lex
  *      programa.ctds -> programa.sint
- *      programa.ctds -> programa.sem
  *      programa.ctds -> programa.ci
  *      programa.ctds -> programa.ass
  */
@@ -590,27 +663,21 @@ static char *generar_nombre_salida (const char *archivo_entrada, Etapa etapa, in
     size_t longitud_extension;
     char *resultado;
 
-    // Si no se especificó target, la etapa corriente actualmente es el análisis semántico.
-    if (!target_especificado) {
-        extension = ".sem";
-    }
-    else {
-        switch (etapa) {
-            case ETAPA_SCAN:
-                extension = ".lex";
-                break;
-            case ETAPA_PARSE:
-                extension = ".sint";
-                break;
-            case ETAPA_CODINTER:
-                extension = ".ci";
-                break;
-            case ETAPA_ASSEMBLY:
-                extension = ".ass";
-                break;
-            default:
-                return NULL;
-        }
+    switch (etapa) {
+        case ETAPA_SCAN:
+            extension = ".lex";
+            break;
+        case ETAPA_PARSE:
+            extension = ".sint";
+            break;
+        case ETAPA_CODINTER:
+            extension = ".ci";
+            break;
+        case ETAPA_ASSEMBLY:
+            extension = ".ass";
+            break;
+        default:
+            return NULL;
     }
 
     // Se busca el último punto del nombre de archivo.

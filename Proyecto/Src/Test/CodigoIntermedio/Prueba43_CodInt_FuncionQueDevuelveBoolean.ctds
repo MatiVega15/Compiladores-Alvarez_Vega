@@ -1,0 +1,19 @@
+boolean esMayor (int x, int y) {
+    return x > y;
+}
+
+int main () {
+    boolean resultado;
+    int codigo;
+
+    resultado = esMayor (8, 3);
+
+    if (resultado) {
+        codigo = 1;
+    }
+    else {
+        codigo = 0;
+    }
+
+    return codigo;
+}

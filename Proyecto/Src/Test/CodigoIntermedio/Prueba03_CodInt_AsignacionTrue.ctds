@@ -1,0 +1,5 @@
+boolean main () {
+    boolean x;
+    x = true;
+    return x;
+}
