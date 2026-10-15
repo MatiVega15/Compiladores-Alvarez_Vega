@@ -831,13 +831,16 @@ Los símbolos se organizan mediante **estructuras `Nivel`**.
 Cada nivel contiene:
 
 - Una **lista enlazada de símbolos** pertenecientes al nivel.
-- Una **referencia al nivel anterior**.
+- Una **referencia al nivel anterior de la pila de ámbitos activos**.
+- Una **referencia al siguiente nivel de la lista de niveles cerrados**, cuando corresponda.
 
-La tabla de símbolos completa se representa mediante `TablaSimbolos`, que mantiene un puntero al **nivel actualmente abierto**.
+La tabla de símbolos completa se representa mediante `TablaSimbolos`, que mantiene un puntero al **nivel actualmente abierto** y otro al comienzo de la **lista de niveles cerrados**.
 
-Los niveles se organizan como una **pila**. Al abrir un nuevo nivel, este pasa a ser el nivel actual y conserva una referencia al nivel que se encontraba abierto anteriormente.
+Los niveles activos se organizan como una **pila**. Al abrir un nuevo nivel, este pasa a ser el nivel actual y conserva una referencia al nivel que se encontraba abierto anteriormente.
 
 Esta organización permite representar **ámbitos anidados** y facilita la búsqueda de identificadores respetando la visibilidad determinada por el nivel en el que fueron declarados.
+
+Cuando un nivel se cierra, deja de formar parte de la pila activa y se incorpora a la **lista de niveles cerrados**. Esta organización permite conservar los símbolos de los ámbitos finalizados sin que continúen participando en las búsquedas.
 
 #### *2.2.3 Inicialización de la tabla de símbolos*
 
@@ -853,9 +856,11 @@ La función `abrir_nivel ()` permite **crear un nuevo nivel** de la tabla de sí
 
 El nuevo nivel se establece como **nivel actual** y mantiene una referencia al **nivel anterior**.
 
-La función `cerrar_nivel ()` elimina el nivel actualmente abierto y todos los símbolos que contiene. Luego, **el nivel anterior pasa a ser el nivel actual**.
+La función `cerrar_nivel ()` **retira el nivel actual de la pila de ámbitos activos** y restaura como nivel actual al nivel anterior.
 
-Esta organización permite que los **símbolos declarados dentro de un ámbito** dejen de estar disponibles cuando dicho ámbito se cierra.
+El nivel cerrado se incorpora a una lista independiente y **sus símbolos dejan de participar en las búsquedas**. Sin embargo, sus estructuras **permanecen en memoria** hasta que se libera la tabla completa.
+
+Esta **decisión** permite **mantener válidas las referencias** a símbolos almacenadas previamente en los nodos del AST, incluso después de cerrar el ámbito al que pertenecen.
 
 #### *2.2.5 Inserción de símbolos*
 
@@ -905,13 +910,11 @@ La función `iniciar_TS ()` **reserva la memoria** correspondiente a la tabla y 
 
 La función `insertar_elemento ()` **reserva memoria** para cada nuevo símbolo y realiza una copia independiente del nombre.
 
-La función `cerrar_nivel ()` utiliza **`liberar_nivel ()` para liberar**:
+La función `cerrar_nivel ()` **retira el nivel actual de la pila de ámbitos activos** y lo incorpora a la **lista de niveles cerrados**. Los símbolos y la estructura del nivel se conservan en memoria para mantener válidas las referencias que puedan existir desde el AST.
 
-1. Los **nombres** almacenados dinámicamente a los símbolos.
-2. Las **estructuras `Simbolo`** pertenecientes al nivel.
-3. La **estructura `Nivel`** correspondiente.
+La función `liberar_TS ()` **libera todos los niveles que permanecen abiertos y todos los niveles cerrados que se hayan conservado**. Para cada nivel, libera los nombres de sus símbolos, las estructuras `Simbolo` y la estructura `Nivel`. Finalmente, libera la estructura principal de la tabla.
 
-La función `liberar_TS ()` **cierra todos los niveles** que permanezcan abiertos y finalmente **libera la estructura principal de la tabla**. De esta manera, la TS es responsable de administrar la memoria correspondiente a sus símbolos.
+De esta manera, la TS mantiene la propiedad y la responsabilidad de **liberar la memoria de sus símbolos**, mientras que el AST conserva únicamente referencias a ellos.
 
 #### *2.2.10 Cambios respecto del Pre-Proyecto*
 
@@ -923,6 +926,7 @@ Entre los principales **cambios** se encuentran:
 - Incorporación del **estado de inicialización** mediante el campo `inicializada`.
 - Incorporación del **campo** `direccion` para almacenar la ubicación asociada al símbolo.
 - Incorporación de **validaciones** sobre los tipos de datos y las clases de símbolos durante la inserción.
+- Conservación de **niveles cerrados** en memoria, para no perder las referencias a sus símbolos.
 
 La **organización general mediante niveles, listas enlazadas y búsqueda desde el nivel más interno hacia los niveles exteriores** se mantiene respecto de la implementación del Pre-Proyecto.
 
@@ -938,7 +942,8 @@ Estas pruebas permiten **verificar el comportamiento de las operaciones fundamen
 - Apertura y cierre de **niveles**.
 - Búsqueda de **símbolos inexistentes**.
 - **Ocultamiento** de símbolos de niveles exteriores.
-- **Liberación de la memoria** utilizada por la tabla.
+- **Conservación** de símbolos pertenecientes a **niveles cerrados**.
+- **Liberación de la memoria** correspondiente a niveles activos y cerrados.
 
 Las pruebas se encuentran **organizadas** en:
 
@@ -969,7 +974,9 @@ El analizador semántico se encuentra implementado en:
 - [AnalizadorSemantico.h](../Src/Semantico/AnalizadorSemantico.h).
 - [AnalizadorSemantico.c](../Src/Semantico/AnalizadorSemantico.c).
 
-La implementación se integra con el AST, la TS y el programa principal para realizar el análisis después de que la entrada haya sido reconocida sintácticamente.
+La implementación se **integra** con el AST, la TS y el programa principal para realizar el análisis después de que la entrada haya sido reconocida sintácticamente.
+
+Cuando el análisis semántico **finaliza correctamente**, la tabla de símbolos se **conserva** para utilizarla durante la generación de código intermedio. En el **modo de pruebas semánticas**, en cambio, se **libera** la tabla al finalizar el análisis, sin ejecutar la generación de cuádruplos.
 
 ### *3.1 Diseño y decisiones*
 
@@ -1119,6 +1126,10 @@ Cuando el análisis es exitoso y se encuentra habilitado el modo de depuración,
 
 En este caso, los nodos pueden mostrar información que no estaba disponible durante la construcción sintáctica, ya que fueron **propagados** durante el análisis semántico.
 
+La salida del análisis semántico depende del **modo de ejecución**. Durante la **ejecución habitual** del compilador, la información semántica no se escribe directamente en el archivo de salida principal, que se reserva para las etapas posteriores de generación de código. En cambio, al utilizar la **opción `-test-sem`**, el archivo de salida se proporciona al analizador semántico para registrar los resultados de las verificaciones realizadas.
+
+De esta manera, las **pruebas semánticas** pueden generar archivos `.sem` sin incorporar esos mensajes a los archivos producidos por las etapas posteriores durante la compilación habitual.
+
 ### *3.3 Ubicación de errores*
 
 La información de **ubicación** utilizada por el análisis semántico proviene de las posiciones almacenadas previamente en los nodos del AST durante el análisis sintáctico.
@@ -1171,7 +1182,7 @@ El **modo de depuración** también permite generar una **representación del AS
 
 A diferencia de la representación generada inmediatamente después del parser, esta versión del árbol puede incluir la **información obtenida durante el análisis semántico**.
 
-**El modo de depuración se mantiene separado de la salida `.sem`**, de manera que la información utilizada para diagnosticar el funcionamiento interno del analizador no se mezcla con la salida formal de la etapa.
+Cuando se activa el **modo de depuración** durante el procesamiento que incluye el análisis semántico, `main.c` genera un archivo `.dot` después de ejecutar esta etapa. Por lo tanto, la representación corresponde al **AST enriquecido** con la información obtenida durante el análisis semántico. En el **modo de pruebas semánticas** también puede generarse esta representación, aunque no se ejecuta la generación de código intermedio.
 
 ### *3.5 Integración con el análisis sintáctico*
 
@@ -1238,6 +1249,10 @@ Src/Test/Resultados/Semantico/
 
 Los resultados generados durante las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
 
+Las **pruebas semánticas** se ejecutan mediante la **opción interna `test-sem`**, que permite realizar el análisis semántico sin continuar con la generación de código intermedio. El archivo de salida indicado para cada prueba se utiliza para registrar los resultados del análisis.
+
+La ejecución de las pruebas **no requiere seleccionar un nuevo `target`**, ya que el modo de pruebas semánticas se controla mediante esta opción específica.
+
 Las **pruebas válidas** permiten verificar, entre otras cuestiones:
 
 - Declaraciones y usos de **identificadores**.
@@ -1275,13 +1290,562 @@ Los archivos `.err` solamente se conservan cuando contienen información. De est
 
 Cuando se ejecutan las pruebas en **modo `-debug`**, también pueden generarse los archivos `.dot` y `.png` correspondientes al AST enriquecido con la información semántica.
 
+## *4. Código intermedio*
+
+La generación de código intermedio fue implementada en lenguaje **C**, utilizando el **árbol sintáctico abstracto (AST)** construido durante el análisis sintáctico y enriquecido durante el análisis semántico.
+
+Esta etapa se encarga de **traducir las construcciones del lenguaje C-TDS a una representación intermedia basada en cuádruplos**, que permite expresar las operaciones, asignaciones, llamadas a funciones y estructuras de control del programa mediante instrucciones de tres direcciones.
+
+A diferencia de la implementación del Pre-Proyecto, que generaba pseudo-assembly directamente en un archivo, la versión actual introduce una **representación intermedia estructurada**, independiente del formato textual utilizado para mostrar o almacenar sus instrucciones.
+
+En esta sección se documentan las **decisiones de implementación y los mecanismos utilizados para construir y generar el código intermedio**.
+
+La implementación se encuentra dividida en dos componentes:
+
+- [Cuadruplos.h](../Src/CodigoIntermedio/Cuadruplos.h) y [Cuadruplos.c](../Src/CodigoIntermedio/Cuadruplos.c).
+- [GeneradorCodigoIntermedio.h](../Src/CodigoIntermedio/GeneradorCodigoIntermedio.h) y [GeneradorCodigoIntermedio.c](../Src/CodigoIntermedio/GeneradorCodigoIntermedio.c).
+
+El primer componente define la **representación de las instrucciones y las operaciones para administrar la lista de cuádruplos**. El segundo se encarga de **recorrer el AST y traducir sus construcciones a dicha representación**.
+
+La generación se ejecuta después de que el programa haya superado el **análisis semántico**. De esta manera, el generador puede utilizar la información asociada a los nodos del AST y a los símbolos para producir las instrucciones correspondientes.
+
+### *4.1 Cuádruplos*
+
+La representación intermedia utiliza **cuádruplos** como estructura básica para expresar las instrucciones generadas a partir del AST.
+
+Cada cuádruplo contiene un **código de operación** y **tres operandos**, denominados `arg1`, `arg2` y `resultado`.
+
+Esta representación permite expresar operaciones binarias, asignaciones y otras instrucciones mediante una **estructura uniforme**, incluso cuando algunas de ellas no requieren los tres operandos.
+
+El uso de una representación estructurada permite **separar la construcción del código intermedio de su serialización textual**. De esta manera, el generador no necesita escribir directamente cada instrucción en el archivo de salida, sino que construye una lista de cuádruplos que puede utilizarse posteriormente.
+
+#### *4.1.1 Diseño y estructuras de datos*
+
+La implementación define las **estructuras** necesarias para representar los operandos, las instrucciones y la lista que los contiene.
+
+La **estructura `Operando`** almacena la información correspondiente a cada operando:
+
+- El **tipo de operando**, que permite distinguir entre operandos vacíos, constantes, temporales, símbolos y etiquetas.
+- El **nombre** utilizado para identificarlo en la representación textual.
+- El **tipo de dato** asociado al operando.
+- Un **puntero al símbolo** correspondiente, cuando el operando representa un identificador asociado a la tabla de símbolos.
+
+La utilización de `TipoOperando` permite **distinguir la naturaleza de cada operando sin depender exclusivamente de su nombre**. Por ejemplo, un temporal y un símbolo pueden tener nombres textuales similares, pero corresponden a categorías diferentes dentro de la representación intermedia.
+
+Por su parte, `CodigoOperacion` define las **operaciones que pueden representarse mediante un cuádruplo**. Cada instrucción almacena su código de operación y los tres operandos correspondientes.
+
+La estructura `Cuadruplo` concentra esta información en un único elemento, manteniendo un **formato uniforme** para las distintas clases de instrucciones.
+
+Finalmente, la estructura `NodoCuadruplo` permite **enlazar las instrucciones** mediante referencias al nodo anterior y al siguiente. La estructura `ListaCuadruplos` mantiene las referencias al primer y al último nodo, además de la cantidad total de instrucciones.
+
+Esta organización permite **recorrer la lista en orden, agregar instrucciones al final y conocer la cantidad de cuádruplos generados** sin tener que recorrer toda la estructura cada vez que se incorpora una nueva instrucción.
+
+#### *4.1.2 Tipos de operandos*
+
+Los operandos se clasifican mediante el **enumerado `TipoOperando`**, que contempla las siguientes categorías:
+
+* **`OPERANDO_VACIO`**: representa la ausencia de un operando.
+* **`OPERANDO_CONSTANTE`**: representa un valor constante.
+* **`OPERANDO_TEMPORAL`**: representa un valor intermedio almacenado en un temporal.
+* **`OPERANDO_SIMBOLO`**: representa una variable u otro símbolo asociado a la tabla de símbolos.
+* **`OPERANDO_ETIQUETA`**: representa una etiqueta utilizada para identificar un punto del código intermedio.
+
+Los **operandos vacíos** se utilizan cuando una instrucción no necesita alguno de sus campos. En la representación textual, esta ausencia se muestra mediante el carácter `-`.
+
+Los **operandos constantes** conservan el nombre textual del valor y su tipo de dato. Esto permite representar constantes enteras, reales y booleanas.
+
+Los **operandos temporales** se utilizan para almacenar resultados intermedios de operaciones y expresiones. Cada temporal posee un nombre que permite referenciar el valor producido por una instrucción anterior.
+
+Los **operandos asociados a símbolos** conservan tanto el nombre utilizado en el código como una referencia al símbolo correspondiente. Esta asociación permite mantener el vínculo con la información obtenida durante el análisis semántico.
+
+Por último, los **operandos etiqueta** permiten representar destinos de saltos y puntos de entrada a determinadas partes del código.
+
+Esta clasificación permite que los operandos contengan **información adicional** a su representación textual, facilitando su utilización durante las etapas posteriores.
+
+#### *4.1.3 Operaciones disponibles*
+
+El **enumerado `CodigoOperacion`** define las operaciones que pueden representarse mediante cuádruplos.
+
+Las operaciones se encuentran **organizadas** según la clase de instrucción que representan.
+
+Las **operaciones aritméticas** incluyen:
+
+- `CI_SUMAR`.
+- `CI_RESTAR`.
+- `CI_MULTIPLICAR`.
+- `CI_DIVIDIR`.
+- `CI_MODULO`.
+- `CI_MENOS_UNARIO`.
+
+Las **operaciones relacionales y de igualdad** incluyen:
+
+- `CI_MENOR`.
+- `CI_MAYOR`.
+- `CI_IGUAL`.
+
+Las **operaciones lógicas** incluyen:
+
+- `CI_AND`.
+- `CI_OR`.
+- `CI_NEGACION`.
+
+Además, se define `CI_ASIGNAR` para representar las asignaciones.
+
+Las **operaciones de control de flujo** incluyen:
+
+- `CI_ETIQUETA`.
+- `CI_SALTO`.
+- `CI_SALTO_SI_FALSO`.
+
+Por último, las operaciones relacionadas con funciones incluyen:
+
+- `CI_INICIO_FUNCION`.
+- `CI_PARAMETRO`.
+- `CI_ARGUMENTO`.
+- `CI_LLAMADA`.
+- `CI_RETURN`.
+- `CI_FIN_FUNCION`.
+
+Esta organización permite representar tanto las expresiones como las estructuras de control y las llamadas a funciones mediante una **interfaz común de instrucciones**.
+
+Los **nombres textuales** de las operaciones se encuentran centralizados en `nombre_operacion ()`. De esta manera, la correspondencia entre cada código de operación y su representación textual se mantiene en un único lugar.
+
+El código intermedio define un **conjunto de operaciones** que permite representar asignaciones, expresiones aritméticas y lógicas, comparaciones, instrucciones de control de flujo y llamadas a funciones.
+
+Cada operación se representa mediante un **cuádruplo compuesto por un código de operación y tres operandos**: `arg1`, `arg2` y `resultado`. Los operandos que no se utilizan en una instrucción se representan con `-` al serializar el cuádruplo.
+
+La siguiente tabla resume las **operaciones definidas** en `Cuadruplos.h`.
+
+| **Operación** | **Descripción** | **`arg1`** | **`arg2`** | **`resultado`** | **Ejemplo** |
+|---|---|---|---|---|---|
+| `ASSIGN` | Asigna un valor a una variable. | Valor de origen | No se utiliza | Variable destino | `ASSIGN 10 - x` |
+| `ADD` | Suma dos operandos. | Primer operando | Segundo operando | Temporal con el resultado | `ADD a b T1` |
+| `SUB` | Resta el segundo operando al primero. | Minuendo | Sustraendo | Temporal con el resultado | `SUB a b T1` |
+| `MUL` | Multiplica dos operandos. | Primer operando | Segundo operando | Temporal con el resultado | `MUL a b T1` |
+| `DIV` | Divide el primer operando por el segundo. | Dividendo | Divisor | Temporal con el resultado | `DIV a b T1` |
+| `MOD` | Calcula el resto de la división entera. | Dividendo | Divisor | Temporal con el resto | `MOD a b T1` |
+| `NEG` | Calcula el opuesto de un valor numérico. | Operando | No se utiliza | Temporal con el resultado | `NEG a - T1` |
+| `LT` | Comprueba si el primer operando es menor que el segundo. | Primer operando | Segundo operando | Temporal booleano | `LT a b T1` |
+| `GT` | Comprueba si el primer operando es mayor que el segundo. | Primer operando | Segundo operando | Temporal booleano | `GT a b T1` |
+| `EQ` | Comprueba si dos operandos son iguales. | Primer operando | Segundo operando | Temporal booleano | `EQ a b T1` |
+| `LABEL` | Marca una posición del código mediante una etiqueta. | No se utiliza | No se utiliza | Etiqueta | `LABEL - - L1` |
+| `GOTO` | Transfiere incondicionalmente la ejecución a una etiqueta. | No se utiliza | No se utiliza | Etiqueta destino | `GOTO - - L1` |
+| `IF_FALSE` | Transfiere la ejecución a una etiqueta si la condición es falsa. | Condición booleana | No se utiliza | Etiqueta destino | `IF_FALSE a - L1` |
+| `FUNC_BEGIN` | Marca el comienzo de una función. | No se utiliza | No se utiliza | Nombre de la función | `FUNC_BEGIN calcular - -` |
+| `PARAM` | Representa un parámetro de una función. | Nombre del parámetro | No se utiliza | No se utiliza | `PARAM x - -` |
+| `ARG` | Registra un argumento de una llamada a función. | Valor del argumento | Índice del argumento | No se utiliza | `ARG a 0 -` |
+| `CALL` | Invoca una función con una cantidad determinada de argumentos. | Nombre de la función | Cantidad de argumentos | Temporal para el valor retornado, si corresponde | `CALL sumar 2 T1` |
+| `RETURN` | Devuelve un valor y finaliza la ejecución de la función. También admite una devolución vacía. | Valor retornado o `-` | No se utiliza | No se utiliza | `RETURN a - -` |
+| `FUNC_END` | Marca el final de una función. | No se utiliza | No se utiliza | Nombre de la función | `FUNC_END calcular - -` |
+
+**Consideraciones sobre las operaciones:**
+
+- Los **temporales** se identifican mediante nombres como `T1`, `T2` y `T3`. Se utilizan para almacenar resultados intermedios de las expresiones.
+- Las **etiquetas** se identifican mediante nombres como `L1`, `L2` y `L3`. Permiten representar los destinos de los saltos.
+- En `ARG`, el **índice** del argumento comienza en cero.
+- En `CALL`, el segundo operando indica la **cantidad de argumentos**. Si la llamada se utiliza como expresión, el resultado se almacena en un temporal; si se utiliza como sentencia, no se necesita un resultado.
+- `RETURN` admite tanto **un valor** como una **devolución vacía**.
+
+#### *4.1.4 Creación y administración de operandos*
+
+La implementación proporciona **funciones específicas para crear cada clase de operando**.
+
+Entre ellas se encuentran:
+
+* `crear_operando_vacio ()`.
+* `crear_operando_constante ()`.
+* `crear_operando_temporal ()`.
+* `crear_operando_simbolo ()`.
+* `crear_operando_etiqueta ()`.
+
+Estas funciones permiten **construir los operandos de manera uniforme**, asignando la información correspondiente a cada categoría.
+
+Cuando un operando contiene un nombre textual, la implementación realiza una **copia de la cadena**. Esto evita que el operando dependa de la validez o del tiempo de vida de la cadena original utilizada durante su creación.
+
+En el caso de los operandos asociados a símbolos, se conserva el **puntero al símbolo original**, mientras que el nombre textual se copia. La estructura de cuádruplos no pasa a ser propietaria del símbolo ni se encarga de liberarlo.
+
+La función `liberar_operando ()` permite **liberar la memoria** asociada al nombre de un operando y restablecer sus campos.
+
+Esta separación entre la administración del nombre y la referencia al símbolo permite **evitar liberaciones indebidas de memoria** y mantener la relación con la tabla de símbolos.
+
+#### *4.1.5 Construcción de la lista de cuádruplos*
+
+La lista se **inicializa** mediante `crear_lista_cuadruplos ()`.
+
+Las **instrucciones** se incorporan utilizando `agregar_cuadruplo ()`, que recibe el código de operación y los tres operandos correspondientes.
+
+La función verifica que la lista y los operandos sean válidos antes de agregar la instrucción. Luego construye una nueva **representación del cuádruplo**, realiza las copias necesarias de los nombres y enlaza el nodo al final de la lista.
+
+La incorporación de instrucciones actualiza tanto las **referencias** al primer y al último nodo como el **contador** de cuádruplos.
+
+La función devuelve un resultado que permite comprobar si la operación se realizó correctamente. De esta manera, el generador puede **detectar errores durante la construcción de la representación intermedia** y evitar continuar utilizando una lista incompleta como si fuera válida.
+
+La copia de los nombres de los operandos permite que el cuádruplo mantenga su **propia representación textual**, independientemente de las cadenas temporales utilizadas durante la generación.
+
+Por su parte, `cantidad_cuadruplos ()` permite consultar la **cantidad de instrucciones almacenadas** sin tener que recorrer la lista completa.
+
+#### *4.1.6 Liberación de memoria*
+
+La **liberación de memoria** se encuentra centralizada mediante `liberar_lista_cuadruplos ()`.
+
+Esta función recorre la lista y libera los **nombres** almacenados en los operandos de cada instrucción, así como los **nodos** que contienen los cuádruplos. Finalmente, libera la **estructura** de la lista.
+
+La liberación de los nombres no implica liberar los símbolos asociados a los operandos, ya que estos pertenecen a la **tabla de símbolos**.
+
+Esta decisión permite mantener **separadas** las responsabilidades de administración de memoria de ambas estructuras.
+
+La implementación también contempla **errores** durante la creación o copia de los operandos. Si no puede construirse correctamente una instrucción, se libera la memoria reservada para sus componentes antes de informar el fallo.
+
+De esta manera, se busca **mantener la consistencia de la lista y evitar pérdidas de memoria durante su construcción**.
+
+#### *4.1.7 Representación textual de los cuádruplos*
+
+La función `escribir_cuadruplos ()` permite **escribir la lista en un archivo** mediante una representación textual.
+
+Cada instrucción se serializa utilizando el siguiente **formato**:
+
+```text
+OPERACION ARG1 ARG2 RESULTADO
+```
+
+Cada cuádruplo ocupa **una línea** y los campos se separan mediante **espacios**. Cuando alguno de los operandos no se utiliza, se representa mediante `-`.
+
+Por ejemplo, una **asignación** puede representarse de la siguiente manera:
+
+```text
+ASSIGN 10 - x
+```
+
+Una **operación aritmética** puede representarse así:
+
+```text
+ADD x 5 T1
+```
+
+En el primer caso, el valor `10` se asigna a `x`. En el segundo, se suman los operandos `x` y `5`, y el resultado se almacena en `T1`.
+
+Los **nombres textuales** de las operaciones se obtienen mediante `nombre_operacion ()`, mientras que la función `nombre_tipo_dato ()` permite obtener la representación textual de los tipos de datos.
+
+La serialización mantiene un **formato uniforme** para las distintas clases de instrucciones y facilita la inspección de los resultados durante las pruebas.
+
+Sin embargo, la representación textual no incluye todos los campos internos de cada operando. En particular, el **tipo de dato y el puntero al símbolo no se imprimen como campos independientes**. Por lo tanto, el archivo serializado constituye una representación de las instrucciones, pero no contiene necesariamente toda la información disponible en las estructuras internas.
+
+### *4.2 Generación del código intermedio*
+
+La generación del código intermedio se encuentra implementada en `GeneradorCodigoIntermedio.c` y expuesta mediante la interfaz definida en `GeneradorCodigoIntermedio.h`.
+
+Su función es **recorrer el AST y construir una lista de cuádruplos que represente las instrucciones del programa**.
+
+La **función principal** recibe el AST y un indicador que permite habilitar o deshabilitar los mensajes de **depuración**. Cuando la generación finaliza correctamente, devuelve la **lista de cuádruplos** construida. Si se detecta un error que impide continuar, libera la lista parcial y devuelve `NULL`.
+
+El generador presupone que el AST ha sido **validado previamente por el análisis semántico**. Por ello, utiliza la información asociada a los nodos y símbolos sin volver a implementar las verificaciones semánticas propias de la etapa anterior.
+
+#### *4.2.1 Diseño y contexto de generación*
+
+La generación utiliza una **estructura de contexto** que concentra la información necesaria durante el recorrido del AST.
+
+Este contexto mantiene la **lista de cuádruplos** que se está construyendo, los **contadores** utilizados para generar temporales y etiquetas, y la información necesaria para registrar errores y mostrar mensajes de depuración.
+
+La utilización de un contexto permite que las funciones auxiliares **compartan el estado de la generación** sin tener que recibir individualmente todos sus componentes.
+
+El generador se encuentra dividido en **funciones auxiliares especializadas según la construcción del AST**. De esta manera, el recorrido general del árbol se mantiene separado de la traducción específica de las expresiones, asignaciones, sentencias, funciones y estructuras de control.
+
+#### *4.2.2 Recorrido del AST*
+
+La generación comienza verificando que el AST recibido sea válido y que su nodo raíz corresponda a un programa.
+
+A continuación, el generador recorre las declaraciones globales en el orden en que aparecen en el AST. Las **declaraciones de variables globales no generan instrucciones**, mientras que las declaraciones de funciones se procesan mediante la función encargada de generar su código.
+
+Dentro de cada función, **las declaraciones locales se omiten** durante la generación de instrucciones. Estas declaraciones ya fueron procesadas en las etapas anteriores y no producen por sí mismas operaciones ejecutables en la representación intermedia actual.
+
+Las **sentencias**, en cambio, se recorren respetando su orden en el AST. Cada construcción se deriva hacia la función auxiliar que corresponde a su tipo.
+
+Esta decisión permite **mantener el orden del programa fuente en el código intermedio**, sin incorporar instrucciones adicionales para construcciones que no requieren una operación propia.
+
+#### *4.2.3 Generación de temporales y etiquetas*
+
+Durante la generación se utilizan **temporales** para almacenar los resultados intermedios de las expresiones.
+
+Los temporales se identifican mediante **nombres como `T1`, `T2` y `T3`**. El **contador** correspondiente se incrementa a medida que se necesitan nuevos temporales.
+
+Cada operación que requiere almacenar un resultado genera un **temporal** y lo utiliza como operando de resultado del cuádruplo correspondiente.
+
+Por ejemplo, la expresión `(2 + 3) * 4` puede representarse mediante:
+
+```text
+ADD 2 3 T1
+MUL T1 4 T2
+```
+
+De esta manera, el resultado de la suma se conserva en `T1` y se utiliza como operando de la multiplicación, cuyo resultado queda almacenado en `T2`.
+
+Las **etiquetas** se utilizan para identificar destinos de saltos y puntos de entrada a distintas partes del código. Se generan mediante un contador independiente, utilizando **nombres como `L1`, `L2` y `L3`**.
+
+Mantener contadores separados permite que la generación de temporales no interfiera con la numeración de las etiquetas.
+
+#### *4.2.4 Generación de expresiones*
+
+La **generación de expresiones** se encuentra centralizada en funciones auxiliares que identifican el tipo de nodo y producen los cuádruplos correspondientes.
+
+Las **constantes enteras** se representan utilizando su valor numérico. Las **constantes booleanas** se representan mediante los nombres `TRUE` y `FALSE`.
+
+Las **constantes reales** se convierten a una representación textual utilizando el formato `%g`. Esta decisión permite generar una representación compacta de los valores, aunque puede eliminar la parte decimal cuando no es necesaria para expresar el valor numérico. Por ejemplo, un literal escrito como `2.0` puede aparecer serializado como `2`.
+
+Este comportamiento no modifica el valor numérico, pero significa que **la representación textual no conserva necesariamente la escritura original del literal ni permite determinar su tipo únicamente a partir de la presencia de un punto decimal**.
+
+Los **identificadores** se representan mediante el nombre asociado a su símbolo. El generador utiliza la asociación establecida durante el análisis semántico para recuperar la información correspondiente.
+
+Las **operaciones aritméticas binarias** generan primero los cuádruplos necesarios para obtener sus operandos y luego incorporan la instrucción correspondiente a la operación. El resultado se almacena en un temporal.
+
+Este mecanismo se aplica a la suma, resta, multiplicación, división y módulo. El **menos unario** se representa mediante su operación específica.
+
+El **recorrido recursivo** de las expresiones permite conservar su estructura y respetar el orden de evaluación establecido por el AST.
+
+#### *4.2.5 Generación de operaciones booleanas*
+
+Las operaciones booleanas requieren un tratamiento particular debido a la utilización de **cortocircuito** en los operadores lógicos.
+
+En lugar de traducir directamente todas las operaciones lógicas a una instrucción binaria, el generador utiliza **saltos condicionales y etiquetas** para controlar qué partes de la expresión deben evaluarse.
+
+En el caso del **operador `&&`**, si el primer operando resulta falso, no es necesario evaluar el segundo para determinar el resultado de la expresión.
+
+De manera equivalente, para el **operador `||`**, si el primer operando resulta verdadero, no es necesario evaluar el segundo.
+
+El generador utiliza estas propiedades para construir el flujo de control correspondiente a cada expresión lógica.
+
+La **negación lógica** también se resuelve mediante el control de flujo. Para ello, se intercambian los destinos asociados a los resultados verdadero y falso de la condición, evitando tener que generar una operación de negación independiente para controlar el flujo.
+
+Cuando una expresión booleana necesita producir un valor que pueda utilizarse en una asignación, una operación o un retorno, el generador construye una **secuencia de saltos y etiquetas** que permite asignar `TRUE` o `FALSE` a un temporal booleano.
+
+De esta manera, la implementación permite **utilizar expresiones booleanas tanto como condiciones de control como valores dentro de otras expresiones**.
+
+#### *4.2.6 Generación de asignaciones y sentencias*
+
+Las **asignaciones** se representan mediante la operación `CI_ASIGNAR`, cuyo nombre textual es `ASSIGN`.
+
+El generador obtiene primero el operando correspondiente a la expresión ubicada a la derecha de la asignación y luego construye el **cuádruplo** que almacena ese valor en la variable de destino.
+
+Por ejemplo:
+
+```text
+ASSIGN T1 - x
+```
+
+representa la **asignación** del valor almacenado en `T1` a la variable `x`.
+
+Las **sentencias `return`** se representan mediante `CI_RETURN`. Cuando existe una expresión de retorno, el generador obtiene su operando y lo incorpora al cuádruplo. Cuando no existe una expresión, se utilizan operandos vacíos.
+
+Por ejemplo:
+
+```text
+RETURN T1 - -
+RETURN - - -
+```
+
+El primer caso representa un **retorno con valor** y el segundo, un **retorno sin expresión**.
+
+El generador no vuelve a verificar si el tipo de retorno es compatible con el tipo declarado para la función, ya que esa comprobación corresponde al análisis semántico.
+
+#### *4.2.7 Generación de estructuras de control*
+
+Las estructuras de control se traducen mediante **etiquetas y saltos**, que permiten representar los distintos caminos de ejecución del programa.
+
+Para las **sentencias `if`**, el generador obtiene la condición y construye el flujo de control correspondiente.
+
+Cuando existe una **rama `else`**, se incorporan los saltos necesarios para evitar ejecutar ambas ramas consecutivamente. Las etiquetas delimitan los puntos de entrada y salida de cada parte de la estructura.
+
+Las **sentencias `while`** se representan mediante una etiqueta que identifica el comienzo del ciclo, la evaluación de la condición, un salto de salida cuando la condición resulta falsa y un salto de retorno al comienzo al finalizar el cuerpo.
+
+Este mecanismo permite representar tanto **estructuras de control simples como estructuras anidadas**, reutilizando las mismas operaciones de salto y etiquetado.
+
+Las expresiones booleanas utilizadas en las condiciones se procesan mediante los **mecanismos de cortocircuito y control de flujo** descritos anteriormente.
+
+#### *4.2.8 Generación de funciones y llamadas*
+
+Las **declaraciones de funciones** se representan mediante las instrucciones `FUNC_BEGIN` y `FUNC_END`, que delimitan el comienzo y el final de cada función.
+
+Al generar una función, el generador incorpora primero la **instrucción de inicio**, luego procesa sus **parámetros** mediante instrucciones `PARAM` y, finalmente, genera el código correspondiente al **cuerpo de la función** antes de incorporar la **instrucción de finalización.**
+
+Los parámetros se representan en el **orden** en que aparecen en la declaración.
+
+Las **llamadas a funciones** se generan mediante la función auxiliar encargada de procesar los nodos `AST_LLAMADA`.
+
+Para cada **argumento**, el generador obtiene primero el operando correspondiente a su expresión y luego incorpora una instrucción `ARG` que identifica el argumento y su índice.
+
+Los **índices** de los argumentos comienzan en **cero** y se asignan respetando el orden de la llamada en el programa fuente.
+
+Una vez generados todos los argumentos, se incorpora una instrucción `CALL`, que identifica la **función invocada** y la **cantidad de argumentos proporcionados**. Cuando la llamada produce un valor utilizado por una expresión, este se almacena en un temporal. Cuando la llamada se utiliza como sentencia y su resultado no se necesita, el operando de resultado queda vacío.
+
+Por ejemplo, una llamada con dos argumentos puede representarse mediante:
+
+```text
+ARG 3 0 -
+ARG 4 1 -
+CALL sumar 2 T1
+```
+
+Las llamadas anidadas se procesan **recursivamente**. Por ello, los cuádruplos correspondientes a una llamada interna pueden aparecer antes de que se genere la instrucción `ARG` que utiliza su resultado como argumento de una llamada externa.
+
+Esta organización permite **representar llamadas con expresiones como argumentos, múltiples llamadas dentro de una misma expresión y llamadas a funciones desde otras funciones**.
+
+#### *4.2.9 Manejo de errores durante la generación*
+
+El generador presupone que el AST ha superado el análisis semántico, pero **contempla errores** que pueden impedir la construcción correcta del código intermedio.
+
+Cuando se detecta una situación que impide continuar, la generación **informa el problema** mediante los mecanismos internos correspondientes y evita devolver una lista parcial como resultado válido.
+
+Para ello, si la generación falla después de haber incorporado instrucciones, **se libera la lista de cuádruplos construida hasta ese momento** y la función principal devuelve `NULL`.
+
+Esta decisión permite que el programa principal distinga entre una **generación exitosa** y una **generación fallida** sin tener que comprobar individualmente el estado de cada instrucción producida.
+
+Los **errores de generación** se mantienen separados de los errores léxicos, sintácticos y semánticos. Cada etapa conserva la responsabilidad sobre las operaciones que le corresponden.
+
+#### *4.2.10 Salida del código intermedio*
+
+El resultado principal de esta etapa es una **lista de cuádruplos** que representa las instrucciones generadas a partir del programa fuente.
+
+La lista **puede escribirse en un archivo** mediante `escribir_cuadruplos ()`, que serializa las instrucciones en el orden en que fueron incorporadas.
+
+La **salida textual** permite observar las operaciones, los operandos, los temporales, las etiquetas y las instrucciones relacionadas con las funciones.
+
+Por ejemplo, una asignación seguida de una operación aritmética puede representarse mediante:
+
+```text
+ASSIGN 10 - x
+ADD x 5 T1
+```
+
+La representación textual se mantiene **separada** de las estructuras utilizadas internamente durante la generación. Por ello, el archivo permite inspeccionar las instrucciones, mientras que la lista conserva la información adicional de los operandos y sus asociaciones con los símbolos.
+
+La **cantidad total de cuádruplos** generados puede consultarse mediante `cantidad_cuadruplos ()`. Esta información también se utiliza durante la depuración para indicar cuántas instrucciones se incorporaron a la lista.
+
+Cuando la generación finaliza correctamente, la **lista** se devuelve al programa principal para que pueda utilizarse en las etapas posteriores.
+
+#### *4.2.11 Modo de depuración*
+
+El generador de código intermedio incorpora un **modo de depuración** controlado mediante el parámetro `modo_debug`.
+
+Cuando se encuentra habilitado, se muestran **mensajes** que permiten observar el recorrido del AST y el procesamiento de las distintas construcciones del programa.
+
+Estos mensajes utilizan el **prefijo `[CODINT]`** y permiten identificar, entre otras cuestiones:
+
+* El comienzo y la finalización de la generación.
+* La generación de declaraciones de funciones.
+* El procesamiento de asignaciones.
+* La generación de expresiones y operaciones binarias.
+* El procesamiento de sentencias `if` y `while`.
+* La generación de llamadas a funciones.
+* La generación de sentencias `return`.
+* La finalización correcta de las distintas construcciones.
+* La cantidad total de cuádruplos generados.
+
+Por ejemplo:
+
+```text
+[CODINT] Comienza la generación del código intermedio.
+[CODINT] Generando una asignación.
+[CODINT] Generando una operación binaria.
+[CODINT] Operación binaria generada correctamente.
+[CODINT] Asignación generada correctamente.
+[CODINT] La generación del código intermedio finalizó correctamente.
+[CODINT] Total de cuádruplos generados: 8
+```
+
+Estos mensajes permiten **seguir el proceso de generación** y detectar en qué construcción se produce un error.
+
+Los **mensajes de depuración se mantienen separados de los cuádruplos**. Por lo tanto, no forman parte de la representación intermedia ni deben confundirse con las instrucciones que se almacenan en la lista.
+
+#### *4.2.12 Integración con el análisis semántico*
+
+La generación de código intermedio se ejecuta después de que el programa haya superado el **análisis semántico**.
+
+Esta separación permite mantener una **división clara** de responsabilidades:
+
+* **El analizador sintáctico** verifica la estructura del programa y construye el AST.
+* **El analizador semántico** verifica las restricciones semánticas y asocia los identificadores con sus símbolos.
+* **La tabla de símbolos** conserva la información de las declaraciones, los tipos y los ámbitos.
+* **El generador de código intermedio** recorre el AST validado y construye la lista de cuádruplos.
+* **La representación de cuádruplos** administra las instrucciones y permite serializarlas en un formato textual.
+
+El generador utiliza la **información** de tipo almacenada en los nodos del AST y las referencias a símbolos establecidas durante el análisis semántico. De esta manera, no necesita volver a resolver los identificadores ni repetir las comprobaciones de compatibilidad de tipos.
+
+La generación también se encuentra separada de la **ejecución del programa**. Su responsabilidad consiste en producir la representación intermedia, mientras que la interpretación de esas instrucciones corresponde a la etapa posterior que las consume.
+
+Esta separación permite que las distintas etapas del compilador se desarrollen y verifiquen de manera independiente.
+
+#### *4.2.13 Cambios respecto del Pre-Proyecto*
+
+La implementación actual representa una **ampliación importante** respecto del generador de pseudo-assembly desarrollado durante el Pre-Proyecto.
+
+En aquella versión, la función `generar_pseudo_assembly ()` recibía el AST y un archivo de salida, y **escribía directamente las instrucciones** mediante operaciones como `fprintf ()`.
+
+**La implementación del Pre-Proyecto no contaba con una estructura de cuádruplos**. Las instrucciones se escribían directamente en el archivo, sin construir una representación intermedia estructurada que permitiera administrar por separado los operandos y las operaciones.
+
+En la **implementación actual**, en cambio, se incorporaron los siguientes cambios:
+
+* **Introducción de cuádruplos** para representar las instrucciones mediante una estructura uniforme.
+* **Separación entre la generación y la serialización** del código intermedio.
+* **Administración dinámica de una lista de cuádruplos**.
+* **Clasificación de operandos** según su naturaleza.
+* **Asociación de operandos con símbolos** de la tabla de símbolos.
+* **Incorporación de tipos de datos** en la representación interna de los operandos.
+* **Incorporación de operaciones aritméticas adicionales**, como resta, división, módulo y menos unario.
+* **Incorporación de operaciones relacionales y lógicas**.
+* **Generación de saltos y etiquetas** para representar estructuras de control y cortocircuito.
+* **Representación de funciones, parámetros, argumentos, llamadas y retornos**.
+* **Manejo de errores y liberación de la lista parcial** cuando la generación falla.
+* **Incorporación de mensajes de depuración** para observar el recorrido y la construcción de las instrucciones.
+
+De esta manera, la implementación actual deja de depender de la escritura directa de instrucciones y pasa a construir una **representación intermedia estructurada**, adecuada para su utilización por las etapas posteriores del compilador.
+
+#### *4.2.14 Pruebas*
+
+Se incorporó un conjunto de **46 pruebas** destinadas a verificar la generación del código intermedio.
+
+Las pruebas utilizan programas fuente con extensión `.ctds` y se encuentran **organizadas** en el directorio:
+
+```text
+Src/Test/CodigoIntermedio/
+```
+
+Los **resultados** generados durante su ejecución se almacenan en:
+
+```text
+Src/Test/Resultados/CodigoIntermedio/
+```
+
+Los archivos de resultados permiten **inspeccionar los cuádruplos generados** y, cuando corresponde, las representaciones adicionales producidas durante las pruebas.
+
+Las **pruebas** cubren las principales construcciones que debe traducir el generador:
+
+* **Asignaciones** de constantes enteras, reales y booleanas.
+* **Asignaciones entre variables** y múltiples asignaciones en un mismo programa.
+* **Operaciones aritméticas** y expresiones anidadas.
+* **Precedencia de operadores** y expresiones con múltiples operaciones.
+* **Operaciones con variables** y combinación de tipos numéricos.
+* **Comparaciones** de menor, mayor e igualdad.
+* **Operaciones booleanas**, incluyendo negación, conjunción, disyunción y expresiones complejas.
+* **Condicionales** simples, con rama alternativa y anidados.
+* **Ciclos** `while`, tanto simples como combinados con condicionales.
+* **Funciones** sin parámetros, con uno o varios parámetros y con parámetros de distintos tipos.
+* **Llamadas a funciones** utilizadas como sentencias o como parte de expresiones.
+* **Llamadas anidadas** y múltiples llamadas dentro de una misma expresión.
+* **Funciones con retorno booleano** y funciones que devuelven valores reales.
+* **Sentencias return** con valores, expresiones complejas y sin expresión.
+* **Programas completos** que combinan funciones, asignaciones, estructuras de control y expresiones.
+* **Código muerto**, para verificar que las sentencias inalcanzables también se traducen.
+
+La prueba de código muerto verifica específicamente que el generador **no elimina sentencias por encontrarse después de un retorno o dentro de una rama cuya condición es constante falsa**. La generación conserva esas instrucciones y los saltos correspondientes, ya que la implementación actual no incorpora una etapa de optimización que elimine código inalcanzable.
+
+En conjunto, estas pruebas permiten comprobar que las distintas construcciones del AST se traducen a **instrucciones coherentes** y que la representación intermedia conserva el orden y la estructura necesarios para las etapas posteriores.
+
 ---
 
 ## *Programa principal*
 
 Se incorporó [main.c](../Src/main.c), encargado de **coordinar la ejecución del compilador y de gestionar la interfaz de línea de comandos**.
 
-En la etapa actual, el programa principal permite ejecutar el **análisis léxico**, el **análisis sintáctico** y el **análisis semántico** del archivo fuente. Las etapas posteriores se encuentran contempladas en la interfaz, pero todavía no están implementadas.
+En la etapa actual, el programa principal permite ejecutar el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico** y la **generación de código intermedio** del archivo fuente. Las etapas posteriores, correspondientes a la generación de código objeto y a las optimizaciones, se encuentran contempladas en la interfaz, pero todavía no están implementadas.
 
 El **procesamiento** actual consiste en:
 
@@ -1292,7 +1856,8 @@ El **procesamiento** actual consiste en:
 5. Ejecución de la **etapa seleccionada**:
    - **Análisis léxico** mediante Flex, para la etapa `scan`.
    - **Análisis sintáctico** mediante Bison, utilizando los tokens proporcionados por Flex, para la etapa `parse`.
-   - **Análisis semántico**, utilizando el AST construido por el parser y una tabla de símbolos, cuando no se especifica `-target`.
+   - **Análisis semántico** mediante el AST y la tabla de símbolos, como parte del procesamiento completo.
+   - **Generación de código intermedio** a partir del AST validado semánticamente, cuando el análisis semántico finaliza correctamente y no se está ejecutando el modo de pruebas semánticas.
 6. Generación de los **archivos auxiliares** correspondientes cuando se encuentra activado el **modo de depuración**.
 7. **Liberación** de las estructuras utilizadas durante el análisis y finalización indicando, mediante el código de retorno, si la ejecución fue **exitosa** o si se produjeron **errores**.
 
@@ -1304,17 +1869,21 @@ El análisis semántico continúa procesando la entrada cuando encuentra errores
 
 De esta manera, no es necesario corregir un error para que aparezca automáticamente otro. **Se brindan todos los errores encontrados de una vez**. Sin embargo, hay que ser cuidadosos al analizarlos, ya que un error detectado puede ser únicamente causa de otro error previo propagado.
 
+Durante la generación de código intermedio, la ocurrencia de un error provoca que **se cancele la ejecución de la etapa** sin producir ninguna secuencia como salida.
+
 Cuando el análisis sintáctico se ejecuta como parte del **procesamiento completo**, el AST generado se conserva para realizar posteriormente el análisis semántico.
 
 En cambio, cuando se solicita explícitamente **`-target parse`**, el AST solamente se utiliza para completar esa etapa y posteriormente es liberado.
 
-La **generación del archivo de salida** y la configuración del modo de depuración son coordinadas por `main.c`. Dependiendo de la etapa seleccionada, la salida generada corresponde a un archivo `.lex`, `.sint` o `.sem`.
+La **generación del archivo de salida** y la configuración del modo de depuración son coordinadas por `main.c`. Dependiendo de la etapa seleccionada, la salida generada corresponde a un archivo `.lex`, `.sint` o `.ci`.
 
 En el caso del **análisis sintáctico**, cuando se activa el modo de depuración, también se genera un archivo `.dot` con la representación del AST.
 
 Cuando se ejecuta el **análisis semántico** con -debug, se genera el archivo .dot después del análisis semántico, por lo que representa el AST enriquecido con la información obtenida durante esta etapa.
 
-El **reconocimiento de los tokens** es responsabilidad del analizador léxico, mientras que la **validación de la estructura sintáctica** y la **construcción del AST** corresponden al analizador sintáctico. El **análisis semántica** utiliza posteriormente ese AST junto con la tabla de símbolos propia de la etapa.
+El **reconocimiento de los tokens** es responsabilidad del analizador léxico, mientras que la **validación de la estructura sintáctica** y la **construcción del AST** corresponden al analizador sintáctico. El **análisis semántico** utiliza posteriormente ese AST junto con la tabla de símbolos propia de la etapa.
+
+La **generación de código intermedio** se realiza a partir del AST validado semánticamente. Si el análisis sintáctico o semántico detecta errores, se **cancela el procesamiento** y no se genera una secuencia de código intermedio como salida. En caso contrario, se recorre el AST para generar las **instrucciones** correspondientes a las sentencias del programa, escribiéndolas en el archivo de salida con **extensión `.ci`**. Esta etapa se ejecuta **por defecto** cuando no se especifica un objetivo mediante `-target`, mientras que el **modo de pruebas semánticas** permite ejecutar el análisis semántico sin continuar con la generación de código intermedio.
 
 ---
 
@@ -1330,7 +1899,7 @@ El archivo de entrada debe tener extensión `.ctds` y no puede comenzar con `-`.
 
 ### *Ejecución por defecto*
 
-Si no se especifica una etapa mediante `target`, **se ejecuta hasta el análisis semántico**, que constituye la última etapa actualmente implementada.
+Si no se especifica una etapa mediante `target`, el compilador ejecuta el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico** y, si no se producen errores, la **generación de código intermedio**. Esta secuencia constituye el procesamiento completo implementado actualmente.
 
 ```bash
 c-tds programa.ctds
@@ -1339,10 +1908,10 @@ c-tds programa.ctds
 En este caso se genera automáticamente:
 
 ```text
-programa.sem
+programa.ci
 ```
 
-El archivo `.sem` corresponde al resultado de la última etapa ejecutada, es decir, el **análisis semántico**.
+El archivo `.ci` corresponde al resultado de la última etapa ejecutada, es decir, el **código intermedio**.
 
 ### *Selección de etapa*
 
@@ -1357,8 +1926,8 @@ Las **etapas reconocidas** son las siguientes:
 | **Etapa** | **Descripción** | **Estado** |
 | :--- | :--- | :--- |
 | `scan` | Análisis léxico | Implementada |
-| `parse` | Análisis sintáctico | Implementada |
-| `codinter` | Generación de código intermedio | No implementada |
+| `parse` | Análisis sintáctico y construcción del AST | Implementada |
+| `codinter` | Análisis semántico y generación de código intermedio | Implementada |
 | `assembly` | Generación de código objeto | No implementada |
 
 Por ejemplo:
@@ -1373,9 +1942,15 @@ O:
 c-tds -target parse programa.ctds
 ```
 
-Actualmente no existe un `-target sem`. El **análisis semántico** se ejecuta automáticamente cuando no se especifica un `-target`.
+O:
 
-Las **etapas todavía no implementadas** son reconocidas por la interfaz y producen un mensaje indicando que la etapa aún no se encuentra disponible.
+```bash
+c-tds -target codinter programa.ctds
+```
+
+Actualmente no existe un `-target sem`. El **análisis semántico** se ejecuta automáticamente cuando no se especifica un `-target`, o bien cuando se llega hasta la etapa `target codinter`.
+
+La **etapa todavía no implementada (assembly)** es reconocida por la interfaz y produce un mensaje indicando que la etapa aún no se encuentra disponible.
 
 ### *Nombre del archivo de salida*
 
@@ -1390,7 +1965,7 @@ permite indicar explícitamente **el nombre y la ubicación del archivo de salid
 Por ejemplo:
 
 ```bash
-c-tds -o Resultados/prog.sint programa.ctds
+c-tds -o Resultados/prog.ci programa.ctds
 ```
 
 La opción `-o` utiliza exactamente el nombre proporcionado por el usuario, **no agrega automáticamente una extensión**.
@@ -1403,13 +1978,14 @@ Actualmente las **extensiones generadas automáticamente** son las siguientes:
 | :--- | :--- |
 | `scan` | `.lex` |
 | `parse` | `.sint` |
-| ejecución completa | `.sem` |
 | `codinter` | `.ci` |
 | `assembly` | `.ass` |
 
-Las extensiones correspondientes a `codinter` y `assembly` se encuentran contempladas por la interfaz, aunque **dichas etapas todavía no están implementadas**.
+La extensión correspondiente a `assembly` se encuentra contemplada por la interfaz, aunque **dicha etapa todavía no está implementada**.
 
-Con la implementación actual, si no se aclara una etapa previa, el compilador llega hasta el **análisis semántico**, generando un archivo de extensión `.sem`.
+Con la implementación actual, si no se aclara una etapa previa, el compilador llega hasta la **generación de código intermedio**, produciendo un archivo de extensión `.ci`.
+
+Las **pruebas semánticas** utilizan la **opción `-test-sem`** y especifican el archivo de salida mediante `-o`. En este modo, el análisis semántico se ejecuta sin generar código intermedio y el archivo indicado se utiliza para registrar sus resultados. La **opción `-test-sem`** no modifica la extensión generada automáticamente en la ejecución habitual.
 
 ### *Modo de depuración*
 
@@ -1590,6 +2166,28 @@ Los **archivos de salida** se generan en:
 Src/Test/Resultados/Semantico/
 ```
 
+### *Ejecutar las pruebas de generación de código intermedio*
+
+Para **ejecutar todas las pruebas del generador de código intermedio**:
+
+```bash
+make tests-codint
+```
+
+El objetivo compila y ejecuta las **46 pruebas** ubicadas en:
+
+```text
+Src/Test/CodigoIntermedio/
+```
+
+Los **resultados** de estas pruebas se generan en:
+
+```text
+Src/Test/Resultados/CodigoIntermedio/
+```
+
+Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**, generando un archivo `.ci` con las instrucciones generadas en la etapa.
+
 ### *Ejecutar todas las pruebas*
 
 El objetivo:
@@ -1607,6 +2205,7 @@ En el estado actual del proyecto, esto equivale a ejecutar:
 3. Las pruebas independientes del **AST**.
 4. Las pruebas independientes de la **TS**.
 5. Las pruebas del **análisis semántico**.
+6. Las pruebas de **código intermedio**.
 
 Este objetivo se encuentra **preparado para incorporar las pruebas de las etapas posteriores** a medida que sean implementadas.
 
