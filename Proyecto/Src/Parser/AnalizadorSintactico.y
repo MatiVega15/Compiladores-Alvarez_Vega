@@ -86,7 +86,7 @@ static void liberar_lista_nodos (ListaNodos *lista);
 /* - Tokens - */
 
 /* Palabras reservadas. */
-%token INT BOOLEAN FLOAT VOID
+%token INT BOOLEAN FLOAT VOID EXTERN
 %token IF ELSE WHILE RETURN
 %token TRUE FALSE
 
@@ -115,6 +115,7 @@ static void liberar_lista_nodos (ListaNodos *lista);
 %type <nodo> statement
 %type <nodo> block
 %type <nodo> method_decl
+%type <nodo> extern_decl
 
 %type <lista> lista_argumentos
 %type <lista> argumentos
@@ -122,6 +123,7 @@ static void liberar_lista_nodos (ListaNodos *lista);
 %type <lista> lista_id_resto
 %type <lista> lista_var_decl
 %type <lista> lista_declaraciones
+%type <lista> lista_post_vars
 %type <lista> lista_statement
 %type <lista> lista_method_decl
 %type <lista> method_decl_resto
@@ -179,6 +181,12 @@ lista_declaraciones :   %empty                                          {
 
                                                                             // El identificador debe ser el primer hijo.
                                                                             agregar_hijo_al_inicio (declaracion, $2);
+                                                                        }
+                    |   extern_decl lista_post_vars                     {
+                                                                            $$ = crear_lista_nodos ();
+
+                                                                            agregar_nodo_lista ($$, $1);
+                                                                            agregar_nodos_lista ($$, $2);
                                                                         }
                     |   VOID id method_decl_resto lista_method_decl     {
                                                                             $$ = crear_lista_nodos ();
@@ -299,6 +307,41 @@ method_decl         :   tipo_method id '(' lista_parametros ')' block   {
 
                                                                             registrar_sintaxis ("Declaración de función reconocida.", @$.first_line, @$.first_column);
                                                                         }
+                    ;
+
+lista_post_vars     :   %empty                                          {
+                                                                            $$ = crear_lista_nodos ();
+                                                                        }
+                    |   extern_decl lista_post_vars                     {
+                                                                            $$ = crear_lista_nodos ();
+
+                                                                            agregar_nodo_lista ($$, $1);
+                                                                            agregar_nodos_lista ($$, $2);
+                                                                        }
+                    |   method_decl lista_method_decl                   {
+                                                                            $$ = crear_lista_nodos ();
+
+                                                                            agregar_nodo_lista ($$, $1);
+                                                                            agregar_nodos_lista ($$, $2);
+                                                                        }
+                    ;
+
+extern_decl         :   EXTERN tipo_method id '(' lista_parametros ')' ';'  {
+                                                                                $$ = crear_nodo (AST_DECLARACION_FUNCION_EXTERNA, @2.first_line, @2.first_column);
+                                                                                $$ -> tipo_dato = $2;
+
+                                                                                // Primer hijo: identificador de la función.
+                                                                                agregar_hijo ($$, $3);
+
+                                                                                // Hijos siguientes: parámetros.
+                                                                                for (int i = 0; i < $5 -> cantidad; i ++) {
+                                                                                    agregar_hijo ($$, $5 -> nodos [i]);
+                                                                                }
+                                                                                
+                                                                                liberar_lista_nodos ($5);
+
+                                                                                registrar_sintaxis ("Declaración de función externa reconocida.", @$.first_line, @$.first_column);
+                                                                            }
                     ;
 
 tipo_method         :   type                                            {
