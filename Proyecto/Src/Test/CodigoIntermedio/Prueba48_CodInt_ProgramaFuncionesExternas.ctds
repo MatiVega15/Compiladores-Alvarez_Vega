@@ -1,0 +1,27 @@
+int contador_global;
+boolean flag_activo;
+
+extern int get_int ();
+extern void printInt (int x);
+
+int inc (int x) {
+    return x + 1;
+}
+
+void main () {
+    int y;
+
+    contador_global = 1;
+    flag_activo = true;
+    
+    y = inc (get_int ());
+    
+    if (y == 1) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+    
+    return;
+}
