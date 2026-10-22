@@ -23,7 +23,9 @@ typedef enum {
  * - tipo: tipo de dato asociado al símbolo.
  * - clase: clase del símbolo.
  * - inicializado: si el identificador tiene ya un valor asociado o no.
- * - direccion: ubicación asociada al símbolo.
+ * - offset: desplazamiento en el Stack.
+ * - es_externa: 1 si es una función externa, 0 si es normal.
+ * - es_global: 1 si es variable global, 0 si es local/parámetro.
  * 
  * Los símbolos de un mismo nivel se organizan mediante una lista enlazada.
  */
@@ -33,7 +35,10 @@ typedef struct Simbolo {
     ClaseSimbolo clase;
 
     int inicializada;
-    int direccion;
+    int offset;
+
+    int es_externa;
+    int es_global;
 
     struct Simbolo *siguiente;
 } Simbolo;
