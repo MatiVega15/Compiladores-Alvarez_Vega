@@ -93,6 +93,11 @@ ListaCuadruplos *generar_codigo_intermedio (NodoAST *arbol, int modo_debug) {
                 debug_generador (&contexto, "Se omite una declaración global de variable.");
                 break;
             
+            // Las firmas de funciones externas tampoco generan instrucciones ejecutables.
+            case AST_DECLARACION_FUNCION_EXTERNA:   
+                debug_generador (&contexto, "Se omite una declaración de función externa.");
+                break;
+
             // Cada función genera su propio bloque de código.
             case AST_DECLARACION_FUNCION:
                 generar_declaracion_funcion (declaracion, &contexto);
