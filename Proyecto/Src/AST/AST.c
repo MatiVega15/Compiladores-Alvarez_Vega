@@ -185,6 +185,8 @@ static const char *nombre_tipo_nodo (TipoNodo tipo) {
             return "DECLARACION VARIABLE";
         case AST_DECLARACION_FUNCION:
             return "DECLARACION FUNCIÓN";
+        case AST_DECLARACION_FUNCION_EXTERNA:
+            return "DECLARACION FUNCIÓN EXTERNA";
         case AST_PARAMETRO:
             return "PARÁMETRO";
         

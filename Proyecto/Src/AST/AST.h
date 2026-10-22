@@ -23,6 +23,7 @@ typedef enum {
     AST_PROGRAMA,
     AST_DECLARACION_VARIABLE,
     AST_DECLARACION_FUNCION,
+    AST_DECLARACION_FUNCION_EXTERNA,
     AST_PARAMETRO,
 
     /* Sentencias y bloques. */
