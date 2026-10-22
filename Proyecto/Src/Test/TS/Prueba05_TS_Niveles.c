@@ -11,6 +11,10 @@
  * - La búsqueda priorice el nivel actual.
  * - Al cerrar el nivel, la búsqueda vuelve al nivel anterior.
  * - Los símbolos del nivel cerrado dejan de estar disponibles.
+ * - Los símbolos del nivel cerrado conservan sus referencias mientras la tabla permanezca abierta.
+ * - Los símbolos del nivel cerrado se liberan al liberar la tabla completa.
+ * - Los símbolos del nivel interno no son marcados como globales.
+ * - Los símbolos del nivel externo son marcados como globales.
  */
 int main (void) {
     printf ("========== PRUEBA: NIVELES ==========\n");
@@ -34,6 +38,14 @@ int main (void) {
 
     printf ("Símbolo 'x' del nivel externo insertado correctamente.\n");
 
+    if (simbolo_externo -> es_global != 1) {
+        fprintf (stderr, "ERROR: el símbolo del nivel externo no fue marcado como global.\n");
+        liberar_TS (ts);
+        return 1;
+    }
+
+    printf ("El símbolo del nivel externo es correctamente global.\n");
+    
     abrir_nivel (ts);
 
     if (ts -> nivel_actual == NULL) {
@@ -61,6 +73,14 @@ int main (void) {
     }
 
     printf ("Símbolo 'x' del nivel interno insertado correctamente.\n");
+
+    if (simbolo_interno -> es_global != 0) {
+        fprintf (stderr, "ERROR: el símbolo del nivel interno fue marcado incorrectamente como global.\n");
+        liberar_TS (ts);
+        return 1;
+    }
+
+    printf ("El símbolo del nivel interno es correctamente local.\n");
 
     Simbolo *encontrado = buscar_elemento (ts, "x");
 
@@ -156,6 +176,14 @@ int main (void) {
 
     printf ("Símbolo 'temporal' del nivel interno insertado correctamente.\n");
 
+    if (simbolo_temporal -> es_global != 0) {
+        fprintf (stderr, "ERROR: el símbolo del nivel interno fue marcado incorrectamente como global.\n");
+        liberar_TS (ts);
+        return 1;
+    }
+
+    printf ("El símbolo del nivel interno es correctamente local.\n");
+    
     encontrado = buscar_elemento (ts, "temporal");
     
     if (encontrado != simbolo_temporal) {
