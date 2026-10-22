@@ -1,0 +1,9 @@
+void main () {
+    int y;
+
+    extern int get_int ();
+
+    y = get_int ();
+
+    return;
+}

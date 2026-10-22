@@ -1,0 +1,8 @@
+extern int get_int ();
+
+// Ya se pasó a la zona de externs/funciones.
+int global_ilegal;
+
+void main () {
+    return;
+}
