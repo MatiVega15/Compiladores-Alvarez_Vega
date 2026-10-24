@@ -1403,11 +1403,7 @@ Las **operaciones relacionales y de igualdad** incluyen:
 - `CI_MAYOR`.
 - `CI_IGUAL`.
 
-Las **operaciones lógicas** incluyen:
-
-- `CI_AND`.
-- `CI_OR`.
-- `CI_NEGACION`.
+*(Nota: Las operaciones lógicas como `AND`, `OR` y `NEGACIÓN` no poseen cuádruplos específicos, ya que se implementan mediante evaluación en cortocircuito utilizando saltos condicionales y etiquetas).*
 
 Además, se define `CI_ASIGNAR` para representar las asignaciones.
 
