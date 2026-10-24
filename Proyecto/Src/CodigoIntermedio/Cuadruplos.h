@@ -27,11 +27,6 @@ typedef enum {
     CI_MAYOR,
     CI_IGUAL,
 
-    /* Operaciones lógicas. */
-    CI_AND,
-    CI_OR,
-    CI_NEGACION,
-
     /* Control de flujo. */
     CI_ETIQUETA,
     CI_SALTO,
