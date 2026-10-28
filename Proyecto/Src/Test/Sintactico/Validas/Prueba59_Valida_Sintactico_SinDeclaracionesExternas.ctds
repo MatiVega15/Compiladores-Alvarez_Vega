@@ -1,0 +1,6 @@
+int contador;
+
+void main () {
+    contador = 1;
+    return;
+}

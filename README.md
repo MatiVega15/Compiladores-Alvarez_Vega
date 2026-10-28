@@ -52,6 +52,7 @@
 │   ├── Makefile
 │   └── Src/
 │       ├── AST/
+│       ├── CodigoAssembly/
 │       ├── CodigoIntermedio/
 │       ├── Common/
 │       ├── Lexer/
@@ -61,6 +62,8 @@
 │       ├── Test/
 │       │   ├── AST/
 │       │   ├── CodigoIntermedio/
+│       │   ├── CodigoAssembly/
+│       │   ├── PruebaDeEstresYLimites.ctds
 │       │   ├── TS/
 │       │   ├── Lexico/
 │       │   │   ├── Invalidas/
@@ -71,7 +74,8 @@
 │       │   └── Semantico/
 │       │       ├── Invalidas/
 │       │       └── Validas/
-│       └── main.c
+│       ├── main.c
+│       └── runtime.c
 │
 ├── .gitignore
 └── README.md
@@ -136,10 +140,10 @@ El trabajo se aborda de una manera incremental, mediante las siguientes etapas:
 2. Generación del **árbol sintáctico abstracto (AST)** y la **tabla de símbolos (TS)**.
 3. Análisis **semántico**.
 4. Generación de **código intermedio**.
-5. Generación de **código objeto**.
+5. Generación de **código Assembly y ejecutable**.
 6. **Optimizador** y extensiones.
 
-Actualmente se encuentran implementadas las etapas de **análisis léxico**, **análisis sintáctico**, **generación del árbol sintáctico abstracto (AST)**, **generación de la tabla de símbolos (TS)**, **análisis semántico** y **generación de código intermedio**.
+Actualmente se encuentran implementadas las etapas de **análisis léxico**, **análisis sintáctico**, **generación del árbol sintáctico abstracto (AST)**, **generación de la tabla de símbolos (TS)**, **análisis semántico**, **generación de código intermedio**, **generación de código Assembly** y el **enlazado final** con la librería de runtime.
 
 ## *Compilación y ejecución*
 
@@ -162,13 +166,22 @@ Para **ejecutar el compilador**:
 ./build/c-tds archivo.ctds
 ```
 
-Por defecto, se ejecuta la última etapa implementada, actualmente la **generación de código intermedio**, produciendo un archivo `.ci`.
+Por defecto, se ejecuta el procesamiento completo hasta la última etapa implementada, generando automáticamente un **archivo ejecutable con extensión `.out`** (empleando `gcc` y el archivo de soporte `Proyecto/Src/runtime.c`).
 
 Las etapas también pueden seleccionarse mediante `-target`. Por ejemplo, para el **análisis léxico**:
 
 ```bash
 ./build/c-tds -target scan archivo.ctds
 ```
+
+Las etapas admitidas son:
+
+| **Etapa** | **Descripción** |
+| :--- | :--- |
+| `scan` | Análisis léxico |
+| `parse` | Análisis sintáctico y construcción del AST |
+| `codinter` | Análisis semántico y generación de código intermedio |
+| `assembly` | Generación de código Assembly x86-64 |
 
 Para activar el **modo depuración**:
 
@@ -184,7 +197,7 @@ El **objetivo `tests`** permite ejecutar todas las pruebas correspondientes a la
 make tests
 ```
 
-Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico**, del **árbol sintáctico abstracto (AST)**, de la **tabla de símbolos (TS)**, del **análisis semántico** y del **generador de código intermedio**.
+Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico**, del **árbol sintáctico abstracto (AST)**, de la **tabla de símbolos (TS)**, del **análisis semántico**, del **generador de código intermedio** y del **generador de código Assembly y ejecutables**.
 
 Para **ejecutar solamente las pruebas del análisis léxico**:
 
@@ -219,6 +232,12 @@ Para **ejecutar solamente las pruebas de código intermedio**:
 
 ```bash
 make tests-codint
+```
+
+Para **ejecutar solamente las pruebas de código Assembly y ejecutables**:
+
+```bash
+make tests-assembly
 ```
 
 Para **limpiar** los archivos generados:

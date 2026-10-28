@@ -1,0 +1,16 @@
+extern void printInt (int valor);
+
+void main () {
+    int x;
+    x = 2;
+
+    if (x == 1) {
+        printInt (100);
+    } else {
+        if (x == 2) {
+            printInt (200); // Debe entrar acá y saltar al final.
+        } else {
+            printInt (300);
+        }
+    }
+}

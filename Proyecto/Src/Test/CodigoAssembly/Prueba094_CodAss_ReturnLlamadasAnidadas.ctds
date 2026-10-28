@@ -1,0 +1,17 @@
+extern void printInt (int valor);
+
+int diez () {
+    return 10;
+}
+
+int veinte () {
+    return 20;
+}
+
+int sumarLlamadas () {
+    return diez () + veinte ();
+}
+
+void main () {
+    printInt (sumarLlamadas ()); // Debe imprimir 30.
+}

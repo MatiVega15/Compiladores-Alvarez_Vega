@@ -1,0 +1,5 @@
+extern int variable_externa;
+
+void main () {
+    return;
+}

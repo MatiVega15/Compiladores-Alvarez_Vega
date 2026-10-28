@@ -1,0 +1,20 @@
+extern void printInt (int valor);
+
+void main () {
+    int x;
+    boolean b;
+    float f;
+    
+    x = 231;
+    b = false;
+    f = 3.1415;
+
+    printInt (x);
+
+    if (b) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+}

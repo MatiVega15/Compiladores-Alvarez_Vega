@@ -1,0 +1,18 @@
+extern void printInt (int valor);
+
+void main () {
+    int x;
+    x = 10;
+
+    if (x > 5) {
+        printInt (1);
+    }
+    
+    if (x > 15) {
+        printInt (2); // No debe entrar acá.
+    }
+
+    if (x == 10) {
+        printInt (3);
+    }
+}

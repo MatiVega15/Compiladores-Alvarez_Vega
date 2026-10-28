@@ -1,0 +1,7 @@
+extern void printInt (int x);
+extern int inc (int x);
+
+void main () {
+    inc (printInt (5));
+    return;
+}

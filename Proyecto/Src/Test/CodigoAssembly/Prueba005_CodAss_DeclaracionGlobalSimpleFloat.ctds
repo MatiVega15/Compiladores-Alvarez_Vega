@@ -1,0 +1,11 @@
+float real;
+
+extern void printInt (int valor);
+
+void main () {
+    real = 3.14;
+
+    // Se imprime algo para chequear contra .expected.
+    printInt (0);
+    return;
+}

@@ -1,0 +1,24 @@
+// Palabra reservada.
+extern
+123extern
+
+// Identificadores.
+extern_contador
+valorextern
+external
+EXTERN
+extern123
+123external
+eXtern
+Extern
+
+VOID
+INT
+BOOLEAN
+FLOAT
+IF
+ELSE
+WHILE
+RETURN
+FALSE
+TRUE

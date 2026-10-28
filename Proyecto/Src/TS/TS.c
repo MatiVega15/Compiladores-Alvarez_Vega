@@ -141,8 +141,19 @@ Simbolo *insertar_elemento (TablaSimbolos *ts, const char *nombre, TipoDato tipo
         simbolo -> inicializada = 0;
     }
 
-    // El símbolo comienza sin una dirección asociada.
-    simbolo -> direccion = -1;
+    // El símbolo comienza sin una dirección de offset asociada.
+    simbolo -> offset = -1;
+
+    // Por defecto, no es una función externa.
+    simbolo -> es_externa = 0;
+
+    // Es una variable global si el nivel actual no tiene un nivel anterior.
+    if (ts -> nivel_actual -> anterior == NULL) {
+        simbolo -> es_global = 1;
+    }
+    else {
+        simbolo -> es_global = 0;
+    }
 
     // El símbolo se inserta al comienzo de la lista del nivel actual.
     simbolo -> siguiente = ts -> nivel_actual -> simbolos;

@@ -1,0 +1,23 @@
+int g_side_effect;
+
+extern void printInt (int valor);
+
+int alterarEstado () {
+    g_side_effect = 999;
+    return 1;
+}
+
+void main () {
+    g_side_effect = 0;
+
+    // Lado izquierdo FALSE (10 > 20). 
+    // Como es un &&, debe hacer cortocircuito y NUNCA llamar a alterarEstado ().
+    if ((10 > 20) && (alterarEstado () == 1)) {
+        printInt (1);
+    } else {
+        printInt (0); // Debe caer acá.
+    }
+
+    // g_side_effect debe seguir siendo 0.
+    printInt (g_side_effect);
+}

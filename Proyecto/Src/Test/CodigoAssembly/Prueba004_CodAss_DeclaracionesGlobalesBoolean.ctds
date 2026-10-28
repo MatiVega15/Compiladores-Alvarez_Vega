@@ -1,0 +1,15 @@
+boolean a, b;
+
+extern void printInt (int valor);
+
+void main () {
+    a = true;
+    b = a;
+
+    if (b) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+}

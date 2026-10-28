@@ -1,0 +1,11 @@
+float f, g;
+
+extern void printInt (int valor);
+
+void main () {
+    f = 100.2;
+    g = f;
+
+    // Se imprime algo para chequear contra .expected.
+    printInt (0);
+}

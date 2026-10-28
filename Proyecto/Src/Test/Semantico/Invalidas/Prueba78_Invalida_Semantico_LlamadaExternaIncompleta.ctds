@@ -1,0 +1,7 @@
+extern int get_int ();
+
+void main () {
+    int valor;
+
+    valor = get_int + 10;
+}

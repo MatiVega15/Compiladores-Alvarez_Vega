@@ -1,0 +1,31 @@
+extern void printInt (int valor);
+
+void main () {
+    boolean b1, b2;
+    boolean b3;
+
+    b1 = true;
+    b2 = false;
+    b3 = false;
+
+    if (b1) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    if (b2) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    if (b3) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+}

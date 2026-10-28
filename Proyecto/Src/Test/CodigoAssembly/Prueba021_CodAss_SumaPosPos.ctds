@@ -1,0 +1,35 @@
+int n1;
+
+extern void printInt (int valor);
+
+void  main () {
+    int n2, n3;
+    int temp1, temp2, temp3, temp4;
+
+    // Suma PosPos con variable global.
+    n1 = 1004;
+    n2 = 132;
+    n1 = n1 + n2;
+    
+    // Suma PosPos con variables locales.
+    n3 = 66;
+    temp1 = n2 + n3;
+
+    // Suma PosPos con literales.
+    temp2 = 1 + 1;
+
+    // Sumas encadenadas con PosPos.
+    temp3 = n1 + n2 + n3 + 10;
+
+    // Elemento neutro positivo.
+    temp4 = n3 + 0;
+
+    printInt (n1);
+    printInt (temp1);
+    printInt (temp2);
+    printInt (temp3);
+    printInt (temp4);
+
+    // Suma directa PosPos.
+    printInt (5009 + 9);
+}

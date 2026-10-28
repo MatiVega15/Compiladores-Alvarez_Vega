@@ -1,0 +1,20 @@
+extern void printInt (int valor);
+
+int buscarPrimerMultiploDeTres () {
+    int i;
+    i = 1;
+    
+    while (i < 10) {
+        if (i == 3) {
+            return i; // Corta el while abruptamente y retorna.
+        }
+        i = i + 1;
+    }
+    
+    // Nota: Ninguna instrucción acá abajo debería ejecutarse jamás.
+    return -1;
+}
+
+void main () {
+    printInt (buscarPrimerMultiploDeTres ()); // Debe imprimir 3.
+}

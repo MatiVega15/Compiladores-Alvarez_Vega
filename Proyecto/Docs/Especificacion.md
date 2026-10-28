@@ -6,7 +6,7 @@
 
 La **especificación sintáctica del lenguaje C-TDS** es proporcionada por la cátedra. **La gramática define la estructura sintáctica de los programas**, incluyendo declaraciones de variables, declaraciones de funciones, bloques, sentencias, llamadas a funciones y expresiones.
 
-**Toda ambigüedad presente en la gramática se resolverá posteriormente con la herramienta Bison, en el análisis sintáctico**, en caso de presentarse conflictos.
+**Toda ambigüedad presente en la gramática se resuelve con la herramienta Bison, durante el análisis sintáctico**.
 
 La **gramática especificada** se puede representar como:
 
@@ -40,6 +40,7 @@ V_N =
     \{
         \langle program \rangle,\ 
         \langle var\_decl \rangle,\ 
+        \langle extern\_decl \rangle,\ 
         \langle method\_decl \rangle,\ 
         \langle block \rangle,\ 
         \langle type \rangle,\ 
@@ -71,6 +72,7 @@ V_T =
         boolean,\ 
         float,\ 
         void,\ 
+        extern,\ 
         if,\ 
         else,\ 
         while,\ 
@@ -111,11 +113,12 @@ Las **reglas de producción especificadas** por la cátedra son las siguientes.
 
 #### **- Programa**
 
-La estructura general de un programa está formada por **cero o más declaraciones de variables globales**, seguidas de **cero o más declaraciones de funciones**. Sin embargo, semánticamente, se obliga a que todo programa tenga, **por lo menos, una función principal (main) que no recibe parámetros**.
+La estructura general de un programa está formada por **cero o más declaraciones de variables globales**, seguidas de **cero o más declaraciones de funciones externas**, y finalmente **cero o más declaraciones de funciones**. Sin embargo, semánticamente, se obliga a que todo programa tenga, **por lo menos, una función principal (main) que no recibe parámetros**.
 
 ```math
 \langle program \rangle \rightarrow
 \langle var\_decl \rangle^{*}\ 
+\langle extern\_decl \rangle^{*}\ 
 \langle method\_decl \rangle^{*}
 ```
 
@@ -126,6 +129,22 @@ Una declaración de variable comienza con un **tipo** y permite declarar **uno o
 ```math
 \langle var\_decl \rangle \rightarrow
 \langle type \rangle\ \{\langle id \rangle\}^+,\ ;
+```
+
+#### **- Declaración de funciones externas**
+
+Una declaración de función externa se indica con la **palabra reservada** `extern`, puede **devolver un tipo** (`int`, `boolean` o `float`) o **no devolver ningún valor** (`void`). Luego se especifica el **identificador** de la función y su lista de **parámetros** (puede no tener). A diferencia de las funciones normales, no poseen bloque y finalizan con **punto y coma**.
+
+```math
+\langle extern\_decl \rangle \rightarrow
+\{ \langle type \rangle\ |\ void \}
+\ \langle id \rangle
+\ (\ 
+[
+\{ \langle type \rangle\ \langle id \rangle \}^{+},
+]
+\ )\
+\ ;
 ```
 
 #### **- Declaración de funciones**
@@ -367,6 +386,7 @@ Las **reglas** utilizadas en el analizador sintáctico son las siguientes.
 
 <lista_declaraciones> → λ
                       | <type> <id> <declaracion_tipo>
+                      | <extern_decl> <lista_post_vars>
                       | void <id> <method_decl_resto> <lista_method_decl>
 
 <declaracion_tipo> → <lista_id_resto> ; <lista_declaraciones>
@@ -375,11 +395,23 @@ Las **reglas** utilizadas en el analizador sintáctico son las siguientes.
 <lista_id_resto> → λ
                  | <lista_id_resto> , <id>
 
+<lista_post_vars> → λ
+                  | <extern_decl> <lista_post_vars>
+                  | <method_decl> <lista_method_decl>
+
 <lista_method_decl> → λ
                     | <method_decl> <lista_method_decl>
 ```
 
-Estas producciones permiten representar la **secuencia de declaraciones globales** y **distinguir entre declaraciones de variables y declaraciones de funciones**.
+Estas producciones permiten representar la **secuencia de declaraciones globales** y **distinguir entre declaraciones de variables, declaraciones de funciones externas y declaraciones de funciones convencionales**.
+
+### *- Declaraciones de funciones externas*
+
+```text
+<extern_decl> → extern <tipo_method> <id> ( <lista_parametros> ) ;
+```
+
+Esta producción especifica la sintaxis de las **firmas de funciones externas**. Reutiliza los no terminales `<tipo_method>`, `<id>` y `<lista_parametros>` que también se utilizan para funciones convencionales, pero fuerza la **terminación directa con un punto y coma (`;`)** en lugar de derivar hacia un bloque.
 
 ### *- Declaraciones de funciones*
 
@@ -533,7 +565,7 @@ La gramática transformada introduce únicamente los **símbolos auxiliares** ne
 ### *Palabras reservadas*
 
 ```math
-int \ |\ boolean \ |\ float \ |\ void \ |\ if \ |\ else \ |\ while \ |\ return \ |\ true \ |\ false
+int \ |\ boolean \ |\ float \ |\ void \ |\ extern \ |\ if \ |\ else \ |\ while \ |\ return \ |\ true \ |\ false
 ```
 
 **Las palabras reservadas y los identificadores deben estar separados** por un espacio o por un símbolo que no sea ni una palabra reservada ni un identificador. Por ejemplo, `whiletrue` se considera un identificador y no la combinación de las palabras reservadas `while` y `true`.
@@ -598,6 +630,7 @@ Si se detecta una violación de alguna de estas reglas, el compilador deberá ge
 4. Los distintos ámbitos se encuentran **anidados**. Un identificador declarado en un ámbito interno puede **ocultar** a otro identificador con el mismo nombre perteneciente a un ámbito exterior.
 5. Un identificador utilizado como `location` debe corresponder a una **variable global**, una **variable local** o un **parámetro** de la función actual.
 6. Una función **no puede utilizarse como `location`** de una asignación.
+7. Las **funciones externas** (`extern`) se declaran en el ámbito global. Comparten el espacio de nombres con las funciones regulares, por lo que no puede existir una función externa y una función regular con el mismo identificador, ni redeclararse una función externa ya existente.
 
 ### *3.2 Función `main`*
 
@@ -682,6 +715,8 @@ Los **argumentos** se evalúan de izquierda a derecha y sus valores son pasados 
 Una **función `void`** únicamente puede ser **invocada como una sentencia** y no puede utilizarse como parte de una expresión.
 
 Una **función que retorna un valor** puede ser **invocada tanto como una expresión como una sentencia**. Cuando se utiliza como una sentencia, el valor retornado es ignorado.
+
+Las reglas anteriores aplican de forma idéntica tanto para la invocación de **funciones definidas localmente en el programa** como para las **funciones externas (`extern`)**.
 
 ### *3.9 Sentencias `return`*
 

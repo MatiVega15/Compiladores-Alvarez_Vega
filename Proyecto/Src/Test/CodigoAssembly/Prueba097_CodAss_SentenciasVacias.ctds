@@ -1,0 +1,20 @@
+extern void printInt (int valor);
+
+void main () {
+    int x;
+    x = 10;
+    
+    ; ; ; ; // Múltiples sentencias vacías consecutivas.
+    
+    if (x == 10) {
+        ; // Sentencia vacía dentro de un if.
+    } else {
+        ; // Sentencia vacía dentro de un else.
+    }
+    
+    while (x < 5) {
+        ; // Sentencia vacía dentro de un while.
+    }
+    
+    printInt (x);
+}

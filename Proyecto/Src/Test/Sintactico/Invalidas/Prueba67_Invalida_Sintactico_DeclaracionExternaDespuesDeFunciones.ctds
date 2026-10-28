@@ -1,0 +1,10 @@
+int sumar (int a, int b) {
+    return a + b;
+}
+
+// Ya no se permiten externs en esta parte.
+extern void printInt (int x);
+
+void main () {
+    return;
+}

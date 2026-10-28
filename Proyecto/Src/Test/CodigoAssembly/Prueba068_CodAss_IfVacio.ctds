@@ -1,0 +1,9 @@
+extern void printInt (int valor);
+
+void main () {
+    if (2 == 2) { // True.
+        
+    } else {
+        printInt (1);
+    }
+}

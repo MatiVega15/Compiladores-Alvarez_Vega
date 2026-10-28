@@ -1,0 +1,11 @@
+extern void printInt (int valor);
+
+int darDiez () {
+    return 10;
+}
+
+void main () {
+    int res;
+    res = 5 + darDiez ();
+    printInt (res); // Debe imprimir 15.
+}

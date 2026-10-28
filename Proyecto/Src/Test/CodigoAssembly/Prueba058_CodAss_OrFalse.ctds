@@ -1,0 +1,59 @@
+int g1;
+
+extern void printInt (int valor);
+
+void main () {
+    int l1, l2, l3, l4;
+    boolean res;
+
+    g1 = 100;
+    l1 = 50;
+    l2 = 200;
+    l3 = -50;
+    l4 = -10;
+
+    // 1. False || False -> Global == Literal || Local > Local.
+    res = (g1 == 500) || (l1 > l2);
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 2. False || False -> Local > Local || Local Negativo > Local Negativo.
+    res = (l1 > l2) || (l3 > l4);
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 3. False || False -> Local Negativo < Local Negativo || Local < Local.
+    res = (l4 < l3) || (l2 < l1);
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 4. False || False -> Literales.
+    res = (10 > 20) || (100 == 200);
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 5. False || False.
+    res = false || false;
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+}

@@ -1,0 +1,35 @@
+int n1;
+
+extern void printInt (int valor);
+
+void main () {
+    int n2, n3;
+    int temp1, temp2, temp3, temp4;
+
+    // Multiplicación PosNeg con variable global.
+    n1 = 104;
+    n2 = -12;
+    n1 = n1 * n2;
+
+    // Multiplicación PosNeg con variables locales.
+    n3 = -6;
+    temp1 = 12 * n3;
+
+    // Multiplicación PosNeg con literales.
+    temp2 = 10 * -2;
+
+    // Multiplicaciones encadenadas con PosNeg.
+    temp3 = n1 * n2 * n3 * -2;
+
+    // Elemento neutro.
+    temp4 = n3 * 1;
+
+    printInt (n1);
+    printInt (temp1);
+    printInt (temp2);
+    printInt (temp3);
+    printInt (temp4);
+
+    // Multiplicación directa PosNeg.
+    printInt (50 * -9);
+}

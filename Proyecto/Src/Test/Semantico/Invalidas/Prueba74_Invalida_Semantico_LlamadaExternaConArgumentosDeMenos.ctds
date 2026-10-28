@@ -1,0 +1,6 @@
+extern void printInt (int x);
+
+void main () {
+    printInt ();
+    return;
+}

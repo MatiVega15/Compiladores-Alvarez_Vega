@@ -1,0 +1,35 @@
+int n1;
+
+extern void printInt (int valor);
+
+void main () {
+    int n2, n3;
+    int temp1, temp2, temp3, temp4;
+
+    // División NegPos con variable global.
+    n1 = -1000;
+    n2 = 10;
+    n1 = n1 / n2;
+
+    // División NegPos con variables locales.
+    n3 = 5;
+    temp1 = -10 / n3;
+
+    // División NegPos con literales.
+    temp2 = -100 / 4;
+
+    // Divisiones encadenadas con NegPos.
+    temp3 = n1 / n2 / n3 / 2;
+
+    // Elemento neutro.
+    temp4 = -5 / 1;
+
+    printInt (n1);
+    printInt (temp1);
+    printInt (temp2);
+    printInt (temp3);
+    printInt (temp4);
+
+    // División directa NegPos.
+    printInt (-5000 / 10);
+}

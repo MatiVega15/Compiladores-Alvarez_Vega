@@ -1,0 +1,7 @@
+int calcular (extern int x) {
+    return x * 2;
+}
+
+void main () {
+    return;
+}

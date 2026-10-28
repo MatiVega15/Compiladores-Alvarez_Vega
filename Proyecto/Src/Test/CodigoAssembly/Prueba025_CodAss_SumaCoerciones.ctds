@@ -1,0 +1,22 @@
+int i1;
+float f1;
+
+extern void printInt (int valor);
+
+void main () {
+    int i2;
+    float f2;
+
+    i1 = 10;
+    f1 = 2.5;
+    i2 = 20;
+
+    // Coerción int + float.
+    f2 = i1 + f1;
+
+    // Coerción float + int.
+    f2 = f1 + i2;
+
+    // Control entero para verificar que la suma entere funcione alrededor.
+    printInt (i1 + i2);
+}

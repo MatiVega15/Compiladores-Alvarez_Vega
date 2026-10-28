@@ -1,0 +1,16 @@
+boolean logico;
+
+extern void printInt (int valor);
+
+void main () {
+    logico = false;
+    
+    if (logico) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    return;
+}

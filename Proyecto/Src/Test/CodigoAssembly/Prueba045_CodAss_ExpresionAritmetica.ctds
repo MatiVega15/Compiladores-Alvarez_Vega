@@ -1,0 +1,9 @@
+extern void printInt (int valor);
+
+void main () {
+    int temp;
+
+    temp = 102 - 51 * 29 / 100 % 2 + 9;
+
+    printInt (temp);
+}

@@ -1,0 +1,13 @@
+int x;
+boolean b;
+float f;
+
+extern void printInt (int valor);
+
+void main () {
+    int y;
+    boolean c;
+    float g;
+
+    printInt (99);
+}

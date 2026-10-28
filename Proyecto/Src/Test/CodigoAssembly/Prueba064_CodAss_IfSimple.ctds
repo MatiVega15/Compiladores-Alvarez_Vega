@@ -1,0 +1,12 @@
+extern void printInt (int valor);
+
+void main () {
+    int x;
+    x = 10;
+    
+    if (1 < 2) { // True.
+        x = 42;
+    }
+    
+    printInt (x);
+}

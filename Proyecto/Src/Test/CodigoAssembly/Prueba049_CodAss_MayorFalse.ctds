@@ -1,0 +1,86 @@
+int g1;
+
+extern void printInt (int valor);
+
+void main () {
+    int l1, l2, l3, l4;
+    boolean res;
+
+    g1 = 100;
+    l1 = 200;
+    l2 = 300;
+    l3 = -50;
+    l4 = -25;
+
+    // 1. Global vs Local.
+    res = g1 > l1;
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 2. Local vs Local.
+    res = l1 > l2;
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 3. Local vs Literal.
+    res = l1 > 500;
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 4. Global vs Literal.
+    res = g1 > 200;
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 5. Local Negativo vs Local Positivo.
+    res = l3 > l1;
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 6. Local Negativo vs Local Negativo.
+    res = l3 > l4;
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 7. Local Negativo vs Literal Negativo.
+    res = l3 > -10;
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 8. Literal vs Literal (Directa).
+    res = 10 > 20;
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+}

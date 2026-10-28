@@ -1,0 +1,34 @@
+extern void printInt (int valor);
+extern int get_int ();
+
+int recursiva (int n) {
+    if (n < 1) {
+        return 0;
+    }
+    return 1 + recursiva (n - 1);
+}
+
+void main () {
+    int input;
+    input = get_int ();
+
+    /* 1. Prueba de desbordamiento / valores masivos.
+        Si input es un número gigante (cercano a 2^31 - 1), 
+        la multiplicación testeará el comportamiento en el
+        límite de los 32/64 bits con signo. */
+    
+    printInt (input * 2);
+
+    /* 2. Prueba de división por cero en tiempo de ejecución.
+        Si el usuario ingresa 0, el programa generará una
+        excepción por hardware. */
+
+    printInt (100 / input);
+
+    /* 3. Prueba de profundidad de recursión dinámica.
+        Si input es muy grande (ej. 100000), agotará el stack y causará un Stack
+        Overflow (Segmentation fault).
+        Si input es pequeño, calculará la profundidad exacta. */
+
+    printInt (recursiva (input));
+}

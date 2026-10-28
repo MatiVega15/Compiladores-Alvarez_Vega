@@ -1,0 +1,3 @@
+extern void mover (int x, float x);
+
+void main () {}

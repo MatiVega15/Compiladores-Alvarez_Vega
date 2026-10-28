@@ -1,0 +1,6 @@
+int function1 () { return 1; }
+boolean function2 () { return true; }
+float function3 () { return -1.5; }
+void function4 () { return; }
+
+void main () {}

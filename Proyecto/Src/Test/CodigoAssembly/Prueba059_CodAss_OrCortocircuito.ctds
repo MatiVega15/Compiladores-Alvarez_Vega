@@ -1,0 +1,21 @@
+int g_side_effect;
+
+extern void printInt (int valor);
+
+int alterarEstado () {
+    g_side_effect = 999;
+    return 1;
+}
+
+void main () {
+    boolean res;
+
+    g_side_effect = 0;
+
+    // El lado izquierdo es TRUE (10 < 20).
+    // En OR (||), al ser el término izquierdo TRUE, 'alterarEstado ()' NUNCA debe ejecutarse.
+    res = (10 < 20) || (alterarEstado () == 1);
+
+    // Debe imprimir 0. Si imprime 999, no hubo cortocircuito.
+    printInt (g_side_effect);
+}

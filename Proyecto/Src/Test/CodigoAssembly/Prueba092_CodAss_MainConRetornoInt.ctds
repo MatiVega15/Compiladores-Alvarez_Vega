@@ -1,0 +1,7 @@
+extern void printInt (int valor);
+
+int main () {
+    int codigo;
+    codigo = 42;
+    return codigo; // El sistema operativo recibe 42 en %rax.
+}

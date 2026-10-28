@@ -294,12 +294,6 @@ const char *nombre_operacion (CodigoOperacion op) {
             return "GT";
         case CI_IGUAL:
             return "EQ";
-        case CI_AND:
-            return "AND";
-        case CI_OR:
-            return "OR";
-        case CI_NEGACION:
-            return "NOT";
         case CI_ETIQUETA:
             return "LABEL";
         case CI_SALTO:

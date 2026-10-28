@@ -1,0 +1,14 @@
+extern void printInt (int valor);
+
+void main () {
+    int a, b;
+    a = 10;
+    b = 20;
+
+    // True && True.
+    if (a < b && b > 15) {
+        printInt (1);
+    } else {
+        printInt (0);
+    }
+}

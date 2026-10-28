@@ -11,7 +11,9 @@
  * - Se puede buscar el elemento insertado en la tabla.
  * - El elemento encontrado guarda correctamente su nombre, tipo y clase.
  * - El elemento comienza sin inicializar (0).
- * - El elemento comienza sin una dirección asociada (-1).
+ * - El elemento comienza sin una dirección offset asociada (-1).
+ * - El elemento comienza como no externo (0).
+ * - El elemento insertado en el primer nivel es reconocido como global (1).
  */
 int main (void) {
     printf ("========== PRUEBA: INSERCIÓN ==========\n");
@@ -75,13 +77,29 @@ int main (void) {
 
     printf ("El símbolo comienza como no inicializado.\n");
 
-    if (simbolo -> direccion != -1) {
-        fprintf (stderr, "ERROR: la dirección inicial debería ser -1.\n");
+    if (simbolo -> offset != -1) {
+        fprintf (stderr, "ERROR: la dirección offset inicial debería ser -1.\n");
         liberar_TS (ts);
         return 1;
     }
 
-    printf ("La dirección inicial es correcta.\n");
+    printf ("La dirección offset inicial es correcta.\n");
+
+    if (simbolo -> es_externa != 0) {
+        fprintf (stderr, "ERROR: el símbolo debería comenzar como no externo.\n");
+        liberar_TS (ts);
+        return 1;
+    }
+
+    printf ("El símbolo comienza como no externo correctamente.\n");
+
+    if (simbolo -> es_global != 1) {
+        fprintf (stderr, "ERROR: el símbolo insertado en el primer nivel debería ser global.\n");
+        liberar_TS (ts);
+        return 1;
+    }
+
+    printf ("El símbolo es reconocido como global correctamente.\n");
 
     liberar_TS (ts);
 

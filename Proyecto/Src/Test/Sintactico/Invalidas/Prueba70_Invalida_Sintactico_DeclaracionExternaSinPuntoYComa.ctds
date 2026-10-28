@@ -1,0 +1,5 @@
+extern int get_int ()
+
+void main () {
+    return;
+}

@@ -74,6 +74,7 @@ DIGITO      [0-9]
 "boolean"                           { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return BOOLEAN; }
 "float"                             { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return FLOAT; }
 "void"                              { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return VOID; }
+"extern"                            { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return EXTERN; }
 
 "if"                                { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return IF; }
 "else"                              { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return ELSE; }

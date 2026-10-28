@@ -1,0 +1,14 @@
+extern void printInt (int valor);
+
+int calcular4 (int a, int b, int c, int d, boolean e, boolean f) {
+    if (e || f) {
+        return (a + b) - (c * d);
+    }
+    
+    return -1;
+}
+
+void main () {
+    // (10 + 20) - (3 * 4) => 30 - 12 = 18.
+    printInt (calcular4 (10, 20, 3, 4, true, false)); 
+}

@@ -38,6 +38,7 @@ static void verificar_main (ContextoSemantico *contexto);
 static void analizar_declaracion (NodoAST *nodo, ContextoSemantico *contexto);
 static void analizar_declaracion_variable (NodoAST *nodo, ContextoSemantico *contexto);
 static void analizar_declaracion_funcion (NodoAST *nodo, ContextoSemantico *contexto);
+static void analizar_declaracion_funcion_externa (NodoAST *nodo, ContextoSemantico *contexto);
 static void analizar_parametros (NodoAST *nodo, ContextoSemantico *contexto);
 static void analizar_parametro (NodoAST *nodo, ContextoSemantico *contexto);
 
@@ -167,8 +168,15 @@ static void verificar_main (ContextoSemantico *contexto) {
         return;
     }
 
-    // Los hijos parámetros están luego del nombre y antes del bloque.
-    int cantidad_parametros = main -> cantidad_hijos - 2;
+    int cantidad_parametros;
+
+    // Dependiendo si es función regular o externa, el cálculo de hijos varía.
+    if (main -> tipo == AST_DECLARACION_FUNCION) {
+        cantidad_parametros = main -> cantidad_hijos - 2;
+    }
+    else {
+        cantidad_parametros = main -> cantidad_hijos - 1;
+    }
 
     // Main con parámetros.
     if (cantidad_parametros != 0) {
@@ -192,6 +200,9 @@ static void analizar_declaracion (NodoAST *nodo, ContextoSemantico *contexto) {
             break;
         case AST_DECLARACION_FUNCION:
             analizar_declaracion_funcion (nodo, contexto);
+            break;
+        case AST_DECLARACION_FUNCION_EXTERNA:
+            analizar_declaracion_funcion_externa (nodo, contexto);
             break;
         default:
             break;   
@@ -293,6 +304,60 @@ static void analizar_declaracion_funcion (NodoAST *nodo, ContextoSemantico *cont
 
     // Se restaura el tipo de retorno anterior.
     contexto -> tipo_retorno_actual = tipo_retorno_anterior;
+}
+
+/**
+ * Analiza semánticamente una declaración de función externa.
+ * 
+ * Se inserta en la TS con la bandera es_externa encendida.
+ * 
+ * Abre un nivel temporal en la TS para procesar sus parámetros
+ * en el AST, pero no requiere verificar un bloque ni una
+ * sentencia return.
+ */
+static void analizar_declaracion_funcion_externa (NodoAST *nodo, ContextoSemantico *contexto) {
+    // El primer hijo es el identificador de la función.
+    NodoAST *identificador = nodo -> hijos [0];
+
+    // El nodo debe representar un identificador.
+    if (identificador == NULL || identificador -> tipo != AST_IDENTIFICADOR) {
+        return;
+    }
+
+    // Tipo de retorno de la función.
+    TipoDato tipo = nodo -> tipo_dato;
+
+    // Se declara la función en el nivel actual.
+    Simbolo *simbolo = declarar_identificador (identificador, tipo, SIMBOLO_FUNCION, contexto);
+
+    // La declaración no fue válida.
+    if (simbolo == NULL) {
+        return;
+    }
+
+    // Se marca el símbolo como función externa.
+    simbolo -> es_externa = 1;
+
+    registrar_declaracion (identificador, tipo, SIMBOLO_FUNCION, contexto);
+
+    char mensaje [200];
+    snprintf (mensaje, sizeof (mensaje), "Función externa '%s' declarada con retorno %s.", identificador -> valor.identificador, tipo_a_string (tipo));
+    debug_semantico (contexto, mensaje);
+
+    // Se abre un nivel temporal para validar semánticamente los parámetros.
+    abrir_nivel (contexto -> ts);
+
+    // Todos los hijos desde el índice 1 deben ser parámetros (no tienen bloque).
+    for (int i = 1; i < nodo -> cantidad_hijos; i ++) {
+        NodoAST *parametro = nodo -> hijos [i];
+
+        if (parametro != NULL && parametro -> tipo == AST_PARAMETRO) {
+            analizar_parametro (parametro, contexto);
+        } 
+    }
+
+    // Se cierra el nivel de los parámetros.
+    cerrar_nivel (contexto -> ts);
 }
 
 /**
@@ -1110,8 +1175,8 @@ static NodoAST *buscar_declaracion_funcion (const char *nombre, ContextoSemantic
     for (int i = 0; i < programa -> cantidad_hijos; i ++) {
         NodoAST *declaracion = programa -> hijos [i];
 
-        // Solamente interesan las declaraciones de funciones.
-        if (declaracion -> tipo != AST_DECLARACION_FUNCION) {
+        // Solamente interesan las declaraciones de funciones normales y externas.
+        if (declaracion -> tipo != AST_DECLARACION_FUNCION && declaracion -> tipo != AST_DECLARACION_FUNCION_EXTERNA) {
             continue;
         }
 
@@ -1151,9 +1216,16 @@ static NodoAST *buscar_declaracion_funcion (const char *nombre, ContextoSemantic
  */
 static int analizar_argumentos (NodoAST *llamada, NodoAST *funcion, ContextoSemantico *contexto) {
     int argumentos = llamada -> cantidad_hijos;
+    int parametros;
 
-    // En la declaración, el primer hijo es el nombre, el último el bloque.
-    int parametros = funcion -> cantidad_hijos - 2;
+    // En la declaración normal, el primer hijo es el nombre, el último el bloque.
+    if (funcion -> tipo == AST_DECLARACION_FUNCION) {
+        parametros = funcion -> cantidad_hijos - 2;
+    }
+    // En la declaración externa, no hay bloque.
+    else {
+        parametros = funcion -> cantidad_hijos - 1;
+    }
 
     int valido = 1;
 

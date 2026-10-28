@@ -1,0 +1,10 @@
+extern void printInt (int valor);
+
+int calcularAlgo () {
+    return 42;
+}
+
+void main () {
+    calcularAlgo (); // Retorna 42, pero se descarta.
+    printInt (99);   // Debe imprimir 99.
+}

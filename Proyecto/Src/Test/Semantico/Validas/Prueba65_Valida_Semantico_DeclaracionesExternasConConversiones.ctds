@@ -1,0 +1,16 @@
+extern void printFloat (float x);
+extern void printInt (int y);
+
+void main () {
+    int valor_entero;
+    float valor_decimal;
+
+    valor_entero = 42;
+    valor_decimal = 3.14;
+
+    // Conversión int a float.
+    printFloat (valor_entero);
+
+    // Conversión float a int.
+    printInt (valor_decimal);
+}

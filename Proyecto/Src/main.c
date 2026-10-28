@@ -3,10 +3,12 @@
 #include "AnalizadorSemantico.h"
 #include "Cuadruplos.h"
 #include "GeneradorCodigoIntermedio.h"
+#include "GeneradorCodigoAssembly.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 /* ========== Variables y funciones de Flex ========== */
 
@@ -62,8 +64,8 @@ static int analizar_lexicamente (const Configuracion *configuracion, FILE *salid
 static int analizar_sintacticamente (const Configuracion *configuracion, FILE *salida, const char *nombre_salida);
 static int analizar_semanticamente (const Configuracion *configuracion, FILE *salida, TablaSimbolos **ts_salida);
 static int procesar_codigo_intermedio (const Configuracion *configuracion, FILE *salida, TablaSimbolos *ts);
+static int procesar_codigo_assembly (const Configuracion *configuracion, FILE *salida, TablaSimbolos *ts);
 static Etapa obtener_etapa (const char *nombre);
-static const char *nombre_etapa (Etapa etapa);
 static char *generar_nombre_salida (const char *archivo_entrada, Etapa etapa, int target_especificado);
 static char *generar_nombre_dot (const char *nombre_salida);
 static int termina_con (const char *cadena, const char *sufijo);
@@ -79,7 +81,7 @@ int main (int argc, char *argv []) {
     // Configuración por defecto.
     configuracion.archivo_entrada = NULL;
     configuracion.archivo_salida = NULL;
-    configuracion.etapa = ETAPA_CODINTER;
+    configuracion.etapa = ETAPA_ASSEMBLY;
     configuracion.target_especificado = 0;
     configuracion.prueba_semantica = 0;
     configuracion.debug = 0;
@@ -94,13 +96,6 @@ int main (int argc, char *argv []) {
     // Optimizaciones aún sin implementar.
     if (configuracion.optimizar) {
         fprintf (stderr, "ERROR: Las optimizaciones todavía no están implementadas.\n");
-
-        return EXIT_FAILURE;
-    }
-
-    // La etapa assembly todavía no está implementada.
-    if (configuracion.etapa == ETAPA_ASSEMBLY) {
-        fprintf (stderr, "ERROR: La etapa 'assembly' todavía no está implementada.\n");
 
         return EXIT_FAILURE;
     }
@@ -149,8 +144,8 @@ int main (int argc, char *argv []) {
                 arbol = NULL;
             }
 
-            // Se continúa con el análisis semántico y el código intermedio.
-            else if (configuracion.etapa == ETAPA_CODINTER) {
+            // Se continúa con el análisis semántico y la generación de código.
+            else if (configuracion.etapa == ETAPA_CODINTER || configuracion.etapa == ETAPA_ASSEMBLY) {
                 TablaSimbolos *ts = NULL;
 
                 resultado = analizar_semanticamente (&configuracion, salida, &ts);
@@ -204,9 +199,55 @@ int main (int argc, char *argv []) {
                     arbol = NULL;
                 }
                 else {
-                    // Se genera el código intermedio.
+                    // Se genera el código requerido según la etapa.
                     if (resultado == EXIT_SUCCESS) {
-                        resultado = procesar_codigo_intermedio (&configuracion, salida, ts);
+                        if (configuracion.etapa == ETAPA_CODINTER) {
+                            resultado = procesar_codigo_intermedio (&configuracion, salida, ts);
+                        }
+                        else if (configuracion.etapa == ETAPA_ASSEMBLY) {
+                            // Si se solicitó -target assembly, se escribe el .ass normal.
+                            if (configuracion.target_especificado) {
+                                resultado = procesar_codigo_assembly (&configuracion, salida, ts);
+                            }
+                            // Si no hay target, se genera un .out usando GCC.
+                            else {
+                                // Se crea un archivo temporal .s para el assembly.
+                                char nombre_temp [] = "temp_compiler_output.s";
+                                FILE *temp_ass = fopen (nombre_temp, "w");
+
+                                if (temp_ass != NULL) {
+                                    // Se genera el assembly en el temporal.
+                                    resultado = procesar_codigo_assembly (&configuracion, temp_ass, ts);
+                                    fclose (temp_ass);
+
+                                    if (resultado == EXIT_SUCCESS) {
+                                        // Se busca el runtime.c dependiendo de dónde se ejecute el compilador.
+                                        const char *ruta_runtime = "Src/runtime.c";
+
+                                        if (access (ruta_runtime, F_OK) != 0) {
+                                            // Si no está en Src/runtime.c, se busca un nivel más arriba (se ejecuta desde build/).
+                                            ruta_runtime = "../Src/runtime.c";
+                                        }
+                                        
+                                        // Se llama a GCC para ensamblar y enlazar el .out.
+                                        char comando [512];
+                                        sprintf (comando, "gcc %s %s -o %s", nombre_temp, ruta_runtime, nombre_salida);
+
+                                        if (system (comando) != 0) {
+                                            fprintf (stderr, "ERROR: Falló el ensamblado con GCC.\n");
+                                            resultado = EXIT_FAILURE;
+                                        }
+
+                                        // Se borra el temporal de assembly para dejar todo limpio.
+                                        remove (nombre_temp);
+                                    }
+                                }
+                                else {
+                                    fprintf (stderr, "ERROR: No se pudo crear el archivo temporal de Assembly.\n");
+                                    resultado = EXIT_FAILURE;
+                                }
+                            }
+                        }
                     }
 
                     // Se libera la tabla después de generar los cuádruplos.
@@ -599,6 +640,44 @@ static int procesar_codigo_intermedio (const Configuracion *configuracion, FILE 
     return EXIT_SUCCESS;
 }
 
+/* ========== Generación de código Assembly ========== */
+
+/**
+ * Genera el código de máquina (Assembly x86-64).
+ * 
+ * Requiere construir primero los cuádruplos del código intermedio en
+ * memoria para que el generador de Assembly pueda traducirlos.
+ */
+static int procesar_codigo_assembly (const Configuracion *configuracion, FILE *salida, TablaSimbolos *ts) {
+    ListaCuadruplos *lista;
+    int resultado = EXIT_SUCCESS;
+
+    // Verificación de argumentos.
+    if (arbol == NULL || ts == NULL || salida == NULL) {
+        fprintf (stderr, "ERROR: No hay información suficiente para generar código Assembly.\n");
+        return EXIT_FAILURE;
+    }
+
+    // Se genera la lista de cuádruplos.
+    lista = generar_codigo_intermedio (arbol, configuracion -> debug);
+
+    if (lista == NULL) {
+        fprintf (stderr, "ERROR: No se pudo generar el código intermedio previo al Assembly.\n");
+        return EXIT_FAILURE;
+    }
+
+    // Se traduce la lista de cuádruplos a instrucciones de Assembly en el archivo de salida.
+    if (!generar_codigo_assembly (lista, ts, salida, configuracion -> debug)) {
+        fprintf (stderr, "ERROR: Ocurrió un error en la generación de Assembly.\n");
+        return EXIT_FAILURE;
+    }
+
+    // Se libera la memoria de los cuádruplos.
+    liberar_lista_cuadruplos (lista);
+
+    return resultado;
+}
+
 /* ========== Conversión de etapas ========== */
 
 /**
@@ -622,32 +701,13 @@ static Etapa obtener_etapa (const char *nombre) {
     return (Etapa) -1;
 }
 
-/**
- * Devuelve el nombre textual de una etapa.
- */
-static const char *nombre_etapa (Etapa etapa) {
-    switch (etapa) {
-        case ETAPA_SCAN:
-            return "scan";
-        case ETAPA_PARSE:
-            return "parse";
-        case ETAPA_CODINTER:
-            return "codinter";
-        case ETAPA_ASSEMBLY:
-            return "assembly";
-        default:
-            return "desconocida";
-    }
-}
-
 /* ========== Generación de nombres de salida ========== */
 
 /**
  * Genera el nombre del archivo de salida correspondiente
  * a la etapa del compilador.
  * 
- * Cuando no se especifica un target, actualmente se utiliza
- * la extensión correspondiente a la etapa corriente.
+ * Cuando no se especifica un target, se genera un ejecutable .out.
  * 
  * Ejemplos:
  * 
@@ -655,6 +715,7 @@ static const char *nombre_etapa (Etapa etapa) {
  *      programa.ctds -> programa.sint
  *      programa.ctds -> programa.ci
  *      programa.ctds -> programa.ass
+ *      programa.ctds -> programa.out
  */
 static char *generar_nombre_salida (const char *archivo_entrada, Etapa etapa, int target_especificado) {
     const char *extension;
@@ -663,21 +724,27 @@ static char *generar_nombre_salida (const char *archivo_entrada, Etapa etapa, in
     size_t longitud_extension;
     char *resultado;
 
-    switch (etapa) {
-        case ETAPA_SCAN:
-            extension = ".lex";
-            break;
-        case ETAPA_PARSE:
-            extension = ".sint";
-            break;
-        case ETAPA_CODINTER:
-            extension = ".ci";
-            break;
-        case ETAPA_ASSEMBLY:
-            extension = ".ass";
-            break;
-        default:
-            return NULL;
+    // Si no se especifica un target, por defecto es ejecutable .out.
+    if (!target_especificado) {
+        extension = ".out";
+    }
+    else {
+        switch (etapa) {
+            case ETAPA_SCAN:
+                extension = ".lex";
+                break;
+            case ETAPA_PARSE:
+                extension = ".sint";
+                break;
+            case ETAPA_CODINTER:
+                extension = ".ci";
+                break;
+            case ETAPA_ASSEMBLY:
+                extension = ".ass";
+                break;
+            default:
+                return NULL;
+        }
     }
 
     // Se busca el último punto del nombre de archivo.

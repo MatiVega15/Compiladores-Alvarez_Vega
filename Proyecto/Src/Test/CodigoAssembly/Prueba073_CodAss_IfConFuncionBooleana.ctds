@@ -1,0 +1,16 @@
+extern void printInt (int valor);
+
+boolean esCero (int val) {
+    if (val == 0) {
+        return true;
+    }
+    return false;
+}
+
+void main () {
+    if (esCero (0)) {
+        printInt (777);
+    } else {
+        printInt (444);
+    }
+}

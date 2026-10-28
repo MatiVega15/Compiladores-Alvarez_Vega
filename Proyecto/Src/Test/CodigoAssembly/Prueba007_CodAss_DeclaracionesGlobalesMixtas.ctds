@@ -1,0 +1,13 @@
+int x;
+boolean b;
+float f;
+
+extern void printInt (int valor);
+
+void main () {
+    x = -4912843;
+    b = false;
+    f = 000.92;
+
+    printInt (x);
+}

@@ -1,0 +1,59 @@
+int g1;
+
+extern void printInt (int valor);
+
+void main () {
+    int l1, l2, l3, l4;
+    boolean res;
+
+    g1 = 100;
+    l1 = 50;
+    l2 = 200;
+    l3 = -50;
+    l4 = -10;
+
+    // 1. !(Global == Literal) -> !(100 == 500) -> !False -> True.
+    res = !(g1 == 500);
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 2. !(Local > Local) -> !(50 > 200) -> !False -> True.
+    res = !(l1 > l2);
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 3. !(Local Negativo > Local Negativo) -> !(-50 > -10) -> !False -> True.
+    res = !(l3 > l4);
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 4. !(Literal Directo) -> !(10 > 20) -> !False -> True.
+    res = !(10 > 20);
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 5. !false.
+    res = !false;
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+}

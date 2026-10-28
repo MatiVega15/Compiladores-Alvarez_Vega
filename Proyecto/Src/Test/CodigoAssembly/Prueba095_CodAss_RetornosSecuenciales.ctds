@@ -1,0 +1,10 @@
+extern void printInt (int valor);
+
+int dobleReturn () {
+    return 444;
+    return 555; // Código muerto.
+}
+
+void main () {
+    printInt (dobleReturn ()); // Debe imprimir 444.
+}
