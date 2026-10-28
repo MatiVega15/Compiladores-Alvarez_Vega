@@ -38,6 +38,9 @@ RESULTADOS_SEMANTICO_INVALIDAS_DIR = $(RESULTADOS_SEMANTICO_DIR)/Invalidas
 CODINT_TEST_DIR = $(TEST_DIR)/CodigoIntermedio
 RESULTADOS_CODINT_DIR = $(RESULTADOS_DIR)/CodigoIntermedio
 
+ASSEMBLY_TEST_DIR = $(TEST_DIR)/CodigoAssembly
+RESULTADOS_ASSEMBLY_DIR = $(RESULTADOS_DIR)/CodigoAssembly
+
 # ========== Archivos fuente ==========
 
 LEXER_SRC = Src/Lexer/AnalizadorLexico.lex
@@ -49,8 +52,10 @@ SEMANTICO_SRC = Src/Semantico/AnalizadorSemantico.c
 
 CUADRUPLOS_SRC = Src/CodigoIntermedio/Cuadruplos.c
 GENERADOR_CI_SRC = Src/CodigoIntermedio/GeneradorCodigoIntermedio.c
+GENERADOR_ASS_SRC = Src/CodigoAssembly/GeneradorCodigoAssembly.c
 
 MAIN_SRC = Src/main.c
+RUNTIME_SRC = Src/runtime.c
 
 # ========== Archivos de cabecera ==========
 
@@ -63,6 +68,7 @@ SEMANTICO_H = Src/Semantico/AnalizadorSemantico.h
 
 CUADRUPLOS_H = Src/CodigoIntermedio/Cuadruplos.h
 GENERADOR_CI_H = Src/CodigoIntermedio/GeneradorCodigoIntermedio.h
+GENERADOR_ASS_H = Src/CodigoAssembly/GeneradorCodigoAssembly.h
 
 # ========== Archivos generados ==========
 
@@ -90,9 +96,11 @@ PRUEBAS_SEMANTICO_INVALIDAS = $(wildcard $(SEMANTICO_INVALIDAS_DIR)/*.ctds)
 
 PRUEBAS_CODINT = $(wildcard $(CODINT_TEST_DIR)/*.ctds)
 
+PRUEBAS_ASSEMBLY = $(wildcard $(ASSEMBLY_TEST_DIR)/*.ctds)
+
 # ========== Objetivos ==========
 
-.PHONY: all tests tests-lexico tests-sintactico tests-ast tests-ts tests-semantico tests-codint clean
+.PHONY: all tests tests-lexico tests-sintactico tests-ast tests-ts tests-semantico tests-codint tests-assembly clean
 
 # ========== Compilación del compilador ==========
 
@@ -100,11 +108,13 @@ PRUEBAS_CODINT = $(wildcard $(CODINT_TEST_DIR)/*.ctds)
 all: $(BIN)
 
 # Enlazado final.
-$(BIN): $(MAIN_SRC) $(PARSER_C) $(LEXER_C) \
-		$(AST_SRC) $(TS_SRC) $(SEMANTICO_SRC) \
-		$(CUADRUPLOS_SRC) $(GENERADOR_CI_SRC) \
+$(BIN): $(MAIN_SRC) $(RUNTIME_SRC) $(PARSER_C) \
+		$(LEXER_C) $(AST_SRC) $(TS_SRC) \
+		$(SEMANTICO_SRC) $(CUADRUPLOS_SRC) \
+		$(GENERADOR_CI_SRC) $(GENERADOR_ASS_SRC) \
 		$(AST_H) $(TS_H) $(SEMANTICO_H) \
-		$(CUADRUPLOS_H) $(GENERADOR_CI_H) $(TIPOS_H)
+		$(CUADRUPLOS_H) $(GENERADOR_CI_H) \
+		$(TIPOS_H) $(GENERADOR_ASS_H)
 
 	@mkdir -p $(BUILD_DIR)
 	@gcc -I$(BUILD_DIR) \
@@ -113,7 +123,9 @@ $(BIN): $(MAIN_SRC) $(PARSER_C) $(LEXER_C) \
 		-ISrc/TS \
 		-ISrc/Semantico \
 		-ISrc/CodigoIntermedio \
+		-ISrc/CodigoAssembly \
 		$(MAIN_SRC) \
+		$(RUNTIME_SRC) \
 		$(PARSER_C) \
 		$(LEXER_C) \
 		$(AST_SRC) \
@@ -121,6 +133,7 @@ $(BIN): $(MAIN_SRC) $(PARSER_C) $(LEXER_C) \
 		$(SEMANTICO_SRC) \
 		$(CUADRUPLOS_SRC) \
 		$(GENERADOR_CI_SRC) \
+		$(GENERADOR_ASS_SRC) \
 		-o $(BIN)
 
 # ========== Generación del analizador sintáctico ==========
@@ -140,7 +153,7 @@ $(LEXER_C): $(LEXER_SRC) $(PARSER_H)
 # ========== Ejecución de todas las pruebas ==========
 
 # Ejecuta todas las pruebas disponibles.
-tests: tests-lexico tests-sintactico tests-ast tests-ts tests-semantico tests-codint
+tests: tests-lexico tests-sintactico tests-ast tests-ts tests-semantico tests-codint tests-assembly
 	@echo "========================================="
 	@echo "      TODAS LAS PRUEBAS FINALIZADAS"
 	@echo "========================================="
@@ -478,6 +491,69 @@ tests-codint: $(BIN)
 	echo "Pruebas fallidas: $$fallidas"; \
 	echo "======================"; \
 	echo ""
+
+# ========== Pruebas de código assembly y ejecutables ==========
+
+# Ejecuta todas las pruebas de la etapa de assembly y ejecución.
+tests-assembly: $(BIN)
+	@mkdir -p $(RESULTADOS_ASSEMBLY_DIR)
+	
+	@fallidas=0; \
+	ok=0; \
+	echo ""; \
+	echo "=================================================="; \
+	echo "     PRUEBAS DE CÓDIGO ASSEMBLY Y EJECUTABLES"; \
+	echo "=================================================="; \
+	echo ""; \
+	for prueba in $(PRUEBAS_ASSEMBLY); do \
+		nombre=$$(basename $$prueba .ctds); \
+		archivo_ass=$(RESULTADOS_ASSEMBLY_DIR)/$$nombre.ass; \
+		ejecutable=$(RESULTADOS_ASSEMBLY_DIR)/$$nombre.out; \
+		salida_actual=$(RESULTADOS_ASSEMBLY_DIR)/$$nombre.actual; \
+		archivo_esperado=$(ASSEMBLY_TEST_DIR)/$$nombre.expected; \
+		archivo_in=$(ASSEMBLY_TEST_DIR)/$$nombre.in; \
+		error=$(RESULTADOS_ASSEMBLY_DIR)/$$nombre.err; \
+		echo "---- $$nombre ----"; \
+		\
+		$(BIN) -target assembly -o $$archivo_ass $$prueba 2>> $$error; \
+		\
+		$(BIN) -o $$ejecutable $$prueba 2>> $$error; \
+		resultado_compilacion=$$?; \
+		\
+		if [ $$resultado_compilacion -ne 0 ]; then \
+			echo "RESULTADO: FALLIDA (error de compilación/ensamblado con GCC)"; \
+			fallidas=$$((fallidas + 1)); \
+			continue; \
+		fi; \
+		\
+		if [ -f $$archivo_in ]; then \
+			$$ejecutable < $$archivo_in > $$salida_actual; \
+		else \
+			$$ejecutable > $$salida_actual; \
+		fi; \
+		\
+		if [ -f $$archivo_esperado ]; then \
+			if diff -u --strip-trailing-cr $$salida_actual $$archivo_esperado > /dev/null; then \
+				echo "RESULTADO: OK"; \
+				ok=$$((ok + 1)); \
+				rm -f $$error; \
+			else \
+				echo "RESULTADO: FALLIDA (la salida no coincide con el .expected)"; \
+				diff -u --strip-trailing-cr $$salida_actual $$archivo_esperado; \
+				fallidas=$$((fallidas + 1)); \
+			fi; \
+		else \
+			echo "ADVERTENCIA: No se encontró archivo .expected para $$nombre"; \
+			echo "RESULTADO: OK (compilación exitosa)"; \
+			ok=$$((ok + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	echo "======================"; \
+	echo "Pruebas correctas: $$ok"; \
+	echo "Pruebas fallidas: $$fallidas"; \
+	echo "======================"; \
+	echo "";
 
 # ========== Limpieza ==========
 
