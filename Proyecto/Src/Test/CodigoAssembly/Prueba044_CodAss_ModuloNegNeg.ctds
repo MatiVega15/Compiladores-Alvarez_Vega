@@ -1,0 +1,35 @@
+int n1;
+
+extern void printInt (int valor);
+
+void main () {
+    int n2, n3;
+    int temp1, temp2, temp3, temp4;
+
+    // Módulo NegNeg con variable global.
+    n1 = -1004;
+    n2 = -132;
+    n1 = n1 % n2;
+
+    // Módulo NegNeg con variables locales.
+    n3 = -66;
+    temp1 = -132 % n3;
+
+    // Módulo NegNeg con literales.
+    temp2 = -10 % -3;
+
+    // Módulos encadenados con NegNeg.
+    temp3 = n1 % n2 % n3 % -5;
+
+    // Resto conservando signo negativo.
+    temp4 = n3 % -100;
+
+    printInt (n1);
+    printInt (temp1);
+    printInt (temp2);
+    printInt (temp3);
+    printInt (temp4);
+
+    // Módulo directo NegNeg.
+    printInt (-5009 % -10);
+}

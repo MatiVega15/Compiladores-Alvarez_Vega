@@ -1,0 +1,24 @@
+int g1;
+
+extern void printInt (int valor);
+
+void main () {
+    int l1, l2, l3, l4;
+    boolean res;
+
+    g1 = 100;
+    l1 = 50;
+    l2 = 200;
+    l3 = -50;
+    l4 = -10;
+
+    // Combina NOT (!), Igualdad (==), Menor (<), Mayor (>), AND (&&) y OR (||).
+    res = !(g1 == 100) || (l1 < l2) && (l3 > l4);
+
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+}

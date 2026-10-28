@@ -1,0 +1,30 @@
+int g1;
+
+extern void printInt (int valor);
+
+void main () {
+    int l1, res;
+
+    g1 = 10;
+    l1 = 25;
+
+    // 1. Un nivel: -25.
+    res = -l1;
+    printInt (res);
+
+    // 2. Dos niveles: -(-25) -> 25.
+    res = -(-l1);
+    printInt (res);
+
+    // 3. Tres niveles (impar): -(-(-25)) -> -25.
+    res = -(-(-l1));
+    printInt (res);
+
+    // 4. Cuatro niveles (par) sobre global: -(-(-(-10))) -> 10.
+    res = -(-(-(-g1)));
+    printInt (res);
+
+    // 5. Tres niveles sobre literal: -(-(-50)) -> -50.
+    res = -(-(-50));
+    printInt (res);
+}

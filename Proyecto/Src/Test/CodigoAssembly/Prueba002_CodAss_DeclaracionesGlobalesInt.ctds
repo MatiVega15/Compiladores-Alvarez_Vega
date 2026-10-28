@@ -1,0 +1,10 @@
+int x, y;
+
+extern void printInt (int valor);
+
+void main () {
+    x = 10;
+    y = x;
+
+    printInt (y);
+}

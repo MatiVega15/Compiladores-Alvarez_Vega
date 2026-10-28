@@ -1,0 +1,59 @@
+int g1;
+
+extern void printInt (int valor);
+
+void main () {
+    int l1, l2, l3, l4;
+    boolean res;
+
+    g1 = 100;
+    l1 = 50;
+    l2 = 200;
+    l3 = -50;
+    l4 = -10;
+
+    // 1. True || False.
+    res = (g1 == 100) || (l1 > l2);
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 2. False || True.
+    res = (g1 == 500) || (l1 < l2);
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 3. True || True.
+    res = (l2 > l1) || (l4 > l3);
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 4. Literales (True || False).
+    res = (10 < 20) || (100 == 200);
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    // 5. False || True.
+    res = false || true;
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+}

@@ -1,0 +1,9 @@
+extern void printInt (int valor);
+
+int calcular () {
+    return 10 + 5 * 2; 
+}
+
+void main () {
+    printInt (calcular ()); // Debe imprimir 20.
+}

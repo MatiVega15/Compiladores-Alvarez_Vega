@@ -1,0 +1,7 @@
+extern void printInt (int valor);
+
+boolean main () {
+    boolean bandera;
+    bandera = true;
+    return bandera; // El sistema operativo recibe 1 en %rax.
+}

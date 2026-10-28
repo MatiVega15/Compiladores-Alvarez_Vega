@@ -1,0 +1,9 @@
+int entero;
+
+extern void printInt (int valor);
+
+void main () {
+    entero = 15;
+    printInt (entero);
+    return;
+}

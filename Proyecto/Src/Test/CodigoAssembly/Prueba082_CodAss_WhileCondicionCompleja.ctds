@@ -1,0 +1,16 @@
+extern void printInt (int valor);
+
+void main () {
+    int i, flag;
+    i = 0;
+    flag = 1;
+
+    // Corre mientras i < 5 Y flag == 1.
+    while (i < 5 && flag == 1) {
+        printInt (i);
+        i = i + 1;
+        if (i == 3) {
+            flag = 0; // Forzará el cortocircuito en la siguiente iteración.
+        }
+    }
+}

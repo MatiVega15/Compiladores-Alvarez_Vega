@@ -1,0 +1,6 @@
+extern int get_int ();
+extern void printInt (int valor);
+
+void main () {
+    printInt (-5);
+}

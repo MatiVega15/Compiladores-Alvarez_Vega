@@ -1,0 +1,35 @@
+int n1;
+
+extern void printInt (int valor);
+
+void main () {
+    int n2, n3;
+    int temp1, temp2, temp3, temp4;
+
+    // Resta NegNeg con variable global.
+    n1 = -1004;
+    n2 = -132;
+    n1 = n1 - n2;
+
+    // Resta NegNeg con variables locales.
+    n3 = -66;
+    temp1 = -132 - n3;
+
+    // Resta NegNeg con literales.
+    temp2 = -10 - -2;
+
+    // Restas encadenadas con NegNeg.
+    temp3 = n1 - n2 - n3 - -10;
+
+    // Elemento neutro.
+    temp4 = n3 - 0;
+
+    printInt (n1);
+    printInt (temp1);
+    printInt (temp2);
+    printInt (temp3);
+    printInt (temp4);
+
+    // Resta directa NegNeg.
+    printInt (-5009 - -9);
+}

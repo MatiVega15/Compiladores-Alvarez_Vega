@@ -1,0 +1,21 @@
+int g_side_effect;
+
+extern void printInt (int valor);
+
+int alterarEstado () {
+    g_side_effect = 999;
+    return 1;
+}
+
+void main () {
+    boolean res;
+
+    g_side_effect = 0;
+
+    // El lado izquierdo es FALSE (10 > 20).
+    // Si hay cortocircuito, 'alterarEstado ()' NUNCA debe llamarse.
+    res = (10 > 20) && (alterarEstado () == 1);
+
+    // Debe imprimir 0. Si imprime 999, la evaluación no fue perezosa.
+    printInt (g_side_effect);
+}

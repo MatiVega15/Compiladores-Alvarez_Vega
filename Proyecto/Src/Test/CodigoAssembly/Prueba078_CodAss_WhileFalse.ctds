@@ -1,0 +1,12 @@
+extern void printInt (int valor);
+
+void main () {
+    int x;
+    x = 1;
+    
+    while (2 < 1) { // False.
+        x = 9;
+    }
+    
+    printInt (x);
+}

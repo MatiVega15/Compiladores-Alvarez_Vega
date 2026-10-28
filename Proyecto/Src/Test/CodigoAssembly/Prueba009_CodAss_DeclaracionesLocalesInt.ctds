@@ -1,0 +1,29 @@
+extern void printInt (int valor);
+
+void main () {
+    int x1, x2, x3, x4, x5, x6, x7, x8;
+    int x9;
+    int x10;
+
+    x1 = 1;
+    x2 = -1;
+    x3 = 2;
+    x4 = -2;
+    x5 = 3;
+    x6 = -3;
+    x7 = 4;
+    x8 = -4;
+    x9 = 0;
+    x10 = 0;
+
+    printInt (x1);
+    printInt (x2);
+    printInt (x3);
+    printInt (x4);
+    printInt (x5);
+    printInt (x6);
+    printInt (x7);
+    printInt (x8);
+    printInt (x9);
+    printInt (x10);
+}

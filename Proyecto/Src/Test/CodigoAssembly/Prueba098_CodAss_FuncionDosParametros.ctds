@@ -1,0 +1,13 @@
+extern void printInt (int valor);
+
+int duplicar (int a, boolean b) {
+    if (b) {
+        return a * 2;
+    }
+
+    return a;
+}
+
+void main () {
+    printInt (duplicar (10, true)); // Debe imprimir 20.
+}

@@ -1,0 +1,19 @@
+extern void printInt (int valor);
+
+void main () {
+    int a, b;
+    a = 0;
+    b = 3;
+    
+    // Primer bucle: cuenta ascendente de 0 a 2.
+    while (a < 3) {
+        printInt (a);
+        a = a + 1;
+    }
+    
+    // Segundo bucle: cuenta descendente de 3 a 1.
+    while (b > 0) {
+        printInt (b);
+        b = b - 1;
+    }
+}

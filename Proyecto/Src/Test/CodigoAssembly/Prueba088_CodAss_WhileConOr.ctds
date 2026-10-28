@@ -1,0 +1,16 @@
+extern void printInt (int valor);
+
+void main () {
+    int x, y;
+    x = 5;
+    y = 0;
+
+    // Falso || Verdadero.
+    while (x < 3 || y == 0) {
+        printInt (x);
+        x = x + 1;
+        if (x == 8) {
+            y = 1; // En la cuarta iteración False || False.
+        }
+    }
+}

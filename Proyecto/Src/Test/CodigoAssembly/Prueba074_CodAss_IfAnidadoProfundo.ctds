@@ -1,0 +1,20 @@
+extern void printInt (int valor);
+
+void main () {
+    int x;
+    x = 10;
+
+    if (x > 5) {
+        if (x == 10) {
+            if (x < 20) {
+                printInt (999); // Debe entrar acá.
+            } else {
+                printInt (111);
+            }
+        } else {
+            printInt (222);
+        }
+    } else {
+        printInt (333);
+    }
+}

@@ -1,0 +1,20 @@
+extern void printInt (int valor);
+
+int checkCounter (int val) {
+    if (val < 4) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+void main () {
+    int i;
+    i = 0;
+
+    // La condición evalúa una función en cada iteración.
+    while (checkCounter (i) == 1) {
+        printInt (i);
+        i = i + 1;
+    }
+}

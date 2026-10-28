@@ -1,0 +1,13 @@
+extern void printInt (int valor);
+
+void verificarYSalir (int val) {
+    if (val == 0) {
+        return; // Salida anticipada en función void.
+    }
+    printInt (val);
+}
+
+void main () {
+    verificarYSalir (0);   // Debe salir con el return; y NO imprimir nada.
+    verificarYSalir (999); // Debe imprimir 999.
+}

@@ -1,0 +1,29 @@
+int i1;
+float f1;
+
+extern void printInt (int valor);
+
+void main () {
+    int i2;
+    float f2;
+    boolean res;
+
+    i1 = 10;
+    f1 = 2.5;
+    i2 = 20;
+
+    // 1. Coerción int < float (10 < 2.5).
+    res = i1 < f1;
+
+    // 2. Coerción float < int (2.5 < 20).
+    res = f1 < i2;
+
+    // Control entero para verificar que la comparación menor entera funcione alrededor.
+    res = i1 < i2;
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+}
