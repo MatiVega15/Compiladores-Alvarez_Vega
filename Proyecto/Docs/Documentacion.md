@@ -8,7 +8,7 @@ El trabajo se aborda de una manera incremental, mediante las siguientes etapas:
 2. Generación del **árbol sintáctico abstracto (AST)** y la **tabla de símbolos (TS)**.
 3. Análisis **semántico**.
 4. Generación de **código intermedio**.
-5. Generación de **código objeto**.
+5. Generación de **código Assembly y ejecutable**.
 6. **Optimizador** y extensiones.
 
 ## *1. Análisis léxico y análisis sintáctico*
@@ -1860,13 +1860,160 @@ La prueba de código muerto verifica específicamente que el generador **no elim
 
 En conjunto, estas pruebas permiten comprobar que las distintas construcciones del AST se traducen a **instrucciones coherentes** y que la representación intermedia conserva el orden y la estructura necesarios para las etapas posteriores.
 
+## *5. Código Assembly y ejecutable*
+
+La generación de código Assembly se encuentra **implementada** en [GeneradorCodigoAssembly.c](../Src/CodigoAssembly/GeneradorCodigoAssembly.c) y expuesta mediante la **interfaz** definida en [GeneradorCodigoAssembly.h](../Src/CodigoAssembly/GeneradorCodigoAssembly.h).
+
+Su función es **recorrer la lista de cuádruplos generada en la etapa anterior y traducir cada instrucción a código máquina textual (Assembly x86-64)**, respetando estrictamente la convención de llamadas **System V AMD64 ABI** utilizada en sistemas Linux.
+
+La **función principal** recibe la lista de cuádruplos, la tabla de símbolos y un archivo de salida donde escribirá las instrucciones. Si la generación finaliza correctamente, el compilador delega posteriormente este archivo a la herramienta externa `gcc` para ensamblar y enlazar el binario ejecutable final.
+
+### *5.1 Diseño y contexto de generación*
+
+La generación utiliza una **estructura de estado** denominada `ContextoAssembly`.
+
+Este contexto concentra la **información** necesaria durante el recorrido secuencial de los cuádruplos:
+
+- El **archivo** de salida.
+- Arreglos para mapear los **offsets en la pila** de los temporales.
+- Un **búfer LIFO** para retener los argumentos de funciones que superan el límite de registros antes de ser apilados.
+- El estado del modo de **depuración** y las banderas de **error**.
+
+El generador asume que el código intermedio está lógicamente validado. Por lo tanto, se enfoca exclusivamente en la **traducción de operaciones, selección de registros y gestión de la memoria física (Stack y Data)**.
+
+### *5.2 Secciones de memoria (.data y .text)*
+
+El código generado se divide en dos **secciones** principales de memoria:
+
+1. **Sección `.data`**: Antes de traducir las instrucciones, el generador retrocede al nivel global de la tabla de símbolos. **Por cada variable global encontrada, reserva un espacio de 8 bytes inicializado en cero** mediante la directiva `.quad 0`. Posteriormente, estas variables son accedidas en el código utilizando **direccionamiento relativo al puntero de instrucciones** (`%rip`).
+2. **Sección `.text`**: Contiene el código ejecutable. Acá se vuelcan las **traducciones de las funciones y sus respectivas instrucciones**. Si se detecta la función `main`, se exporta automáticamente mediante la directiva `.globl main` para que el sistema operativo encuentre el punto de entrada.
+
+Adicionalmente, al finalizar la generación, se inyecta la **directiva de seguridad** `.section .note.GNU-stack,"",@progbits` para indicarle al enlazador de Linux que la pila no debe ser ejecutable, evitando advertencias de seguridad.
+
+### *5.3 Gestión del Stack Frame y alineación*
+
+El diseño del backend administra la **pila de ejecución (Stack Frame)** de manera estricta para cada función. Antes de emitir las instrucciones de una función, `calcular_entorno_funcion ()` realiza una pasada previa sobre los cuádruplos para:
+
+1. **Asignar offsets**: Asigna **posiciones de memoria negativas relativas al Base Pointer** (`%rbp`) para las variables locales, los primeros 6 parámetros y los temporales (ej. `-8(%rbp)`, `-16(%rbp)`). Los parámetros pasados por pila (del 7 en adelante) reciben **offsets positivos** (`16(%rbp)`, `24(%rbp)`).
+2. **Alineación a 16 bytes**: Para cumplir con la restricción fundamental de la **System V ABI** y evitar fallos de segmentación (`Segmentation fault`) al invocar funciones que utilizan instrucciones vectoriales (como `get_int ()`), el generador **suma el espacio total requerido por la función y lo redondea hacia arriba al múltiplo de 16 bytes más cercano**.
+
+Este tamaño total se utiliza para construir el **prólogo de la función** mediante la instrucción `enter $(bytes_locales), $0`.
+
+### *5.4 Llamadas a funciones y argumentos*
+
+El paso de parámetros implementa fielmente la **convención de Linux x86-64**:
+
+- **Registros**: Los **primeros 6 argumentos** de una función se asignan a los registros físicos `%rdi`, `%rsi`, `%rdx`, `%rcx`, `%r8` y `%r9`, en dicho orden.
+- **Pila**: Si una llamada **supera los 6 argumentos**, el generador utiliza un `buffer_argumentos` para retener temporalmente los excedentes y luego los apila en orden inverso (instrucción `pushq`), garantizando que el argumento 7 quede en el tope de la pila.
+- **Limpieza**: Luego de una instrucción `call`, **el llamador se encarga de limpiar el espacio de los argumentos apilados** sumando el desplazamiento correspondiente al puntero de la pila (`addq $X, %rsp`).
+- **Funciones externas**: Para llamadas a funciones como `printInt` o `get_int` (que pueden requerir convenciones de argumentos variables), **el generador inyecta un `movq $0, %rax` para prevención antes del `call`**.
+
+### *5.5 Traducción de instrucciones*
+
+La **traducción de cuádruplos a Assembly x86-64** se realiza mediante un `switch` central, aplicando patrones específicos de la arquitectura:
+
+- **Asignaciones y movimientos**: Como x86-64 no permite movimientos directos de memoria a memoria, **las asignaciones se triangulan utilizando el registro temporal de propósito general `%r10`** (`movq mem, %r10` y luego `movq %r10, mem`).
+- **Aritmética**: Se utilizan las **instrucciones nativas de 64 bits** `addq`, `subq`, e `imulq` para sumar, restar y multiplicar, respectivamente. Para la división (`idivq`) y el módulo, se carga el dividendo en `%rax`, se extiende su signo hacia `%rdx` mediante `cqo` y, tras operar, se rescata el cociente de `%rax` o el resto de `%rdx`.
+- **Relacionales**: Las comparaciones (`==`, `<`, `>`) se resuelven mediante `cmpq` seguido de **movimientos condicionales** (`cmove`, `cmovl`, `cmovg`), depositando un `1` o un `0` en el destino sin necesidad de ramificar el flujo.
+- **Control de flujo**: Los cuádruplos de salto se traducen directamente a `jmp` (**salto incondicional**) o `je` (**salto si es falso**, al comparar contra `0`).
+- **Retornos**: Se traducen cargando el valor en `%rax` y ejecutando el **epílogo** (`leave` seguido de `ret`). Si la función `main` alcanza el final sin un retorno explícito, se inyecta un **retorno exitoso** (`$0` en `%rax`) por seguridad semántica.
+
+### *5.6 Tipos de datos y estado actual*
+
+El generador de Assembly actual se encuentra disponible para el **procesamiento completo de tipos enteros (`int`) y lógicos (`boolean`)**, empleando registros y operaciones de 64 bits (con desbordamiento en complemento a 2 propio de arquitecturas enteras). **Actualmente, no hay soporte para las operaciones que involucran el tipo real** (`float`).
+
+En la implementación actual, cuando el generador detecta un operando de tipo `float`, **interrumpe la traducción de esa instrucción específica y emite un comentario estructurado** (`# TODO: Implementar coerción/operación float`) en el código fuente Assembly. Esta decisión permite que el compilador no interrumpa el proceso de generación ni falle abruptamente, facilitando la futura incorporación del módulo de punto flotante sin reestructurar la lógica central.
+
+### *5.7 Modo de depuración*
+
+Al igual que las etapas anteriores, el generador de Assembly incluye un **modo de depuración** activado mediante la bandera `-debug`.
+
+Cuando está activo, el compilador emite mensajes por consola utilizando el **prefijo** `[ASSEMBLY]`, permitiendo trazar en tiempo real:
+
+- El **inicio y fin** de la etapa de generación.
+- El **nombre de la instrucción intermedia** que está siendo traducida en cada momento, facilitando la identificación del cuádruplo exacto en caso de un fallo en la emisión de código.
+
+### *5.8 Salida del generador*
+
+Como resultado de la etapa de generación de código Assembly, **se genera un archivo con extensión `.ass`**, únicamente si la etapa se solicita de forma explícita mediante la opción `-assembly`. Dicho archivo contiene el **código fuente Assembly**.
+
+En caso de no especificarse ninguna etapa, la generación de código Assembly se ejecuta de manera silenciosa como **soporte fundamental** para la generación del ejecutable, volcando sus resultados en un archivo temporal `.s`, a partir del cual `gcc` genera el ejecutable `.out` final. 
+
+Naturalmente, esta etapa no se ejecuta en absoluto si el usuario solicitó un **objetivo estrictamente anterior**, como `-target scan`, `-target parse` o `-target codinter`.
+
+### *5.9 Cambios respecto del Pre-Proyecto*
+
+A diferencia de las etapas anteriores que evolucionaron desde esquemas básicos en la entrega anterior del Pre-Proyecto, la **generación de código Assembly x86-64 y la posterior construcción de un binario ejecutable representan una fase completamente nueva para este proyecto final**.
+
+Durante el Pre-Proyecto, el flujo finalizaba con la emisión del código intermedio (pseudo-assembly). La administración de la pila, la selección de registros físicos, la alineación de memoria y la interacción real con el procesador (System V ABI) fueron **diseñadas e implementadas exclusivamente para esta etapa definitiva**.
+
+### *5.10 Pruebas*
+
+Se incorporó un conjunto de **105 pruebas automatizadas** (más una prueba manual de estrés dinámico) destinadas a verificar la generación de código Assembly x86-64 y la posterior ejecución del binario ejecutable.
+
+Las pruebas utilizan programas fuente con extensión `.ctds` y se encuentran **organizadas** en el directorio:
+
+```text
+Src/Test/CodigoAssembly/
+```
+
+Los **resultados** generados durante su ejecución se almacenan en:
+
+```text
+Src/Test/Resultados/CodigoAssembly/
+```
+
+Los resultados generados durante las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
+
+Los archivos de resultados permiten **inspeccionar el código Assembly `.s` generado, el binario `.out` compilado y la salida por consola** producida por el programa durante su ejecución.
+
+A diferencia de las etapas anteriores, las pruebas de Assembly no se limitan a verificar la estructura, sino que **validan el comportamiento físico del programa a nivel de sistema operativo y hardware**.
+
+Las **pruebas** cubren las principales construcciones que debe traducir el generador:
+
+- **Asignaciones** de constantes y variables locales en la pila o globales en la sección `.data`.
+- **Operaciones aritméticas** de suma, resta, multiplicación, división entera y módulo.
+- **Precedencia de operadores** y evaluación de expresiones numéricas anidadas.
+- **Manejo de signos** y representación de valores negativos en complemento a 2.
+- **Comparaciones** de menor, mayor e igualdad utilizando movimientos condicionales.
+- **Operaciones booleanas y cortocircuito**, verificando que la evaluación perezosa omita la ejecución de ramas no correspondientes.
+- **Estructuras de control** `if`, `if-else` y **ciclos** `while`, incluyendo combinaciones anidadas.
+- **Funciones y parámetros**, desde funciones sin argumentos hasta funciones con más de 6 parámetros para verificar el paso de argumentos por pila.
+- **Alineación del Stack Frame** a múltiplos de 16 bytes, exigida por la System V AMD64 ABI.
+- **Llamadas a funciones y recursividad**, evaluando la preservación de marcos de pila y la limpieza de argumentos apilados por parte del llamador.
+- **Sentencias de retorno** con expresiones simples, complejas o sin expresión en funciones `void` y `main`.
+- **Invocación a funciones externas** (`extern`) como `printInt` y `get_int`.
+
+El entorno de pruebas automatizadas realiza un **flujo completo** de extremo a extremo para cada archivo: 
+
+1. **Compila** el archivo `.ctds` produciendo el código Assembly `.ass`.
+2. Invoca a `gcc` para **ensamblar el código y enlazar las funciones de runtime**, generando el binario ejecutable `.out`.
+3. **Ejecuta el binario** y captura su salida estándar (`stdout`).
+4. **Compara la salida** capturada byte a byte contra el archivo de salida esperada `.expected`.
+
+#### *5.10.1 Prueba de estrés y excepciones de hardware*
+
+Adicionalmente, se diseñó [PruebaDeEstresYLimites.ctds](../Src/Test/PruebaDeEstresYLimites.ctds), enfocada específicamente en la **auditoría de límites físicos y de robustez del backend** frente a entradas dinámicas impredecibles. Utilizando la función externa `get_int ()`, el binario se somete a las siguientes evaluaciones de estrés:
+
+- **Desbordamiento aritmético (Integer Overflow)**: Al ingresar valores que, multiplicados, superan el límite de los enteros con signo de 32 bits ($2^{31} - 1$), el binario recorta los bits excedentes y realiza un wrap-around hacia los valores negativos, respetando la representación en complemento a 2.
+- **División por cero en tiempo de ejecución**: Al forzar una división por cero dinámica, la instrucción `idivq` dispara la interrupción de hardware, provocando que el sistema operativo intercepte la falla y finalice el proceso con un `Floating point exception (core dumped)` limpio.
+- **Límite de la pila (Stack Overflow)**: Forzando una profundidad de recursión extrema, se agotan intencionalmente las páginas de memoria reservadas para la pila. El programa finaliza con un `Segmentation fault (core dumped)`, lo que certifica mecánicamente que los marcos de pila y los punteros `%rbp` / `%rsp` se construyen y destruyen de forma estrictamente simétrica en cada llamada sin corromper registros ni memoria adyacente.
+
+Cabe destacar que **esta prueba de estrés no forma parte del conjunto de pruebas automatizadas**, sino que se ejecuta de manera manual e independiente haciendo uso del compilador `./build/c-tds`. Se encuentra ubicada en:
+
+```text
+Src/Test/
+```
+
+Esta decisión responde a que la prueba **requiere interacción mediante la entrada estándar** (`stdin`) a través de `get_int ()` y provoca la terminación abrupta del proceso por señales de hardware, lo cual bloquearía o interrumpiría la ejecución de la suite de pruebas principales.
+
 ---
 
 ## *Programa principal*
 
 Se incorporó [main.c](../Src/main.c), encargado de **coordinar la ejecución del compilador y de gestionar la interfaz de línea de comandos**.
 
-En la etapa actual, el programa principal permite ejecutar el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico** y la **generación de código intermedio** del archivo fuente. Las etapas posteriores, correspondientes a la generación de código objeto y a las optimizaciones, se encuentran contempladas en la interfaz, pero todavía no están implementadas.
+En la etapa actual, el programa principal permite ejecutar el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico**, la **generación de código intermedio** y la **generación de código Assembly** del archivo fuente. El procesamiento por defecto avanza hasta la **generación de un archivo ejecutable `.out`**. La etapa posterior, correspondiente a las optimizaciones, se encuentra contemplada en la interfaz, pero todavía no está implementada.
 
 El **procesamiento** actual consiste en:
 
@@ -1878,7 +2025,9 @@ El **procesamiento** actual consiste en:
    - **Análisis léxico** mediante Flex, para la etapa `scan`.
    - **Análisis sintáctico** mediante Bison, utilizando los tokens proporcionados por Flex, para la etapa `parse`.
    - **Análisis semántico** mediante el AST y la tabla de símbolos, como parte del procesamiento completo.
-   - **Generación de código intermedio** a partir del AST validado semánticamente, cuando el análisis semántico finaliza correctamente y no se está ejecutando el modo de pruebas semánticas.
+   - **Generación de código intermedio**, para la etapa `codinter`, a partir del AST validado semánticamente, cuando el análisis semántico finaliza correctamente y no se está ejecutando el modo de pruebas semánticas.
+   - **Generación de código Assembly** a partir de los cuádruplos intermedios y la tabla de símbolos, para la etapa `assembly`.
+   - **Ensamblado y enlazado final mediante `gcc`** junto con la librería de runtime (`runtime.c`), generando el archivo ejecutable por defecto.
 6. Generación de los **archivos auxiliares** correspondientes cuando se encuentra activado el **modo de depuración**.
 7. **Liberación** de las estructuras utilizadas durante el análisis y finalización indicando, mediante el código de retorno, si la ejecución fue **exitosa** o si se produjeron **errores**.
 
@@ -1890,13 +2039,13 @@ El análisis semántico continúa procesando la entrada cuando encuentra errores
 
 De esta manera, no es necesario corregir un error para que aparezca automáticamente otro. **Se brindan todos los errores encontrados de una vez**. Sin embargo, hay que ser cuidadosos al analizarlos, ya que un error detectado puede ser únicamente causa de otro error previo propagado.
 
-Durante la generación de código intermedio, la ocurrencia de un error provoca que **se cancele la ejecución de la etapa** sin producir ninguna secuencia como salida.
+Durante la generación de código intermedio, la ocurrencia de un error provoca que **se cancele la ejecución de la etapa** sin producir ninguna secuencia como salida. El mismo comportamiento se produce durante la generación de código Assembly.
 
 Cuando el análisis sintáctico se ejecuta como parte del **procesamiento completo**, el AST generado se conserva para realizar posteriormente el análisis semántico.
 
 En cambio, cuando se solicita explícitamente **`-target parse`**, el AST solamente se utiliza para completar esa etapa y posteriormente es liberado.
 
-La **generación del archivo de salida** y la configuración del modo de depuración son coordinadas por `main.c`. Dependiendo de la etapa seleccionada, la salida generada corresponde a un archivo `.lex`, `.sint` o `.ci`.
+La **generación del archivo de salida** y la configuración del modo de depuración son coordinadas por `main.c`. Dependiendo de la etapa seleccionada, la salida generada corresponde a un archivo `.lex`, `.sint`, `.ci`, `ass`, o bien el archivo ejecutable `.out` si no se especifica nada.
 
 En el caso del **análisis sintáctico**, cuando se activa el modo de depuración, también se genera un archivo `.dot` con la representación del AST.
 
@@ -1904,7 +2053,22 @@ Cuando se ejecuta el **análisis semántico** con -debug, se genera el archivo .
 
 El **reconocimiento de los tokens** es responsabilidad del analizador léxico, mientras que la **validación de la estructura sintáctica** y la **construcción del AST** corresponden al analizador sintáctico. El **análisis semántico** utiliza posteriormente ese AST junto con la tabla de símbolos propia de la etapa.
 
-La **generación de código intermedio** se realiza a partir del AST validado semánticamente. Si el análisis sintáctico o semántico detecta errores, se **cancela el procesamiento** y no se genera una secuencia de código intermedio como salida. En caso contrario, se recorre el AST para generar las **instrucciones** correspondientes a las sentencias del programa, escribiéndolas en el archivo de salida con **extensión `.ci`**. Esta etapa se ejecuta **por defecto** cuando no se especifica un objetivo mediante `-target`, mientras que el **modo de pruebas semánticas** permite ejecutar el análisis semántico sin continuar con la generación de código intermedio.
+La **generación de código intermedio** se realiza a partir del AST validado semánticamente. Si el análisis sintáctico o semántico detecta errores, se **cancela el procesamiento** y no se genera una secuencia de código intermedio como salida. En caso contrario, se recorre el AST para generar las **instrucciones** correspondientes a las sentencias del programa. Si se especifica explícitamente el objetivo mediante `-target codinter`, estas instrucciones se escriben en un archivo con **extensión `.ci`**. Caso contrario, la compilación continúa hacia las etapas posteriores de generación de código. El **modo de pruebas semánticas** (activado con `-test-sem`) permite ejecutar exclusivamente el análisis semántico sin avanzar hacia ninguna etapa de backend.
+
+A partir de la lista de cuádruplos generada en memoria y la tabla de símbolos, la **etapa de Assembly** traduce las instrucciones intermedias a **código de máquina x86-64** (siguiendo la ABI estándar de Linux). Si se solicita explícitamente el objetivo `-target assembly`, este código se vuelca en un archivo con extensión `.ass`. Por defecto, cuando no se especifica un objetivo, el compilador procesa esta etapa de forma transparente generando un **archivo temporal de Assembly**, el cual es ensamblado y enlazado automáticamente mediante `gcc` junto con la **librería de runtime** (`runtime.c`) para producir finalmente un **archivo ejecutable** con extensión `.out`.
+
+---
+
+## *Runtime y soporte de I/O*
+
+Para satisfacer los **requerimientos de entrada/salida** de los programas escritos en C-TDS y cumplir con la ABI estándar de Linux, se incorporó el archivo de soporte **[runtime.c](../Src/runtime.c)**.
+
+Este módulo implementa en C puro las funciones externas primitivas del lenguaje:
+
+- **`get_int (void)`**: Lee un número entero desde la entrada estándar (terminal) utilizando `scanf` y lo retorna directamente, aislando el código generado de las complejidades de lectura de la librería estándar de C.
+- **`printInt (int valor)`**: Recibe un valor entero, lo imprime formateado por la salida estándar seguido de un salto de línea utilizando `printf`, y asegura la compatibilidad con el sistema de llamadas.
+
+El compilador **enlaza automáticamente** este archivo de runtime mediante `gcc` durante la generación del ejecutable por defecto, permitiendo que las funciones externas sean resueltas sin inconvenientes.
 
 ---
 
@@ -1920,19 +2084,23 @@ El archivo de entrada debe tener extensión `.ctds` y no puede comenzar con `-`.
 
 ### *Ejecución por defecto*
 
-Si no se especifica una etapa mediante `target`, el compilador ejecuta el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico** y, si no se producen errores, la **generación de código intermedio**. Esta secuencia constituye el procesamiento completo implementado actualmente.
+Si no se especifica una etapa mediante `target`, el compilador ejecuta el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico** y, si no se producen errores, la **generación de código intermedio**, la **generación de código Assembly** y el **enlazado final** con la librería de runtime (`runtime.c`). Esta secuencia constituye el procesamiento completo implementado actualmente.
 
 ```bash
 c-tds programa.ctds
 ```
 
-En este caso se genera automáticamente:
+En este caso se genera automáticamente el ejecutable:
 
 ```text
-programa.ci
+programa.out
 ```
 
-El archivo `.ci` corresponde al resultado de la última etapa ejecutada, es decir, el **código intermedio**.
+el cual puede ser ejecutado mediante:
+
+```bash
+./programa.out
+```
 
 ### *Selección de etapa*
 
@@ -1949,7 +2117,7 @@ Las **etapas reconocidas** son las siguientes:
 | `scan` | Análisis léxico | Implementada |
 | `parse` | Análisis sintáctico y construcción del AST | Implementada |
 | `codinter` | Análisis semántico y generación de código intermedio | Implementada |
-| `assembly` | Generación de código objeto | No implementada |
+| `assembly` | Generación de código Assembly x86-64 | Implementada |
 
 Por ejemplo:
 
@@ -1969,9 +2137,13 @@ O:
 c-tds -target codinter programa.ctds
 ```
 
-Actualmente no existe un `-target sem`. El **análisis semántico** se ejecuta automáticamente cuando no se especifica un `-target`, o bien cuando se llega hasta la etapa `target codinter`.
+O:
 
-La **etapa todavía no implementada (assembly)** es reconocida por la interfaz y produce un mensaje indicando que la etapa aún no se encuentra disponible.
+```bash
+c-tds -target assembly programa.ctds
+```
+
+Actualmente no existe un `-target sem`. El **análisis semántico** se ejecuta automáticamente cuando no se especifica un `-target`, o bien cuando se llega hasta las etapas `target codinter` o `target assembly`.
 
 ### *Nombre del archivo de salida*
 
@@ -1986,7 +2158,7 @@ permite indicar explícitamente **el nombre y la ubicación del archivo de salid
 Por ejemplo:
 
 ```bash
-c-tds -o Resultados/prog.ci programa.ctds
+c-tds -o Resultados/prog.out programa.ctds
 ```
 
 La opción `-o` utiliza exactamente el nombre proporcionado por el usuario, **no agrega automáticamente una extensión**.
@@ -2001,12 +2173,11 @@ Actualmente las **extensiones generadas automáticamente** son las siguientes:
 | `parse` | `.sint` |
 | `codinter` | `.ci` |
 | `assembly` | `.ass` |
+| *(Sin target)* | `.out` (Ejecutable) |
 
-La extensión correspondiente a `assembly` se encuentra contemplada por la interfaz, aunque **dicha etapa todavía no está implementada**.
+Con la implementación actual, si no se aclara una etapa previa, el compilador llega hasta la **generación de un archivo ejecutable**, produciendo un archivo de extensión `.out`.
 
-Con la implementación actual, si no se aclara una etapa previa, el compilador llega hasta la **generación de código intermedio**, produciendo un archivo de extensión `.ci`.
-
-Las **pruebas semánticas** utilizan la **opción `-test-sem`** y especifican el archivo de salida mediante `-o`. En este modo, el análisis semántico se ejecuta sin generar código intermedio y el archivo indicado se utiliza para registrar sus resultados. La **opción `-test-sem`** no modifica la extensión generada automáticamente en la ejecución habitual.
+Las **pruebas semánticas** utilizan la **opción `-test-sem`** y especifican el archivo de salida mediante `-o`. En este modo, el análisis semántico se ejecuta sin generar código de etapas posteriores y el archivo indicado se utiliza para registrar sus resultados. La **opción `-test-sem`** no modifica la extensión generada automáticamente en la ejecución habitual.
 
 ### *Modo de depuración*
 
@@ -2029,6 +2200,8 @@ La información mostrada depende de la etapa seleccionada. En el análisis léxi
 Además, durante el análisis sintáctico, el modo de depuración permite **mostrar el AST por consola y generar un archivo `.dot` con su representación**, a partir del cual puede obtenerse una representación gráfica mediante Graphviz.
 
 Cuando se ejecuta el **procesamiento completo** con `-debug`, el archivo `.dot` se genera después del análisis semántico, por lo que contiene el **AST enriquecido** con la información semántica obtenida durante esa etapa.
+
+Asimismo, durante la generación de código intermedio y la generación de código Assembly, el modo de depuración permite **imprimir por consola información de trazabilidad sobre la creación de cuádruplos y la traducción a instrucciones de máquina**, facilitando la inspección y el diagnóstico del backend del compilador.
 
 El modo de depuración es **independiente** del archivo de salida principal del compilador.
 
@@ -2209,6 +2382,28 @@ Src/Test/Resultados/CodigoIntermedio/
 
 Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**, generando un archivo `.ci` con las instrucciones generadas en la etapa.
 
+### *Ejecutar las pruebas de generación de código assembly y ejecutables*
+
+Para **ejecutar todas las pruebas del generador de código assembly y generación de binarios**:
+
+```bash
+make tests-assembly
+```
+
+El objetivo compila y ejecuta las **105 pruebas** ubicadas en:
+
+```text
+Src/Test/CodigoAssembly/
+```
+
+Los **resultados** de estas pruebas se generan en:
+
+```text
+Src/Test/Resultados/CodigoAssembly/
+```
+
+Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**, verificando la generación del archivo Assembly `.ass`, la compilación a ejecutable `.out` mediante `gcc`, y comparando la salida por consola contra los resultados esperados (`.expected`).
+
 ### *Ejecutar todas las pruebas*
 
 El objetivo:
@@ -2227,8 +2422,7 @@ En el estado actual del proyecto, esto equivale a ejecutar:
 4. Las pruebas independientes de la **TS**.
 5. Las pruebas del **análisis semántico**.
 6. Las pruebas de **código intermedio**.
-
-Este objetivo se encuentra **preparado para incorporar las pruebas de las etapas posteriores** a medida que sean implementadas.
+7. Las pruebas de **código assembly y ejecutables**.
 
 ### *Ejecutar el compilador manualmente*
 
