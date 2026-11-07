@@ -1,0 +1,9 @@
+void procesar (int a, float b, boolean c) {
+
+}
+
+int main () {
+    procesar (1 + 2 * 3, 10.0 / 4.0, !false);
+
+    return 0;
+}
