@@ -127,7 +127,7 @@ Esta integración permite que **Flex sea responsable del reconocimiento léxico*
 
 El analizador léxico fue **ampliado para adaptarse a la especificación de C-TDS**. Entre los principales cambios se incorporaron:
 
-- Nuevos **tipos** y **palabras reservadas**, como `boolean`, `float`, `extern` `if`, `else` y `while`.
+- Nuevos **tipos** y **palabras reservadas**, como `boolean`, `float`, `extern`, `if`, `else` y `while`.
 - **Identificadores** que permiten `_`.
 - **Literales** reales.
 - **Operadores** relacionales y lógicos.
@@ -598,7 +598,7 @@ Actualmente se contemplan:
 
 Los nodos que no necesitan almacenar un valor adicional no utilizan estos campos.
 
-Esta separación permite que la estructura del nodo sea común par todas las construcciones del lenguaje, **manteniendo únicamente la información adicional necesaria en cada caso**.
+Esta separación permite que la estructura del nodo sea común para todas las construcciones del lenguaje, **manteniendo únicamente la información adicional necesaria en cada caso**.
 
 Las cadenas correspondientes a identificadores se **almacenan dinámicamente**. Esto permite que cada nodo mantenga su propio lexema y que la memoria pueda ser liberada correctamente al destruir el árbol. 
 
@@ -733,7 +733,7 @@ Esta funcionalidad permite **comprobar visualmente** que la estructura construid
 
 El AST mantiene una **referencia a la entrada correspondiente a la tabla de símbolos (TS)** mediante el campo `Simbolo *simbolo` de cada nodo.
 
-Esta referencia permite que, en las etapas posteriores del compilador, **los nodos que representan declaraciones, funciones, parmámetros, identificadores y llamadas a funciones puedan asociarse a la información almacenada en la tabla de símbolos**.
+Esta referencia permite que, en las etapas posteriores del compilador, **los nodos que representan declaraciones, funciones, parámetros, identificadores y llamadas a funciones puedan asociarse a la información almacenada en la tabla de símbolos**.
 
 Al crear un nodo del AST, **esta referencia se inicializa como `NULL`**. La asociación efectiva entre los nodos del AST y las entradas de la TS se realiza durante el **análisis semántico**.
 
@@ -2007,13 +2007,113 @@ Src/Test/
 
 Esta decisión responde a que la prueba **requiere interacción mediante la entrada estándar** (`stdin`) a través de `get_int ()` y provoca la terminación abrupta del proceso por señales de hardware, lo cual bloquearía o interrumpiría la ejecución de la suite de pruebas principales.
 
+## *6. Optimizaciones*
+
+La etapa de optimización fue implementada en **lenguaje C** y actúa directamente sobre el **árbol sintáctico abstracto (AST)** una vez que ha sido validado sintáctica y semánticamente.
+
+Su objetivo es **transformar y simplificar la estructura del AST antes de la generación de código intermedio**, produciendo una representación equivalente pero más eficiente, reduciendo la cantidad de instrucciones intermedias (`cuádruplos`) y disminuyendo la carga de cómputo en tiempo de ejecución.
+
+*Para revisar los detalles de implementación, consultar [OptimizadorAST.h](../Src/Optimizador/OptimizadorAST.h) y [OptimizadorAST.c](../Src/Optimizador/OptimizadorAST.c).*
+
+La interfaz define la estructura `OpcionesOptimizacion`, que permite **activar o desactivar** de forma independiente los pases disponibles (como `plegado_constantes`) y configurar el comportamiento de **depuración** (`modo_debug`). El **punto de entrada principal** es la función `optimizar_ast ()`, la cual recibe la raíz del árbol junto con la configuración de banderas de optimización seleccionadas desde la línea de comandos.
+
+### *6.1 Plegado de constantes (constant folding)*
+
+El **plegado de constantes** consiste en identificar en tiempo de compilación aquellas operaciones (aritméticas, relacionales o lógicas) cuyos operandos sean **literales constantes conocidos**, evaluar su resultado en tiempo de compilación y reemplazar todo el subárbol de la operación por un único nodo hoja constante con el valor obtenido.
+
+#### *6.1.1 Diseño y decisiones*
+
+El pase se implementa a través de un **Recorrido Bottom-Up / Post-Order** mediante la función recursiva `pase_plegado_constantes ()`.
+
+Se tomó la **decisión** de utilizar un recorrido de abajo hacia arriba por los siguientes motivos:
+
+- **Resolución de subexpresiones anidadas**: Permite evaluar primero los nodos hoja y subárboles más profundos. Al transformar los hijos en literales constantes, el nodo padre descubre que sus operandos ahora son constantes, permitiendo resolver expresiones complejas en cascada en una misma pasada o en pasadas sucesivas.
+- **Estrategia multipase**: La función `optimizar_ast ()` ejecuta el pase dentro de un bucle `while (se_hizo_cambio)`. El bucle continúa iterando sobre el AST hasta que una pasada completa no realice ninguna modificación, garantizando la máxima reducción posible de expresiones anidadas.
+
+El **proceso de evaluación y reemplazo** se apoya en cuatro funciones auxiliares privadas:
+
+- `es_nodo_operacion ()`: Determina si un nodo representa una **operación evaluable** (aritmética, relacional o lógica) en tiempo de compilación.
+- `es_literal_constante ()`: Comprueba si un nodo es un **literal hoja** de tipo entero, real o booleano.
+- `calcular_resultado_operacion ()`: Realiza la **evaluación aritmética o lógica de la operación** respetando estrictamente la semántica del lenguaje C-TDS:
+  - **Aritmética entera vs. flotante**: Preserva la división entera truncada cuando ambos operandos son enteros. Si alguno de los operandos es flotante, realiza la coerción implícita a `double` y produce un resultado flotante.
+  - **Operaciones relacionales y lógicas**: Evalúa las comparaciones relacionales y las combinaciones booleanas, produciendo como resultado un nodo booleano.
+  - **Seguridad en compilación**: Detecta condiciones anómalas como divisiones o módulos por cero. En estos casos, la función retorna `0` sin modificar la estructura del árbol, delegando el manejo correspondiente a las etapas posteriores.
+- `reemplazar_hijo_por_constante ()`: Al confirmarse que una operación es evaluable, esta función **crea un nuevo nodo constante hoja, preservando la línea y la columna originales** del subárbol reemplazado para mantener la trazabilidad de ubicación. Posteriormente, sustituye el puntero en el arreglo de hijos del padre y libera completamente la memoria del subárbol de la operación previa.
+
+#### *6.1.2 Integración en el flujo del compilador*
+
+El optimizador se ubica **entre el análisis semántico y la generación de código intermedio**:
+
+1. **Precondición**: Garantiza que todos los nodos del AST posean sus tipos de datos correctamente resueltos y que los identificadores estén vinculados a la tabla de símbolos.
+2. **Impacto en el backend**: Al transformar subárboles de operaciones complejas en nodos hoja constantes, el generador de código intermedio traduce directamente estas hojas en asignaciones o argumentos simples, omitiendo por completo la emisión de cuádruplos de cómputo aritmético y eliminando la generación de variables temporales intermedias.
+
+#### *6.1.3 Modo de depuración*
+
+De igual manera que en las demás etapas del compilador, el optimizador soporta el **modo de depuración** cuando se activa la opción `-debug` por consola.
+
+Cuando la bandera se encuentra activa, la ejecución emite mensajes estructurados por consola utilizando el **prefijo** `[OPTIMIZADOR]`. Esto permite realizar un seguimiento detallado de:
+
+- El **inicio y fin** del proceso de optimización del AST.
+- La identificación del **pase activo** y el **número de pasada** dentro del bucle multipase.
+- La **ubicación** exacta (línea y columna) de cada operación replegada, indicando el **operador** original y el valor del **literal** resultante.
+- El resumen final con la cantidad total de **transformaciones** aplicadas y **pasadas** requeridas.
+
+**Ejemplo** de traza generada por el optimizador:
+
+```text
+[OPTIMIZADOR] Comienza la optimización del AST.
+[OPTIMIZADOR] Pase activado: Plegado de Constantes (Constant Folding).
+[OPTIMIZADOR] Iniciando pasada 1...
+[OPTIMIZADOR] Línea 5, Columna 16: Operación '*' replegada a literal constante (int: 10).
+[OPTIMIZADOR] Línea 5, Columna 12: Operación '+' replegada a literal constante (int: 20).
+[OPTIMIZADOR] Línea 5, Columna 20: Operación '-' replegada a literal constante (int: 16).
+[OPTIMIZADOR] Iniciando pasada 2...
+[OPTIMIZADOR] Plegado de constantes finalizado.
+[OPTIMIZADOR] Resumen: 3 transformación(es) en 2 pasada(s).
+[OPTIMIZADOR] Optimización del AST finalizada correctamente.
+```
+
+Debido a la naturaleza del recorrido **Post-Order (Bottom-Up)**, la totalidad de los subárboles constantes se reducen durante la primera pasada. La segunda pasada actúa como una verificación garantizando que el árbol alcanzó un estado óptimo y estable.
+
+#### *6.1.4 Pruebas*
+
+Se incorporó un conjunto de **12 pruebas** automatizadas destinadas a verificar el funcionamiento del pase de plegado de constantes sobre las distintas construcciones del lenguaje.
+
+Las pruebas se encuentran **organizadas** en el directorio:
+
+```text
+Src/Test/Optimizador/PlegadoConstantes/
+```
+
+Los **resultados** generados durante su ejecución se almacenan en:
+
+```text
+Src/Test/Resultados/Optimizador/PlegadoConstantes/
+```
+
+Los resultados generados durante las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
+
+Las **pruebas** cubren las principales operaciones y casos de evaluación:
+
+- **Aritmética entera**, truncamiento de división y operador módulo.
+- **Aritmética flotante** y coerción implícita de tipos.
+- **Operadores unarios** en asignaciones y **sentencias `return`**.
+- **Operadores relacionales y lógicos** en condiciones de control (`if`, `while`).
+- Plegado de expresiones en **argumentos** de funciones y expresiones de retorno.
+- **Plegado parcial** en expresiones mixtas (variables combinadas con constantes).
+- Preservación de subárboles en **expresiones no plegables** (como llamadas a funciones).
+- Reducción en **cascada multipase** sobre expresiones profundamente anidadas.
+- **Plegado dentro de bloques** y estructuras de control anidadas.
+
+Para cada prueba se genera el archivo de código intermedio estándar (`.ci`) y su representación gráfica (`.dot` / `.png`), así como sus **versiones optimizadas** correspondientes (`_opt.ci` y `_opt.dot` / `_opt.png`). Esto permite verificar visualmente y por texto la eliminación de instrucciones intermedias y la simplificación alcanzada en la estructura del AST.
+
 ---
 
 ## *Programa principal*
 
 Se incorporó [main.c](../Src/main.c), encargado de **coordinar la ejecución del compilador y de gestionar la interfaz de línea de comandos**.
 
-En la etapa actual, el programa principal permite ejecutar el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico**, la **generación de código intermedio** y la **generación de código Assembly** del archivo fuente. El procesamiento por defecto avanza hasta la **generación de un archivo ejecutable `.out`**. La etapa posterior, correspondiente a las optimizaciones, se encuentra contemplada en la interfaz, pero todavía no está implementada.
+En la etapa actual, el programa principal permite ejecutar el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico**, la **generación de código intermedio** y la **generación de código Assembly** del archivo fuente. El procesamiento por defecto avanza hasta la **generación de un archivo ejecutable `.out`**. El **módulo de optimización** se encuentra integrado al flujo de compilación, permitiendo aplicar pases de transformación sobre el AST una vez superado el análisis semántico y antes de la generación de código intermedio.
 
 El **procesamiento** actual consiste en:
 
@@ -2025,6 +2125,7 @@ El **procesamiento** actual consiste en:
    - **Análisis léxico** mediante Flex, para la etapa `scan`.
    - **Análisis sintáctico** mediante Bison, utilizando los tokens proporcionados por Flex, para la etapa `parse`.
    - **Análisis semántico** mediante el AST y la tabla de símbolos, como parte del procesamiento completo.
+   - **Optimizador del AST**, para las opciones `-opt plegado-constantes` o `-opt all`, transformando el AST en memoria tras superar el análisis semántico.
    - **Generación de código intermedio**, para la etapa `codinter`, a partir del AST validado semánticamente, cuando el análisis semántico finaliza correctamente y no se está ejecutando el modo de pruebas semánticas.
    - **Generación de código Assembly** a partir de los cuádruplos intermedios y la tabla de símbolos, para la etapa `assembly`.
    - **Ensamblado y enlazado final mediante `gcc`** junto con la librería de runtime (`runtime.c`), generando el archivo ejecutable por defecto.
@@ -2041,19 +2142,23 @@ De esta manera, no es necesario corregir un error para que aparezca automáticam
 
 Durante la generación de código intermedio, la ocurrencia de un error provoca que **se cancele la ejecución de la etapa** sin producir ninguna secuencia como salida. El mismo comportamiento se produce durante la generación de código Assembly.
 
+El optimizador del AST se ejecuta únicamente si las etapas previas finalizaron sin errores. **No genera errores de lenguaje**, sino que opera como una transformación estructural en memoria que preserva la semántica original del programa.
+
 Cuando el análisis sintáctico se ejecuta como parte del **procesamiento completo**, el AST generado se conserva para realizar posteriormente el análisis semántico.
 
 En cambio, cuando se solicita explícitamente **`-target parse`**, el AST solamente se utiliza para completar esa etapa y posteriormente es liberado.
 
-La **generación del archivo de salida** y la configuración del modo de depuración son coordinadas por `main.c`. Dependiendo de la etapa seleccionada, la salida generada corresponde a un archivo `.lex`, `.sint`, `.ci`, `ass`, o bien el archivo ejecutable `.out` si no se especifica nada.
+La **generación del archivo de salida** y la configuración del modo de depuración son coordinadas por `main.c`. Dependiendo de la etapa seleccionada, la salida generada corresponde a un archivo `.lex`, `.sint`, `.ci`, `.ass`, o bien el archivo ejecutable `.out` si no se especifica nada.
 
 En el caso del **análisis sintáctico**, cuando se activa el modo de depuración, también se genera un archivo `.dot` con la representación del AST.
 
-Cuando se ejecuta el **análisis semántico** con -debug, se genera el archivo .dot después del análisis semántico, por lo que representa el AST enriquecido con la información obtenida durante esta etapa.
+Cuando se ejecuta el **análisis semántico** con `-debug`, se genera el archivo `.dot` después del análisis semántico, por lo que representa el AST enriquecido con la información obtenida durante esta etapa.
 
-El **reconocimiento de los tokens** es responsabilidad del analizador léxico, mientras que la **validación de la estructura sintáctica** y la **construcción del AST** corresponden al analizador sintáctico. El **análisis semántico** utiliza posteriormente ese AST junto con la tabla de símbolos propia de la etapa.
+Asimismo, cuando se activa el **modo de depuración** (`-debug`) junto con las **banderas de optimización** (`-opt`), la consola emite la traza detallada de transformaciones (`[OPTIMIZADOR]`) y el archivo `.dot` generado pasa a representar el **AST optimizado** resultante del proceso.
 
-La **generación de código intermedio** se realiza a partir del AST validado semánticamente. Si el análisis sintáctico o semántico detecta errores, se **cancela el procesamiento** y no se genera una secuencia de código intermedio como salida. En caso contrario, se recorre el AST para generar las **instrucciones** correspondientes a las sentencias del programa. Si se especifica explícitamente el objetivo mediante `-target codinter`, estas instrucciones se escriben en un archivo con **extensión `.ci`**. Caso contrario, la compilación continúa hacia las etapas posteriores de generación de código. El **modo de pruebas semánticas** (activado con `-test-sem`) permite ejecutar exclusivamente el análisis semántico sin avanzar hacia ninguna etapa de backend.
+El **reconocimiento de los tokens** es responsabilidad del analizador léxico, mientras que la **validación de la estructura sintáctica** y la **construcción del AST** corresponden al analizador sintáctico. El **análisis semántico** utiliza posteriormente ese AST junto con la tabla de símbolos propia de la etapa. El **optimizador del AST** recibe ese árbol validado y aplica transformaciones de simplificación en memoria antes de su traducción.
+
+La **generación de código intermedio** se realiza a partir del AST validado semánticamente (y potencialmente optimizado por el módulo de optimización si se especificaron las opciones `-opt`). Si el análisis sintáctico o semántico detecta errores, se **cancela el procesamiento** y no se genera una secuencia de código intermedio como salida. En caso contrario, se recorre el AST para generar las **instrucciones** correspondientes a las sentencias del programa. Si se especifica explícitamente el objetivo mediante `-target codinter`, estas instrucciones se escriben en un archivo con **extensión `.ci`**. Caso contrario, la compilación continúa hacia las etapas posteriores de generación de código. El **modo de pruebas semánticas** (activado con `-test-sem`) permite ejecutar exclusivamente el análisis semántico sin avanzar hacia ninguna etapa de backend.
 
 A partir de la lista de cuádruplos generada en memoria y la tabla de símbolos, la **etapa de Assembly** traduce las instrucciones intermedias a **código de máquina x86-64** (siguiendo la ABI estándar de Linux). Si se solicita explícitamente el objetivo `-target assembly`, este código se vuelca en un archivo con extensión `.ass`. Por defecto, cuando no se especifica un objetivo, el compilador procesa esta etapa de forma transparente generando un **archivo temporal de Assembly**, el cual es ensamblado y enlazado automáticamente mediante `gcc` junto con la **librería de runtime** (`runtime.c`) para producir finalmente un **archivo ejecutable** con extensión `.out`.
 
@@ -2199,9 +2304,9 @@ La información mostrada depende de la etapa seleccionada. En el análisis léxi
 
 Además, durante el análisis sintáctico, el modo de depuración permite **mostrar el AST por consola y generar un archivo `.dot` con su representación**, a partir del cual puede obtenerse una representación gráfica mediante Graphviz.
 
-Cuando se ejecuta el **procesamiento completo** con `-debug`, el archivo `.dot` se genera después del análisis semántico, por lo que contiene el **AST enriquecido** con la información semántica obtenida durante esa etapa.
+Cuando se ejecuta el **procesamiento completo** con `-debug`, el archivo `.dot` se genera después del análisis semántico, por lo que contiene el **AST enriquecido** con la información semántica obtenida durante esa etapa. Si se aplicaron **optimizaciones** mediante `-opt`, dicho archivo representa el **AST optimizado** resultante del proceso.
 
-Asimismo, durante la generación de código intermedio y la generación de código Assembly, el modo de depuración permite **imprimir por consola información de trazabilidad sobre la creación de cuádruplos y la traducción a instrucciones de máquina**, facilitando la inspección y el diagnóstico del backend del compilador.
+Asimismo, durante la optimización del AST, la generación de código intermedio y la generación de código Assembly, el modo de depuración permite **imprimir por consola información de trazabilidad sobre las transformaciones aplicadas, la creación de cuádruplos y la traducción a instrucciones de máquina**, facilitando la inspección y el diagnóstico del backend del compilador.
 
 El modo de depuración es **independiente** del archivo de salida principal del compilador.
 
@@ -2213,9 +2318,17 @@ La opción:
 -opt <optimización>
 ```
 
-se encuentra contemplada por la interfaz de línea de comandos para las **etapas posteriores** del proyecto.
+permite activar **pases de optimización** específicos sobre el AST antes de la generación de código.
 
-Actualmente **las optimizaciones todavía no están implementadas**, por lo que su utilización informa esta situación y finaliza la ejecución.
+Actualmente, se encuentra implementada la optimización:
+
+- `plegado-constantes`: Activa el constant folding sobre el AST.
+
+Por ejemplo:
+
+```bash
+c-tds -opt plegado-constantes programa.ctds
+```
 
 También se contempla:
 
@@ -2223,7 +2336,7 @@ También se contempla:
 -opt all
 ```
 
-para solicitar la **aplicación de todas las optimizaciones disponibles** cuando estas sean incorporadas.
+para solicitar la **aplicación de todas las optimizaciones disponibles** en el compilador.
 
 ### *Combinaciones*
 
@@ -2404,6 +2517,30 @@ Src/Test/Resultados/CodigoAssembly/
 
 Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**, verificando la generación del archivo Assembly `.ass`, la compilación a ejecutable `.out` mediante `gcc`, y comparando la salida por consola contra los resultados esperados (`.expected`).
 
+### *Ejecutar las pruebas de optimización*
+
+Para **ejecutar todas las pruebas del optimizador del AST (Plegado de Constantes)**:
+
+```bash
+make tests-optimizador
+```
+
+El objetivo compila y ejecuta las **12 pruebas** ubicadas en:
+
+```text
+Src/Test/Optimizador/PlegadoConstantes/
+```
+
+Los **resultados** de estas pruebas se generan en:
+
+```text
+Src/Test/Resultados/Optimizador/PlegadoConstantes/
+```
+
+Para cada prueba, el comando genera tanto el código intermedio normal (`.ci`) y su gráfico (`.dot` / `.png`), como la **versión optimizada** (`_opt.ci`, `_opt.dot` / `_opt.png`), permitiendo comparar visualmente y por texto la reducción lograda por el optimizador.
+
+Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**.
+
 ### *Ejecutar todas las pruebas*
 
 El objetivo:
@@ -2423,6 +2560,7 @@ En el estado actual del proyecto, esto equivale a ejecutar:
 5. Las pruebas del **análisis semántico**.
 6. Las pruebas de **código intermedio**.
 7. Las pruebas de **código assembly y ejecutables**.
+8. Las pruebas de **optimización (Plegado de Constantes)**.
 
 ### *Ejecutar el compilador manualmente*
 
