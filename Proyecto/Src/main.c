@@ -4,6 +4,7 @@
 #include "Cuadruplos.h"
 #include "GeneradorCodigoIntermedio.h"
 #include "GeneradorCodigoAssembly.h"
+#include "OptimizadorAST.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,6 +56,7 @@ typedef struct {
     int debug;
     int optimizar;
     int optimizar_todo;
+    int optimizar_plegado_constantes;
 } Configuracion;
 
 /* ========== Prototipos de funciones auxiliares ========== */
@@ -87,16 +89,10 @@ int main (int argc, char *argv []) {
     configuracion.debug = 0;
     configuracion.optimizar = 0;
     configuracion.optimizar_todo = 0;
+    configuracion.optimizar_plegado_constantes = 0;
 
     // Se procesan los argumentos de la línea de comandos.
     if (procesar_argumentos (argc, argv, &configuracion) != 0) {
-        return EXIT_FAILURE;
-    }
-
-    // Optimizaciones aún sin implementar.
-    if (configuracion.optimizar) {
-        fprintf (stderr, "ERROR: Las optimizaciones todavía no están implementadas.\n");
-
         return EXIT_FAILURE;
     }
 
@@ -150,6 +146,21 @@ int main (int argc, char *argv []) {
 
                 resultado = analizar_semanticamente (&configuracion, salida, &ts);
             
+                // Si el semántico fue exitoso, se aplican las optimizaciones en el AST.
+                if (resultado == EXIT_SUCCESS && configuracion.optimizar) {
+                    OpcionesOptimizacion opciones_opt = {0};
+
+                    if (modo_debug) {
+                        opciones_opt.modo_debug = 1;
+                    }
+
+                    if (configuracion.optimizar_todo || configuracion.optimizar_plegado_constantes) {
+                        opciones_opt.plegado_constantes = 1;
+                    }
+
+                    arbol = optimizar_ast (arbol, opciones_opt);
+                }
+                
                 // Se genera un archivo DOT del AST enriquecido por el semántico.
                 if (configuracion.debug) {
                     char *nombre_dot;
@@ -369,6 +380,14 @@ static int procesar_argumentos (int argc, char *argv [], Configuracion *configur
             // "all" activa todas las optimizaciones.
             if (strcmp (argv [i], "all") == 0) {
                 configuracion -> optimizar_todo = 1;
+            }
+            else if (strcmp (argv [i], "plegado-constantes") == 0) {
+                configuracion -> optimizar_plegado_constantes = 1;
+            }
+            else {
+                fprintf (stderr, "ERROR: Optimización desconocida '%s'.\n", argv [i]);
+                
+                return 1;
             }
         }
 
