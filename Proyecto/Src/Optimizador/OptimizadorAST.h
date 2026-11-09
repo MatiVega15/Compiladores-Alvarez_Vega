@@ -9,6 +9,7 @@
  */
 typedef struct {
     int plegado_constantes; // Activa el Constant Folding.
+    int eliminacion_codigo_muerto; // Activa el Dead Code Elimination.
 
     int modo_debug; // Activa la salida de depuración.
 } OpcionesOptimizacion;

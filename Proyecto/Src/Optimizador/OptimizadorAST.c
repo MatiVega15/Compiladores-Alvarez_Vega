@@ -5,10 +5,13 @@
 
 /* Funciones auxiliares privadas. */
 static int pase_plegado_constantes (NodoAST *nodo, int modo_debug, int *total_transformaciones);
+static int pase_eliminacion_codigo_muerto (NodoAST *nodo, int modo_debug, int *total_transformaciones);
 static int es_nodo_operacion (TipoNodo tipo);
 static int es_literal_constante (const NodoAST *nodo);
 static int calcular_resultado_operacion (NodoAST *nodo, TipoNodo *tipo_res, TipoDato *tipo_dato_res, ValorNodo *valor_res);
 static void reemplazar_hijo_por_constante (NodoAST *padre, int indice_hijo, TipoNodo tipo_nuevo, TipoDato tipo_dato_nuevo, ValorNodo valor_nuevo, int modo_debug, int *total_transformaciones);
+static void reemplazar_hijo_por_subarbol (NodoAST *padre, int indice, NodoAST *subarbol_nuevo, int modo_debug, int *total_transformaciones, const char *motivo);
+static void eliminar_hijo_y_desplazar (NodoAST *padre, int indice, int modo_debug, int *total_transformaciones, const char *motivo);
 static const char *nombre_tipo_nodo (TipoNodo tipo);
 
 /* =========== Función principal =========== */
@@ -46,6 +49,32 @@ NodoAST *optimizar_ast (NodoAST *ast, OpcionesOptimizacion opciones) {
         if (opciones.modo_debug) {
             printf ("[OPTIMIZADOR] Plegado de constantes finalizado.\n");
             printf ("[OPTIMIZADOR] Resumen: %d transformación(es) en %d pasada(s).\n", total_transformaciones, numero_pasada);
+        }
+    }
+
+    // Si el usuario activó la eliminación de código muerto.
+    if (opciones.eliminacion_codigo_muerto) {
+        int se_hizo_cambio = 1;
+        int numero_pasada = 0;
+        int total_transformaciones = 0;
+
+        if (opciones.modo_debug) {
+            printf ("[OPTIMIZADOR] Pase activado: Eliminación de código muerto (Dead Code Elimination).\n");
+        }
+
+        // Se repite el pase mientras se encuentre código muerto para eliminar.
+        while (se_hizo_cambio) {
+            numero_pasada ++;
+            if (opciones.modo_debug) {
+                printf ("[OPTIMIZADOR] Iniciando pasada %d...\n", numero_pasada);
+            }
+            
+            se_hizo_cambio = pase_eliminacion_codigo_muerto (ast, opciones.modo_debug, &total_transformaciones);
+        }
+
+        if (opciones.modo_debug) {
+            printf ("[OPTIMIZADOR] Eliminación de código muerto finalizada.\n");
+            printf ("[OPTIMIZADOR] Resumen: %d nodo(s) o rama(s) podada(s) en %d pasada(s).\n", total_transformaciones, numero_pasada);
         }
     }
 
@@ -93,6 +122,105 @@ static int pase_plegado_constantes (NodoAST *nodo, int modo_debug, int *total_tr
             // Si la operación del hijo puede calcularse por completo.
             if (calcular_resultado_operacion (hijo, &tipo_nuevo, &tipo_dato_nuevo, &valor_nuevo)) {
                 reemplazar_hijo_por_constante (nodo, i, tipo_nuevo, tipo_dato_nuevo, valor_nuevo, modo_debug, total_transformaciones);
+                hubo_cambios = 1;
+            }
+        }
+    }
+
+    return hubo_cambios;
+}
+
+/**
+ * Recorre el AST de forma recursiva (Post-Order / Bottom-Up, de abajo hacia arriba)
+ * para identificar y eliminar patrones de código inalcanzable (Dead Code).
+ * 
+ * Primero procesa todos los subárboles hijos de forma recursiva. Luego, evalúa
+ * los hijos del nodo actual buscando los siguientes patrones:
+ *  - IF (true) -> Reemplaza el condicional entero por su bloque THEN.
+ *  - IF (false) -> Elimina el condicional, o lo reemplaza por su bloque ELSE (si existe).
+ *  - WHILE (false) -> Elimina el ciclo completo.
+ *  - Código post-RETURN -> Elimina las sentencias que le siguen dentro de un bloque.
+ */
+static int pase_eliminacion_codigo_muerto (NodoAST *nodo, int modo_debug, int *total_transformaciones) {
+    // Caso base.
+    if (nodo == NULL) {
+        return 0;
+    }
+
+    int hubo_cambios = 0;
+
+    // Se recorren todos los hijos de forma recursiva (Post-Order).
+    for (int i = 0; i < nodo -> cantidad_hijos; i ++) {
+        if (pase_eliminacion_codigo_muerto (nodo -> hijos [i], modo_debug, total_transformaciones)) {
+            hubo_cambios = 1;
+        }
+    }
+
+    // Revisa si los hijos actuales son código muerto.
+    for (int i = 0; i < nodo -> cantidad_hijos; i ++) {
+        NodoAST *hijo = nodo -> hijos [i];
+
+        if (hijo == NULL) {
+            continue;
+        }
+
+        // Patrón A: Condicionales IF.
+        if (hijo -> tipo == AST_IF) {
+            NodoAST *condicion = hijo -> hijos [0];
+
+            if (condicion -> tipo == AST_TRUE) {
+                // IF (true) -> Reemplazar el IF entero por el bloque THEN (hijo 1).
+                reemplazar_hijo_por_subarbol (nodo, i, hijo -> hijos [1], modo_debug, total_transformaciones, "IF (true) -> Reemplazado por rama THEN");
+                hubo_cambios = 1;
+            }
+            else if (condicion -> tipo == AST_FALSE) {
+                if (hijo -> cantidad_hijos > 2) {
+                    // IF (false) con ELSE -> Reemplazar por bloque ELSE (hijo 2).
+                    reemplazar_hijo_por_subarbol (nodo, i, hijo -> hijos [2], modo_debug, total_transformaciones, "IF (false) -> Reemplazado por rama ELSE");
+                }
+                else {
+                    // IF (false) sin ELSE -> Eliminar IF por completo.
+                    eliminar_hijo_y_desplazar (nodo, i, modo_debug, total_transformaciones, "IF (false) -> Rama eliminada");
+                    
+                    // Se desplazaron los índices, hay que retroceder i.
+                    i --;
+                }
+
+                hubo_cambios = 1;
+            }
+        }
+        // Patrón B: Ciclo WHILE.
+        else if (hijo -> tipo == AST_WHILE) {
+            NodoAST *condicion = hijo -> hijos [0];
+
+            if (condicion -> tipo == AST_FALSE) {
+                // WHILE (false) -> Eliminar WHILE por completo.
+                eliminar_hijo_y_desplazar (nodo, i, modo_debug, total_transformaciones, "WHILE (false) -> Ciclo inalcanzable eliminado");
+                    
+                // Se desplazaron los índices, hay que retroceder i.
+                i --;
+            
+                hubo_cambios = 1;
+            }
+        }
+        // Patrón C: Código inalcanzable post-RETURN.
+        else if (hijo -> tipo == AST_RETURN && nodo -> tipo == AST_BLOQUE) {
+            if (i < nodo -> cantidad_hijos - 1) {
+                if (modo_debug) {
+                    printf ("[OPTIMIZADOR] Línea %d, Columna %d: Sentencia RETURN trunca %d sentencia(s) inalcanzable(s) posterior(es).\n", hijo -> linea, hijo -> columna, (nodo -> cantidad_hijos - 1 - i));
+                }
+
+                // Se liberan todos los nodos siguientes.
+                for (int j = i + 1; j < nodo -> cantidad_hijos; j ++) {
+                    liberar_arbol (nodo -> hijos [j]);
+                }
+
+                // Se trunca el bloque.
+                nodo -> cantidad_hijos = i + 1;
+                if (total_transformaciones != NULL) {
+                    (*total_transformaciones) ++;
+                }
+
                 hubo_cambios = 1;
             }
         }
@@ -464,6 +592,68 @@ static void reemplazar_hijo_por_constante (NodoAST *padre, int indice_hijo, Tipo
 
     // Se destruye el subárbol anterior de la operación.
     liberar_arbol (rama_vieja);
+
+    if (total_transformaciones != NULL) {
+        (*total_transformaciones) ++;
+    }
+}
+
+/**
+ * Reemplaza un nodo padre por uno de sus propios subárboles.
+ * 
+ * Desvincula el subárbol preservado para evitar que sea
+ * liberado al destruir el padre original.
+ */
+static void reemplazar_hijo_por_subarbol (NodoAST *padre, int indice, NodoAST *subarbol_nuevo, int modo_debug, int *total_transformaciones, const char *motivo) {
+    NodoAST *viejo = padre -> hijos [indice];
+
+    // Se coloca el subárbol preservado en el lugar del nodo viejo.
+    padre -> hijos [indice] = subarbol_nuevo;
+
+    // Se desvincula el subárbol nuevo del viejo.
+    if (subarbol_nuevo != NULL) {
+        for (int i = 0; i < viejo -> cantidad_hijos; i ++) {
+            if (viejo -> hijos [i] == subarbol_nuevo) {
+                viejo -> hijos [i] = NULL;
+                break;
+            }
+        }
+    }
+
+    if (modo_debug) {
+        printf ("[OPTIMIZADOR] Línea %d, Columna %d: %s.\n", viejo -> linea, viejo -> columna, motivo);
+    }
+
+    // Se destruye el nodo viejo y todo su contenido (excepto lo desvinculado).
+    liberar_arbol (viejo);
+
+    if (total_transformaciones != NULL) {
+        (*total_transformaciones) ++;
+    }
+}
+
+/**
+ * Elimina un nodo por completo y compacta el arreglo de hijos
+ * desplazándolo hacia la izquierda.
+ */
+static void eliminar_hijo_y_desplazar (NodoAST *padre, int indice, int modo_debug, int *total_transformaciones, const char *motivo) {
+    NodoAST *viejo = padre -> hijos [indice];
+
+    if (modo_debug) {
+        printf ("[OPTIMIZADOR] Línea %d, Columna %d: %s.\n", viejo -> linea, viejo -> columna, motivo);
+    }
+
+    // Se destruye la rama muerta.
+    liberar_arbol (viejo);
+
+    // Se desplazan los hijos siguientes una posición hacia la izquierda.
+    for (int i = indice; i < padre -> cantidad_hijos - 1; i ++) {
+        padre -> hijos [i] = padre -> hijos [i + 1];
+    }
+
+    // Se limpia la última posición y se achica el contador.
+    padre -> hijos [padre -> cantidad_hijos - 1] = NULL;
+    padre -> cantidad_hijos --;
 
     if (total_transformaciones != NULL) {
         (*total_transformaciones) ++;
