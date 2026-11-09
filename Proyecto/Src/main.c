@@ -57,6 +57,7 @@ typedef struct {
     int optimizar;
     int optimizar_todo;
     int optimizar_plegado_constantes;
+    int optimizar_codigo_muerto;
 } Configuracion;
 
 /* ========== Prototipos de funciones auxiliares ========== */
@@ -90,6 +91,7 @@ int main (int argc, char *argv []) {
     configuracion.optimizar = 0;
     configuracion.optimizar_todo = 0;
     configuracion.optimizar_plegado_constantes = 0;
+    configuracion.optimizar_codigo_muerto = 0;
 
     // Se procesan los argumentos de la línea de comandos.
     if (procesar_argumentos (argc, argv, &configuracion) != 0) {
@@ -156,6 +158,10 @@ int main (int argc, char *argv []) {
 
                     if (configuracion.optimizar_todo || configuracion.optimizar_plegado_constantes) {
                         opciones_opt.plegado_constantes = 1;
+                    }
+
+                    if (configuracion.optimizar_todo || configuracion.optimizar_codigo_muerto) {
+                        opciones_opt.eliminacion_codigo_muerto = 1;
                     }
 
                     arbol = optimizar_ast (arbol, opciones_opt);
@@ -383,6 +389,9 @@ static int procesar_argumentos (int argc, char *argv [], Configuracion *configur
             }
             else if (strcmp (argv [i], "plegado-constantes") == 0) {
                 configuracion -> optimizar_plegado_constantes = 1;
+            }
+            else if (strcmp (argv [i], "codigo-muerto") == 0) {
+                configuracion -> optimizar_codigo_muerto = 1;
             }
             else {
                 fprintf (stderr, "ERROR: Optimización desconocida '%s'.\n", argv [i]);
