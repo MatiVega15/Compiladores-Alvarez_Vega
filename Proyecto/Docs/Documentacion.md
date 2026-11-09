@@ -2011,11 +2011,11 @@ Esta decisión responde a que la prueba **requiere interacción mediante la entr
 
 La etapa de optimización fue implementada en **lenguaje C** y actúa directamente sobre el **árbol sintáctico abstracto (AST)** una vez que ha sido validado sintáctica y semánticamente.
 
-Su objetivo es **transformar y simplificar la estructura del AST antes de la generación de código intermedio**, produciendo una representación equivalente pero más eficiente, reduciendo la cantidad de instrucciones intermedias (`cuádruplos`) y disminuyendo la carga de cómputo en tiempo de ejecución.
+Su objetivo es **transformar y simplificar la estructura del AST antes de la generación de código intermedio**, produciendo una representación equivalente pero más eficiente, reduciendo la cantidad de instrucciones intermedias (`cuádruplos`), eliminando estructuras inalcanzables y disminuyendo la carga de cómputo en tiempo de ejecución.
 
 *Para revisar los detalles de implementación, consultar [OptimizadorAST.h](../Src/Optimizador/OptimizadorAST.h) y [OptimizadorAST.c](../Src/Optimizador/OptimizadorAST.c).*
 
-La interfaz define la estructura `OpcionesOptimizacion`, que permite **activar o desactivar** de forma independiente los pases disponibles (como `plegado_constantes`) y configurar el comportamiento de **depuración** (`modo_debug`). El **punto de entrada principal** es la función `optimizar_ast ()`, la cual recibe la raíz del árbol junto con la configuración de banderas de optimización seleccionadas desde la línea de comandos.
+La interfaz define la estructura `OpcionesOptimizacion`, que permite **activar o desactivar** de forma independiente los pases disponibles (como `plegado_constantes` y `eliminacion_codigo_muerto`) y configurar el comportamiento de **depuración** (`modo_debug`). El **punto de entrada principal** es la función `optimizar_ast ()`, la cual recibe la raíz del árbol junto con la configuración de banderas de optimización seleccionadas desde la línea de comandos.
 
 ### *6.1 Plegado de constantes (constant folding)*
 
@@ -2107,6 +2107,69 @@ Las **pruebas** cubren las principales operaciones y casos de evaluación:
 
 Para cada prueba se genera el archivo de código intermedio estándar (`.ci`) y su representación gráfica (`.dot` / `.png`), así como sus **versiones optimizadas** correspondientes (`_opt.ci` y `_opt.dot` / `_opt.png`). Esto permite verificar visualmente y por texto la eliminación de instrucciones intermedias y la simplificación alcanzada en la estructura del AST.
 
+### *6.2 Eliminación de código muerto (dead code elimination)*
+
+La **eliminación de código muerto** consiste en identificar, podar y desvincular de la estructura del AST aquellas porciones de código que, por diseño estático, **jamás podrán ser ejecutdas en tiempo de ejecución** (código inalcanzable), liberando por completo la memoria de dichos subárboles y evitando la generación de cuádruplos innecesarios en el backend.
+
+#### *6.2.1 Diseño y decisiones*
+
+El pase se implementa a través de un **Recorrido Bottom-Up / Post-Order** mediante la función recursiva `pase_eliminacion_codigo_muerto ()`.
+
+Se tomó la **decisión** de abordar el análisis sintáctico de control de flujo bajo los siguientes criterios:
+
+- **Evaluación de condiciones constantes de estructuras `if` / `if-else`**:
+  - *Si la condición estática de un `if` evalúa a un literal booleano `TRUE`*: la estructura condicional completa es reemplazada de manera directa por la **rama `then`** (promoviendo su bloque de instrucciones hacia el ámbito padre), y la rama `else` (si existiera) es eliminada y liberada de la memoria.
+  - *Si la condición estática de un `if` evalúa a un literal booleano `FALSE`*: la rama `then` se desecha por completo. Si el `if` posee una rama `else`, esta última **ocupa el lugar del condicional** mediante la promoción de su bloque; si no posee `else`, el nodo `if` entero es removido y desvinculado compactando el arreglo de hijos del bloque contenedor.
+- **Poda de ciclos inalcanzables (`while`)**:
+  - *Si la condición estática de un bucle `while` evalúa a un literal booleano `FALSE`*: todo el nodo del bucle junto con su bloque interno y subárboles anidados se consideran código muerto inaccesible, siendo **eliminados y liberados por completo** de la memoria del AST, reduciendo el tamaño del arreglo de hijos del padre.
+- **Interrupción de flujo por sentencias `return`**:
+  - *Si se localiza una sentencia `return` dentro de un bloque de código*: **todas las sentencias subsiguientes que aparezcan a continuación en el mismo ámbito estricto se consideran código inalcanzable**. El arreglo de hijos del bloque se trunca inmediatamente en la posición del `return`, liberando de la memoria todos los nodos posteriores. El alcance de esta regla respeta estrictamente los límites del bloque léxico actual, sin afectar instrucciones ubicadas en ámbitos superiores (como el bloque padre).
+
+Al igual que en el plegado de constantes, la función `optimizar_ast ()` ejecuta este pase dentro de un **bucle multipase iterativo** que continúa hasta que no se detecten nuevas modificaciones estructurales.
+
+#### *6.2.2 Integración en el flujo del compilador*
+
+Este pase se ejecuta conjuntamente o de manera independiente **tras superar el análisis semántico**:
+
+- **Impacto en el backend**: Al purgar las ramas falsas de los condicionales, los bucles inalcanzables y el código posterior a un `return`, el generador de código intermedio y el backend de Assembly **omiten por completo la emisión de etiquetas redundantes, saltos condicionales (`IF_FALSE`) e instrucciones de máquina muertas**, produciendo ejecutables más limpios y eficientes.
+
+#### *6.2.3 Modo de depuración*
+
+Cuando el modo de depuración (`-debug`) se encuentra activo, la ejecución emite trazas detalladas por consola utilizando el **prefijo** `[OPTIMIZADOR]`, reportando de manera granular:
+
+- La **línea y columna** exacta de cada estructura afectada.
+- El **tipo de transformación aplicada** (por ejemplo, `IF (true) -> Reemplazado por rama THEN`).
+- El **resumen final** indicando el total de nodos o ramas podadas en el proceso.
+
+#### *6.2.4 Pruebas*
+
+Se incorporó un conjunto de **9 pruebas** automatizadas destinadas a verificar el funcionamiento del pase de plegado de eliminación de código muerto en condicionales con/sin else, bucles inalcanzables y retornos.
+
+Las pruebas se encuentran **organizadas** en el directorio:
+
+```text
+Src/Test/Optimizador/CodigoMuerto/
+```
+
+Los **resultados** generados durante su ejecución se almacenan en:
+
+```text
+Src/Test/Resultados/Optimizador/CodigoMuerto/
+```
+
+Los resultados generados durante las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
+
+Las **pruebas** cubren los siguientes casos de evaluación:
+
+- Estructuras **`if` con condición constante verdadera (`true`)**, promoviendo la rama `then` y eliminando por completo la rama `else`.
+- Estructuras **`if` con condición constante falsa (`false`)**, eliminando la rama `then` y promoviendo la rama `else` (o removiendo el nodo condicional entero si no posee `else`).
+- Bucles **`while` con condición constante falsa (`false`)**, podando y desvinculando todo el ciclo inalcanzable de la estructura del AST.
+- Sentencias **`return` que truncan y eliminan todas las instrucciones siguientes** dentro del mismo ámbito estricto.
+- Estructuras de control y bloques **anidados**.
+- Reducción en **cascada multipase** sobre estructuras muertas. 
+
+Para cada prueba se genera el archivo de código intermedio estándar (`.ci`) y su representación gráfica (`.dot` / `.png`), así como sus **versiones optimizadas** correspondientes (`_opt.ci` y `_opt.dot` / `_opt.png`). Esto permite verificar visualmente y por texto la eliminación de instrucciones intermedias y la simplificación alcanzada en la estructura del AST.
+
 ---
 
 ## *Programa principal*
@@ -2125,7 +2188,7 @@ El **procesamiento** actual consiste en:
    - **Análisis léxico** mediante Flex, para la etapa `scan`.
    - **Análisis sintáctico** mediante Bison, utilizando los tokens proporcionados por Flex, para la etapa `parse`.
    - **Análisis semántico** mediante el AST y la tabla de símbolos, como parte del procesamiento completo.
-   - **Optimizador del AST**, para las opciones `-opt plegado-constantes` o `-opt all`, transformando el AST en memoria tras superar el análisis semántico.
+   - **Optimizador del AST**, para las opciones `-opt plegado-constantes`, `-opt codigo-muerto` o `-opt all`, transformando el AST en memoria tras superar el análisis semántico.
    - **Generación de código intermedio**, para la etapa `codinter`, a partir del AST validado semánticamente, cuando el análisis semántico finaliza correctamente y no se está ejecutando el modo de pruebas semánticas.
    - **Generación de código Assembly** a partir de los cuádruplos intermedios y la tabla de símbolos, para la etapa `assembly`.
    - **Ensamblado y enlazado final mediante `gcc`** junto con la librería de runtime (`runtime.c`), generando el archivo ejecutable por defecto.
@@ -2320,14 +2383,21 @@ La opción:
 
 permite activar **pases de optimización** específicos sobre el AST antes de la generación de código.
 
-Actualmente, se encuentra implementada la optimización:
+Actualmente, se encuentran implementadas las optimizaciones:
 
 - `plegado-constantes`: Activa el constant folding sobre el AST.
+- `codigo-muerto`: Activa la poda de ramas inalcanzables, bucles falsos y código post-return (dead code elimination).
 
 Por ejemplo:
 
 ```bash
 c-tds -opt plegado-constantes programa.ctds
+```
+
+O bien:
+
+```bash
+c-tds -opt codigo-muerto programa.ctds
 ```
 
 También se contempla:
@@ -2519,22 +2589,32 @@ Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**, verifi
 
 ### *Ejecutar las pruebas de optimización*
 
-Para **ejecutar todas las pruebas del optimizador del AST (Plegado de Constantes)**:
+Para **ejecutar todas las pruebas del optimizador del AST (plegado de constantes y eliminación de código muerto)**:
 
 ```bash
 make tests-optimizador
 ```
 
-El objetivo compila y ejecuta las **12 pruebas** ubicadas en:
+El objetivo compila y ejecuta las pruebas ubicadas en los subdirectorios de optimización:
+
+- Las **12 pruebas** de plegado de constantes ubicadas en:
 
 ```text
 Src/Test/Optimizador/PlegadoConstantes/
+```
+
+- Las **9 pruebas** de eliminación de código muerto ubicadas en:
+
+```text
+Src/Test/Optimizador/CodigoMuerto/
 ```
 
 Los **resultados** de estas pruebas se generan en:
 
 ```text
 Src/Test/Resultados/Optimizador/PlegadoConstantes/
+
+Src/Test/Resultados/Optimizador/CodigoMuerto/
 ```
 
 Para cada prueba, el comando genera tanto el código intermedio normal (`.ci`) y su gráfico (`.dot` / `.png`), como la **versión optimizada** (`_opt.ci`, `_opt.dot` / `_opt.png`), permitiendo comparar visualmente y por texto la reducción lograda por el optimizador.
@@ -2560,7 +2640,7 @@ En el estado actual del proyecto, esto equivale a ejecutar:
 5. Las pruebas del **análisis semántico**.
 6. Las pruebas de **código intermedio**.
 7. Las pruebas de **código assembly y ejecutables**.
-8. Las pruebas de **optimización (Plegado de Constantes)**.
+8. Las pruebas de **optimización (plegado de constantes y eliminación de código muerto)**.
 
 ### *Ejecutar el compilador manualmente*
 
