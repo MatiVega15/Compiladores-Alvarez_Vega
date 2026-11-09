@@ -43,9 +43,11 @@ RESULTADOS_ASSEMBLY_DIR = $(RESULTADOS_DIR)/CodigoAssembly
 
 OPTIMIZADOR_TEST_DIR = $(TEST_DIR)/Optimizador
 PLEGADO_CONSTANTES_TEST_DIR = $(OPTIMIZADOR_TEST_DIR)/PlegadoConstantes
+CODIGO_MUERTO_TEST_DIR = $(OPTIMIZADOR_TEST_DIR)/CodigoMuerto
 
 RESULTADOS_OPTIMIZADOR_DIR = $(RESULTADOS_DIR)/Optimizador
 RESULTADOS_PLEGADO_CONSTANTES_DIR = $(RESULTADOS_OPTIMIZADOR_DIR)/PlegadoConstantes
+RESULTADOS_CODIGO_MUERTO_DIR = $(RESULTADOS_OPTIMIZADOR_DIR)/CodigoMuerto
 
 # ========== Archivos fuente ==========
 
@@ -109,6 +111,7 @@ PRUEBAS_CODINT = $(wildcard $(CODINT_TEST_DIR)/*.ctds)
 PRUEBAS_ASSEMBLY = $(wildcard $(ASSEMBLY_TEST_DIR)/*.ctds)
 
 PRUEBAS_PLEGADO_CONSTANTES = $(wildcard $(PLEGADO_CONSTANTES_TEST_DIR)/*.ctds)
+PRUEBAS_CODIGO_MUERTO = $(wildcard $(CODIGO_MUERTO_TEST_DIR)/*.ctds)
 
 # ========== Objetivos ==========
 
@@ -575,6 +578,7 @@ tests-assembly: $(BIN)
 # Ejecuta todas las pruebas del optimizador (comparando versión normal y optimizada).
 tests-optimizador: $(BIN)
 	@mkdir -p $(RESULTADOS_PLEGADO_CONSTANTES_DIR)
+	@mkdir -p $(RESULTADOS_CODIGO_MUERTO_DIR)
 
 	@fallidas=0; \
 	ok=0; \
@@ -601,6 +605,40 @@ tests-optimizador: $(BIN)
 			dot -Tpng $$dot_norm -o $$png_norm 2> /dev/null; \
 		fi; \
 		$(BIN) -debug -opt plegado-constantes -target codinter -o $$salida_opt $$prueba > /dev/null 2>> $$error; \
+		res_opt=$$?; \
+		if [ $$res_opt -eq 0 ] && [ -f $$dot_opt ]; then \
+			dot -Tpng $$dot_opt -o $$png_opt 2> /dev/null; \
+		fi; \
+		if [ ! -s $$error ]; then \
+			rm -f $$error; \
+		fi; \
+		if [ $$res_norm -eq 0 ] && [ $$res_opt -eq 0 ]; then \
+			echo "RESULTADO: OK"; \
+			ok=$$((ok + 1)); \
+		else \
+			echo "RESULTADO: FALLIDA"; \
+			fallidas=$$((fallidas + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	echo "======= ELIMINACIÓN DE CÓDIGO MUERTO ======="; \
+	echo ""; \
+	for prueba in $(PRUEBAS_CODIGO_MUERTO); do \
+		nombre=$$(basename $$prueba .ctds); \
+		salida_norm=$(RESULTADOS_CODIGO_MUERTO_DIR)/$$nombre.ci; \
+		dot_norm=$(RESULTADOS_CODIGO_MUERTO_DIR)/$$nombre.dot; \
+		png_norm=$(RESULTADOS_CODIGO_MUERTO_DIR)/$$nombre.png; \
+		salida_opt=$(RESULTADOS_CODIGO_MUERTO_DIR)/$${nombre}_opt.ci; \
+		dot_opt=$(RESULTADOS_CODIGO_MUERTO_DIR)/$${nombre}_opt.dot; \
+		png_opt=$(RESULTADOS_CODIGO_MUERTO_DIR)/$${nombre}_opt.png; \
+		error=$(RESULTADOS_CODIGO_MUERTO_DIR)/$$nombre.err; \
+		echo "---- $$nombre ----"; \
+		$(BIN) -debug -target codinter -o $$salida_norm $$prueba > /dev/null 2> $$error; \
+		res_norm=$$?; \
+		if [ $$res_norm -eq 0 ] && [ -f $$dot_norm ]; then \
+			dot -Tpng $$dot_norm -o $$png_norm 2> /dev/null; \
+		fi; \
+		$(BIN) -debug -opt codigo-muerto -target codinter -o $$salida_opt $$prueba > /dev/null 2>> $$error; \
 		res_opt=$$?; \
 		if [ $$res_opt -eq 0 ] && [ -f $$dot_opt ]; then \
 			dot -Tpng $$dot_opt -o $$png_opt 2> /dev/null; \
