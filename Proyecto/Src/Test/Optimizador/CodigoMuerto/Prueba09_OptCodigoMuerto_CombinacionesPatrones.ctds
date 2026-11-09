@@ -1,0 +1,19 @@
+int main () {
+    int x;
+    x = 0;
+
+    if (true) {
+        if (false) {
+            x = 999;
+        } else {
+            while (false) {
+                x = -1;
+            }
+            x = x + 1; // Lo único que debe sobrevivir del anidamiento.
+        }
+    } else {
+        return 0;
+    }
+
+    return x;
+}

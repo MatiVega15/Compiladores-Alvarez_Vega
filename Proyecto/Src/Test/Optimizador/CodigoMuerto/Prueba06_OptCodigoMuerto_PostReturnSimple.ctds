@@ -1,0 +1,14 @@
+int main () {
+    int x;
+    x = 42;
+
+    return x;
+
+    // Se elimina todo para abajo.
+    
+    x = 100;
+
+    if (x > 50) {
+        x = x + 1;
+    }
+}

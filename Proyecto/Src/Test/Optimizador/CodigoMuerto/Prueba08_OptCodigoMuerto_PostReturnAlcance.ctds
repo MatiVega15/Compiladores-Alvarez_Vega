@@ -1,0 +1,13 @@
+int main () {
+    int a;
+    a = 0;
+
+    if (a == 0) {
+        return 1;
+        a = 2; // Esto se elimina.
+    }
+
+    a = 3; // Esto sobrevive.
+
+    return a;
+}

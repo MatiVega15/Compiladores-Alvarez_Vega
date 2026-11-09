@@ -1,0 +1,13 @@
+int main () {
+    int b;
+    b = 5;
+
+    if (false) {
+        b = 100;
+    }
+    else {
+        b = 20;
+    }
+
+    return b;
+}
