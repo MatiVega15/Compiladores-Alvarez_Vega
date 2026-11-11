@@ -44,10 +44,12 @@ RESULTADOS_ASSEMBLY_DIR = $(RESULTADOS_DIR)/CodigoAssembly
 OPTIMIZADOR_TEST_DIR = $(TEST_DIR)/Optimizador
 PLEGADO_CONSTANTES_TEST_DIR = $(OPTIMIZADOR_TEST_DIR)/PlegadoConstantes
 CODIGO_MUERTO_TEST_DIR = $(OPTIMIZADOR_TEST_DIR)/CodigoMuerto
+REUTILIZACION_OFFSETS_TEST_DIR = $(OPTIMIZADOR_TEST_DIR)/ReutilizacionOffsets
 
 RESULTADOS_OPTIMIZADOR_DIR = $(RESULTADOS_DIR)/Optimizador
 RESULTADOS_PLEGADO_CONSTANTES_DIR = $(RESULTADOS_OPTIMIZADOR_DIR)/PlegadoConstantes
 RESULTADOS_CODIGO_MUERTO_DIR = $(RESULTADOS_OPTIMIZADOR_DIR)/CodigoMuerto
+RESULTADOS_REUTILIZACION_OFFSETS_DIR = $(RESULTADOS_OPTIMIZADOR_DIR)/ReutilizacionOffsets
 
 # ========== Archivos fuente ==========
 
@@ -112,6 +114,7 @@ PRUEBAS_ASSEMBLY = $(wildcard $(ASSEMBLY_TEST_DIR)/*.ctds)
 
 PRUEBAS_PLEGADO_CONSTANTES = $(wildcard $(PLEGADO_CONSTANTES_TEST_DIR)/*.ctds)
 PRUEBAS_CODIGO_MUERTO = $(wildcard $(CODIGO_MUERTO_TEST_DIR)/*.ctds)
+PRUEBAS_REUTILIZACION_OFFSETS = $(wildcard $(REUTILIZACION_OFFSETS_TEST_DIR)/*.ctds)
 
 # ========== Objetivos ==========
 
@@ -579,6 +582,7 @@ tests-assembly: $(BIN)
 tests-optimizador: $(BIN)
 	@mkdir -p $(RESULTADOS_PLEGADO_CONSTANTES_DIR)
 	@mkdir -p $(RESULTADOS_CODIGO_MUERTO_DIR)
+	@mkdir -p $(RESULTADOS_REUTILIZACION_OFFSETS_DIR)
 
 	@fallidas=0; \
 	ok=0; \
@@ -652,6 +656,63 @@ tests-optimizador: $(BIN)
 		else \
 			echo "RESULTADO: FALLIDA"; \
 			fallidas=$$((fallidas + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	echo "========= REUTILIZACIÓN DE OFFSETS ========="; \
+	echo ""; \
+	for prueba in $(PRUEBAS_REUTILIZACION_OFFSETS); do \
+		nombre=$$(basename $$prueba .ctds); \
+		salida_ass=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$$nombre.ass; \
+		salida_ass_opt=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$${nombre}_opt.ass; \
+		ejecutable=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$$nombre.out; \
+		ejecutable_opt=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$${nombre}_opt.out; \
+		salida_actual=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$$nombre.actual; \
+		salida_actual_opt=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$${nombre}_opt.actual; \
+		archivo_esperado=$(REUTILIZACION_OFFSETS_TEST_DIR)/$$nombre.expected; \
+		archivo_in=$(REUTILIZACION_OFFSETS_TEST_DIR)/$$nombre.in; \
+		error=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$$nombre.err; \
+		echo "---- $$nombre ----"; \
+		$(BIN) -target assembly -o $$salida_ass $$prueba 2> $$error; \
+		res_ass=$$?; \
+		$(BIN) -opt reutilizacion-offsets -target assembly -o $$salida_ass_opt $$prueba 2>> $$error; \
+		res_ass_opt=$$?; \
+		$(BIN) -o $$ejecutable $$prueba 2>> $$error; \
+		res_bin=$$?; \
+		$(BIN) -opt reutilizacion-offsets -o $$ejecutable_opt $$prueba 2>> $$error; \
+		res_bin_opt=$$?; \
+		if [ $$res_ass -ne 0 ] || [ $$res_ass_opt -ne 0 ] || [ $$res_bin -ne 0 ] || [ $$res_bin_opt -ne 0 ]; then \
+			echo "RESULTADO: FALLIDA (error de compilación/ensamblado)"; \
+			fallidas=$$((fallidas + 1)); \
+			continue; \
+		fi; \
+		if [ -f $$archivo_in ]; then \
+			$$ejecutable < $$archivo_in > $$salida_actual 2>> $$error; \
+			$$ejecutable_opt < $$archivo_in > $$salida_actual_opt 2>> $$error; \
+		else \
+			$$ejecutable > $$salida_actual 2>> $$error; \
+			$$ejecutable_opt > $$salida_actual_opt 2>> $$error; \
+		fi; \
+		if [ ! -s $$error ]; then \
+			rm -f $$error; \
+		fi; \
+		if ! diff -u --strip-trailing-cr $$salida_actual $$salida_actual_opt > /dev/null; then \
+			echo "RESULTADO: FALLIDA (salidas de ejecutable normal y optimizado difieren)"; \
+			fallidas=$$((fallidas + 1)); \
+			continue; \
+		fi; \
+		if [ -f $$archivo_esperado ]; then \
+			if diff -u --strip-trailing-cr $$salida_actual $$archivo_esperado > /dev/null; then \
+				echo "RESULTADO: OK"; \
+				ok=$$((ok + 1)); \
+			else \
+				echo "RESULTADO: FALLIDA (la salida no coincide con el .expected)"; \
+				diff -u --strip-trailing-cr $$salida_actual $$archivo_esperado; \
+				fallidas=$$((fallidas + 1)); \
+			fi; \
+		else \
+			echo "RESULTADO: OK (compilación y ejecuciones equivalentes)"; \
+			ok=$$((ok + 1)); \
 		fi; \
 		echo ""; \
 	done; \
