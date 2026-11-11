@@ -1,0 +1,31 @@
+extern void printInt (int valor);
+
+void main () {
+    boolean b1, b2, res;
+
+    b1 = (10 > 5) && (3 < 8);
+    b2 = (4 == 5) || (7 > 12);
+
+    res = (!b2) && b1;
+
+    if (b1) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    if (b2) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+
+    if (res) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+}

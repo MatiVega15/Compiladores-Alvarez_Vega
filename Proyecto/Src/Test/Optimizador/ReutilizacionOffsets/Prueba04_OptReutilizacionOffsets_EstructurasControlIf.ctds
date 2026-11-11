@@ -1,0 +1,23 @@
+extern void printInt (int valor);
+
+void main () {
+    int a, b, x;
+
+    a = 15;
+    b = 20;
+
+    if (a + 5 == b) {
+        x = (a * 2) + (b * 3);
+        printInt (x);
+    }
+    else {
+        x = (a - 5) * (b - 10);
+    }
+
+    if (a > 10 && b < 30) {
+        printInt (1);
+    }
+    else {
+        printInt (0);
+    }
+}

@@ -1,0 +1,23 @@
+extern void printInt (int valor);
+
+int multiplicar (int x, int y) {
+    int temp;
+    temp = x * y;
+    return temp;
+}
+
+int sumarTres (int a, int b, int c) {
+    return a + b + c;
+}
+
+void main () {
+    int r1, r2, total;
+
+    r1 = multiplicar (3 + 2, 4);
+    r2 = sumarTres (1, 2 + 3, 4 * 2);
+    total = r1 + r2;
+
+    printInt (r1);
+    printInt (r2);
+    printInt (total);
+}

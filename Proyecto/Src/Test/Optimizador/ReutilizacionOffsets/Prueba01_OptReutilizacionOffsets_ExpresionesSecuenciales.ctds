@@ -1,0 +1,17 @@
+extern void printInt (int valor);
+
+void main () {
+    int a, b, c, d;
+
+    a = 10 + 20;
+    printInt (a);
+
+    b = a * 2;
+    printInt (b);
+
+    c = b - 15;
+    printInt (c);
+
+    d = c / 5;
+    printInt (d);
+}
