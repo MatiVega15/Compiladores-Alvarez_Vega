@@ -890,7 +890,7 @@ Esta estrategia permite implementar el comportamiento habitual de los **ámbitos
 
 Cuando existe un símbolo con el mismo nombre en un nivel interno y en uno externo, la búsqueda encuentra primero el símbolo del nivel interno. De esta forma, **los símbolos de niveles internos pueden ocultar a símbolos con el mismo nombre pertenecientes a niveles exteriores**.
 
-Si el símbolo no se encuentra en niguno de los niveles abiertos, la función retorna `NULL`.
+Si el símbolo no se encuentra en ninguno de los niveles abiertos, la función retorna `NULL`.
 
 #### *2.2.7 Estado de inicialización*
 
@@ -972,7 +972,7 @@ Los resultados de las pruebas **no forman parte del repositorio** y se encuentra
 
 ## *3. Análisis semántico*
 
-El análisis semántico fue implementado en lenguaje **C**, utilizando el **arbol sintáctico abstracto (AST)** construido durante el análisis sintáctico y la **tabla de símbolos (TS)** para verificar la información asociada a los identificadores y las declaraciones del programa.
+El análisis semántico fue implementado en lenguaje **C**, utilizando el **árbol sintáctico abstracto (AST)** construido durante el análisis sintáctico y la **tabla de símbolos (TS)** para verificar la información asociada a los identificadores y las declaraciones del programa.
 
 Su función es **analizar semánticamente el AST generado por el parser**, asociando los identificadores con sus símbolos, determinando los tipos de las expresiones y verificando las restricciones semánticas definidas para el lenguaje C-TDS.
 
@@ -1878,6 +1878,7 @@ Este contexto concentra la **información** necesaria durante el recorrido secue
 - Arreglos para mapear los **offsets en la pila** de los temporales.
 - Un **búfer LIFO** para retener los argumentos de funciones que superan el límite de registros antes de ser apilados.
 - El estado del modo de **depuración** y las banderas de **error**.
+- La bandera `optimizar_offsets`, que indica si se debe aplicar **reutilización de temporales en la pila**.
 
 El generador asume que el código intermedio está lógicamente validado. Por lo tanto, se enfoca exclusivamente en la **traducción de operaciones, selección de registros y gestión de la memoria física (Stack y Data)**.
 
@@ -1895,6 +1896,8 @@ Adicionalmente, al finalizar la generación, se inyecta la **directiva de seguri
 El diseño del backend administra la **pila de ejecución (Stack Frame)** de manera estricta para cada función. Antes de emitir las instrucciones de una función, `calcular_entorno_funcion ()` realiza una pasada previa sobre los cuádruplos para:
 
 1. **Asignar offsets**: Asigna **posiciones de memoria negativas relativas al Base Pointer** (`%rbp`) para las variables locales, los primeros 6 parámetros y los temporales (ej. `-8(%rbp)`, `-16(%rbp)`). Los parámetros pasados por pila (del 7 en adelante) reciben **offsets positivos** (`16(%rbp)`, `24(%rbp)`).
+-  *Sin optimización*: Asigna un offset único e independiente a cada variable temporal a medida que aparece.
+-  *Con optimización* (`reutilizacion-offsets`): Implementa un análisis de vida útil (liveness analysis) mediante la estructura `IntervaloTemporal`, registrando el inicio y fin de cada temporal en la secuencia de cuádruplos. Mediante un recorrido de escaneo lineal, recicla aquellas ranuras cuyo intervalo anterior haya finalizado, minimizando la cantidad de ranuras físicas requeridas.
 2. **Alineación a 16 bytes**: Para cumplir con la restricción fundamental de la **System V ABI** y evitar fallos de segmentación (`Segmentation fault`) al invocar funciones que utilizan instrucciones vectoriales (como `get_int ()`), el generador **suma el espacio total requerido por la función y lo redondea hacia arriba al múltiplo de 16 bytes más cercano**.
 
 Este tamaño total se utiliza para construir el **prólogo de la función** mediante la instrucción `enter $(bytes_locales), $0`.
@@ -1933,9 +1936,11 @@ Cuando está activo, el compilador emite mensajes por consola utilizando el **pr
 - El **inicio y fin** de la etapa de generación.
 - El **nombre de la instrucción intermedia** que está siendo traducida en cada momento, facilitando la identificación del cuádruplo exacto en caso de un fallo en la emisión de código.
 
+Adicionalmente, cuando la optimización de reutilización de offsets (`-opt reutilizacion-offsets` o `-opt all`) se encuentra habilitada, el backend emite trazas informativas con el prefijo `[OPTIMIZADOR]` detallando para cada función el número de **temporales lógicos**, las **ranuras físicas finales asignadas** en la pila y la cantidad de **ranuras reutilizadas**.
+
 ### *5.8 Salida del generador*
 
-Como resultado de la etapa de generación de código Assembly, **se genera un archivo con extensión `.ass`**, únicamente si la etapa se solicita de forma explícita mediante la opción `-assembly`. Dicho archivo contiene el **código fuente Assembly**.
+Como resultado de la etapa de generación de código Assembly, **se genera un archivo con extensión `.ass`**, únicamente si la etapa se solicita de forma explícita mediante la opción `-target assembly`. Dicho archivo contiene el **código fuente Assembly**.
 
 En caso de no especificarse ninguna etapa, la generación de código Assembly se ejecuta de manera silenciosa como **soporte fundamental** para la generación del ejecutable, volcando sus resultados en un archivo temporal `.s`, a partir del cual `gcc` genera el ejecutable `.out` final. 
 
@@ -2009,11 +2014,14 @@ Esta decisión responde a que la prueba **requiere interacción mediante la entr
 
 ## *6. Optimizaciones*
 
-La etapa de optimización fue implementada en **lenguaje C** y actúa directamente sobre el **árbol sintáctico abstracto (AST)** una vez que ha sido validado sintáctica y semánticamente.
+La etapa de optimización fue implementada en **lenguaje C** y actúa en dos niveles del compilador:
 
-Su objetivo es **transformar y simplificar la estructura del AST antes de la generación de código intermedio**, produciendo una representación equivalente pero más eficiente, reduciendo la cantidad de instrucciones intermedias (`cuádruplos`), eliminando estructuras inalcanzables y disminuyendo la carga de cómputo en tiempo de ejecución.
+1. **Optimizador de AST**: Modifica la estructura del AST en memoria (*plegado de constantes* y *eliminación de código muerto*) antes de la generación del código intermedio.
+2. **Optimizador de Stack Frame (Assembly)**: Analiza el intervalo de vida de los temporales en el código intermedio para reusar desplazamientos de pila (*reutilización de offsets*) durante la generación de código máquina.
 
-*Para revisar los detalles de implementación, consultar [OptimizadorAST.h](../Src/Optimizador/OptimizadorAST.h) y [OptimizadorAST.c](../Src/Optimizador/OptimizadorAST.c).*
+El objetivo conjunto de las optimizaciones es **reducir el tiempo de ejecución, la cantidad de cuádruplos y el tamaño del marco de pila (Stack Frame)**, manteniendo la estricta equivalencia semántica del programa.
+
+*Para revisar los detalles de implementación, consultar [OptimizadorAST.h](../Src/Optimizador/OptimizadorAST.h), [OptimizadorAST.c](../Src/Optimizador/OptimizadorAST.c), [GeneradorCodigoAssembly.h](../Src/CodigoAssembly/GeneradorCodigoAssembly.h) y [GeneradorCodigoAssembly.c](../Src/CodigoAssembly/GeneradorCodigoAssembly.c).*
 
 La interfaz define la estructura `OpcionesOptimizacion`, que permite **activar o desactivar** de forma independiente los pases disponibles (como `plegado_constantes` y `eliminacion_codigo_muerto`) y configurar el comportamiento de **depuración** (`modo_debug`). El **punto de entrada principal** es la función `optimizar_ast ()`, la cual recibe la raíz del árbol junto con la configuración de banderas de optimización seleccionadas desde la línea de comandos.
 
@@ -2109,7 +2117,7 @@ Para cada prueba se genera el archivo de código intermedio estándar (`.ci`) y 
 
 ### *6.2 Eliminación de código muerto (dead code elimination)*
 
-La **eliminación de código muerto** consiste en identificar, podar y desvincular de la estructura del AST aquellas porciones de código que, por diseño estático, **jamás podrán ser ejecutdas en tiempo de ejecución** (código inalcanzable), liberando por completo la memoria de dichos subárboles y evitando la generación de cuádruplos innecesarios en el backend.
+La **eliminación de código muerto** consiste en identificar, podar y desvincular de la estructura del AST aquellas porciones de código que, por diseño estático, **jamás podrán ser ejecutadas en tiempo de ejecución** (código inalcanzable), liberando por completo la memoria de dichos subárboles y evitando la generación de cuádruplos innecesarios en el backend.
 
 #### *6.2.1 Diseño y decisiones*
 
@@ -2143,7 +2151,7 @@ Cuando el modo de depuración (`-debug`) se encuentra activo, la ejecución emit
 
 #### *6.2.4 Pruebas*
 
-Se incorporó un conjunto de **9 pruebas** automatizadas destinadas a verificar el funcionamiento del pase de plegado de eliminación de código muerto en condicionales con/sin else, bucles inalcanzables y retornos.
+Se incorporó un conjunto de **9 pruebas** automatizadas destinadas a verificar el funcionamiento del pase de eliminación de código muerto en condicionales con/sin else, bucles inalcanzables y retornos.
 
 Las pruebas se encuentran **organizadas** en el directorio:
 
@@ -2170,6 +2178,65 @@ Las **pruebas** cubren los siguientes casos de evaluación:
 
 Para cada prueba se genera el archivo de código intermedio estándar (`.ci`) y su representación gráfica (`.dot` / `.png`), así como sus **versiones optimizadas** correspondientes (`_opt.ci` y `_opt.dot` / `_opt.png`). Esto permite verificar visualmente y por texto la eliminación de instrucciones intermedias y la simplificación alcanzada en la estructura del AST.
 
+### *6.3 Reutilización de offsets de temporales (stack packing via linear scan)*
+
+La **reutilización de offsets de temporales** (Stack Packing) consiste en analizar el ciclo de vida útil de cada variable temporal generada en el código intermedio y asignarles ranuras de pila compartidas en la memoria local (`-8(%rbp)`, `-16(%rbp)...`), comprimiendo el tamaño total del marco de pila (Stack Frame).
+
+#### *6.3.1 Diseño y decisiones*
+
+El pase se implementa dentro del backend de Assembly ([GeneradorCodigoAssembly.c](../Src/CodigoAssembly/GeneradorCodigoAssembly.c)) durante la fase de cálculo del entorno de función (`calcular_entorno_funcion ()`), utilizando el algoritmo de **Linear Scan Register Allocation adaptado a la pila**:
+
+- **Estructura `IntervaloTemporal`**: Registra para cada temporal su identificador numérico, su instrucción de nacimiento (`inicio`, primera aparición) y su instrucción de muerte (`fin`, último uso).
+- **Escaneo de cuádruplos (Paso A)**: Recorre linealmente la secuencia de cuádruplos de la función identificando la posición del primer y último uso de cada temporal.
+- **Ordenamiento cronológico (Paso B)**: Los temporales activos se ordenan cronológicamente según su punto de nacimiento (`inicio`) utilizando la función auxiliar `comparar_intervalos ()` con `qsort ()` de la biblioteca de C.
+- **Asignación y reciclaje de ranuras (Paso C)**: Se mantiene un conjunto de ranuras físicas ocupadas (`pool_offset` y `pool_fin`). Para cada temporal entrante, el algoritmo busca si existe una ranura cuyo uso previo haya finalizado. De ser así, reasigna dicho offset; de lo contrario, reserva una nueva ranura en la pila (`offset_local -= 8`).
+- **Alineación System V ABI**: Al finalizar el empaquetado de temporales y variables locales, el tamaño total se redondea al múltiplo de 16 bytes más cercano para garantizar la alineación requerida por la ABI de Linux.
+
+#### *6.3.2 Integración en el flujo del compilador*
+
+Este pase se activa al pasar la **bandera `-opt reutilizacion-offsets` o bien `-opt all`**:
+
+- **Impacto en el backend**: Reduce significativamente la reserva de memoria en la instrucción prólogo (`enter $(N), $0`), logrando compresiones de pila entre un **20 y 60%** en funciones con expresiones complejas, estructuras condicionales, bucles o llamadas anidadas.
+
+#### *6.3.3 Modo de depuración*
+
+Cuando el modo depuración (`-debug`) se encuentra activo y la optimización está habilitada, el backend emite una traza descriptiva por consola indicando **la reducción de temporales lograda por función**, por ejemplo:
+
+```text
+[OPTIMIZADOR] main (): 7 temporales lógicos -> 1 ranuras físicas (6 reusadas).
+```
+
+#### *6.3.4 Pruebas*
+
+Se incorporó un conjunto de **12 pruebas** automatizadas destinadas a verificar el porcentaje de reducción alcanzado en la pila.
+
+Las pruebas se encuentran **organizadas** en el directorio:
+
+```text
+Src/Test/Optimizador/ReutilizacionOffsets/
+```
+
+Los **resultados** generados durante su ejecución se almacenan en:
+
+```text
+Src/Test/Resultados/Optimizador/ReutilizacionOffsets/
+```
+
+Los resultados generados durante las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
+
+Las **pruebas** cubren las siguientes construcciones y escenarios de borde:
+
+- **Expresiones secuenciales y anidadas**, verificando la reutilización consecutiva de ranuras liberadas y la retención mínima necesaria en subárboles compuestos.
+- **Llamadas a funciones y pasajes de argumentos**, evaluando la liberación inmediata de temporales tras ser copiados a los registros de la ABI (`%rdi`, `%rsi`, etc.).
+- **Estructuras condicionales y bucles**, comprobando el reciclaje de ranuras de memoria entre ramas disjuntas y la reutilización en iteraciones con ciclos.
+- **Operaciones de división y módulo**, asegurando la convivencia con los temporales específicos exigidos por la instrucción `idivq` (`%rax` y `%rdx`).
+- **Múltiples funciones y recursividad**, garantizando el reinicio independiente del contexto de temporales por marco de función y la reducción de pila acumulativa en llamadas recursivas anidadas.
+- **Evaluaciones lógicas y cortocircuito**, verificando el colapso masivo de ranuras físicas durante evaluaciones booleanas perezosas.
+- **Sombra de variables en bloques anidados**, asegurando que las variables locales ocultadas tengan offsets de pila independientes sin interferir con el ciclo de vida de los temporales.
+- **Parámetros pasados por pila**, comprobando la coexistencia limpia entre argumentos leídos desde `16(%rbp)` en adelante y la asignación de temporales locales en el marco.
+
+Para cada prueba se genera el código Assembly en su versión estándar (`.ass`) y en su **versión optimizada** (`_opt.ass`), compilando y ejecutando ambos binarios (`.out`) para comprobar la estricta coincidencia de la salida por consola contra el resultado esperado (`.expected`). Asimismo, la inspección del **prólogo** `enter $(N), $0` en los archivos `.ass` permite auditar la reducción efectiva en bytes del marco de pila alcanzada por la optimización.
+
 ---
 
 ## *Programa principal*
@@ -2188,7 +2255,7 @@ El **procesamiento** actual consiste en:
    - **Análisis léxico** mediante Flex, para la etapa `scan`.
    - **Análisis sintáctico** mediante Bison, utilizando los tokens proporcionados por Flex, para la etapa `parse`.
    - **Análisis semántico** mediante el AST y la tabla de símbolos, como parte del procesamiento completo.
-   - **Optimizador del AST**, para las opciones `-opt plegado-constantes`, `-opt codigo-muerto` o `-opt all`, transformando el AST en memoria tras superar el análisis semántico.
+   - **Optimizador del AST y backend**, para las opciones `-opt plegado-constantes`, `-opt codigo-muerto`, `-opt reutilizacion-offsets` o `-opt all`. Aplica transformaciones sobre el AST en memoria y/o habilita la reutilización de ranuras de pila en la generación de Assembly.
    - **Generación de código intermedio**, para la etapa `codinter`, a partir del AST validado semánticamente, cuando el análisis semántico finaliza correctamente y no se está ejecutando el modo de pruebas semánticas.
    - **Generación de código Assembly** a partir de los cuádruplos intermedios y la tabla de símbolos, para la etapa `assembly`.
    - **Ensamblado y enlazado final mediante `gcc`** junto con la librería de runtime (`runtime.c`), generando el archivo ejecutable por defecto.
@@ -2369,7 +2436,7 @@ Además, durante el análisis sintáctico, el modo de depuración permite **most
 
 Cuando se ejecuta el **procesamiento completo** con `-debug`, el archivo `.dot` se genera después del análisis semántico, por lo que contiene el **AST enriquecido** con la información semántica obtenida durante esa etapa. Si se aplicaron **optimizaciones** mediante `-opt`, dicho archivo representa el **AST optimizado** resultante del proceso.
 
-Asimismo, durante la optimización del AST, la generación de código intermedio y la generación de código Assembly, el modo de depuración permite **imprimir por consola información de trazabilidad sobre las transformaciones aplicadas, la creación de cuádruplos y la traducción a instrucciones de máquina**, facilitando la inspección y el diagnóstico del backend del compilador.
+Asimismo, durante la optimización del AST y del backend, la generación de código intermedio y la generación de código Assembly, el modo de depuración permite **imprimir por consola información de trazabilidad sobre las transformaciones aplicadas, la creación de cuádruplos y la traducción a instrucciones de máquina**, facilitando la inspección y el diagnóstico del backend del compilador.
 
 El modo de depuración es **independiente** del archivo de salida principal del compilador.
 
@@ -2387,6 +2454,7 @@ Actualmente, se encuentran implementadas las optimizaciones:
 
 - `plegado-constantes`: Activa el constant folding sobre el AST.
 - `codigo-muerto`: Activa la poda de ramas inalcanzables, bucles falsos y código post-return (dead code elimination).
+- `reutilizacion-offsets`: Activa la optimización de espacio en pila (liveness analysis / stack packing) sobre los temporales.
 
 Por ejemplo:
 
@@ -2400,13 +2468,19 @@ O bien:
 c-tds -opt codigo-muerto programa.ctds
 ```
 
+O bien:
+
+```bash
+c-tds -opt reutilizacion-offsets programa.ctds
+```
+
 También se contempla:
 
 ```bash
 -opt all
 ```
 
-para solicitar la **aplicación de todas las optimizaciones disponibles** en el compilador.
+para solicitar la **aplicación de todas las optimizaciones disponibles** (AST y backend Assembly) en el compilador.
 
 ### *Combinaciones*
 
@@ -2609,15 +2683,25 @@ Src/Test/Optimizador/PlegadoConstantes/
 Src/Test/Optimizador/CodigoMuerto/
 ```
 
+- Las **12 pruebas** de reutilización de offsets en:
+
+```text
+Src/Test/Optimizador/ReutilizacionOffsets/
+```
+
 Los **resultados** de estas pruebas se generan en:
 
 ```text
 Src/Test/Resultados/Optimizador/PlegadoConstantes/
 
 Src/Test/Resultados/Optimizador/CodigoMuerto/
+
+Src/Test/Resultados/Optimizador/ReutilizacionOffsets/
 ```
 
-Para cada prueba, el comando genera tanto el código intermedio normal (`.ci`) y su gráfico (`.dot` / `.png`), como la **versión optimizada** (`_opt.ci`, `_opt.dot` / `_opt.png`), permitiendo comparar visualmente y por texto la reducción lograda por el optimizador.
+Para cada prueba de optimización de AST, el comando genera tanto el código intermedio normal (`.ci`) y su gráfico (`.dot` / `.png`), como la **versión optimizada** (`_opt.ci`, `_opt.dot` / `_opt.png`), permitiendo comparar visualmente y por texto la reducción lograda por el optimizador.
+
+Por su parte, para cada prueba de optimización de backend Assembly, el comando genera tanto el código Assembly normal (`.ass`) como la **versión optimizada** (`_opt.ass`), permitiendo comparar directamente por texto la reducción de bytes lograda en el marco de pila (`enter $(N)`) y comprobar la estricta coincidencia semántica de la salida producida por sus ejecutables correspondientes (`.out` / `_opt.out`).
 
 Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**.
 
@@ -2640,7 +2724,7 @@ En el estado actual del proyecto, esto equivale a ejecutar:
 5. Las pruebas del **análisis semántico**.
 6. Las pruebas de **código intermedio**.
 7. Las pruebas de **código assembly y ejecutables**.
-8. Las pruebas de **optimización (plegado de constantes y eliminación de código muerto)**.
+8. Las pruebas de **optimización (plegado de constantes, eliminación de código muerto y reutilización de offsets)**.
 
 ### *Ejecutar el compilador manualmente*
 
