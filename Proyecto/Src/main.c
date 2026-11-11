@@ -58,6 +58,7 @@ typedef struct {
     int optimizar_todo;
     int optimizar_plegado_constantes;
     int optimizar_codigo_muerto;
+    int optimizar_offsets;
 } Configuracion;
 
 /* ========== Prototipos de funciones auxiliares ========== */
@@ -92,6 +93,7 @@ int main (int argc, char *argv []) {
     configuracion.optimizar_todo = 0;
     configuracion.optimizar_plegado_constantes = 0;
     configuracion.optimizar_codigo_muerto = 0;
+    configuracion.optimizar_offsets = 0;
 
     // Se procesan los argumentos de la línea de comandos.
     if (procesar_argumentos (argc, argv, &configuracion) != 0) {
@@ -164,7 +166,9 @@ int main (int argc, char *argv []) {
                         opciones_opt.eliminacion_codigo_muerto = 1;
                     }
 
-                    arbol = optimizar_ast (arbol, opciones_opt);
+                    if (configuracion.optimizar_todo || configuracion.optimizar_plegado_constantes || configuracion.optimizar_codigo_muerto) {
+                        arbol = optimizar_ast (arbol, opciones_opt);
+                    }
                 }
                 
                 // Se genera un archivo DOT del AST enriquecido por el semántico.
@@ -392,6 +396,9 @@ static int procesar_argumentos (int argc, char *argv [], Configuracion *configur
             }
             else if (strcmp (argv [i], "codigo-muerto") == 0) {
                 configuracion -> optimizar_codigo_muerto = 1;
+            }
+            else if (strcmp (argv [i], "reutilizacion-offsets") == 0) {
+                configuracion -> optimizar_offsets = 1;
             }
             else {
                 fprintf (stderr, "ERROR: Optimización desconocida '%s'.\n", argv [i]);
@@ -694,8 +701,14 @@ static int procesar_codigo_assembly (const Configuracion *configuracion, FILE *s
         return EXIT_FAILURE;
     }
 
+    // Se determina si se activa la reutilización de offsets en pila.
+    int optimizar_offsets = 0;
+    if (configuracion -> optimizar_todo || configuracion -> optimizar_offsets) {
+        optimizar_offsets = 1;
+    }
+
     // Se traduce la lista de cuádruplos a instrucciones de Assembly en el archivo de salida.
-    if (!generar_codigo_assembly (lista, ts, salida, configuracion -> debug)) {
+    if (!generar_codigo_assembly (lista, ts, salida, configuracion -> debug, optimizar_offsets)) {
         fprintf (stderr, "ERROR: Ocurrió un error en la generación de Assembly.\n");
         return EXIT_FAILURE;
     }
