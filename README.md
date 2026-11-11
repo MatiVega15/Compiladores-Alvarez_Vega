@@ -66,7 +66,8 @@
 │       │   ├── CodigoAssembly/
 │       │   ├── Optimizador/
 │       │   │   ├── CodigoMuerto/
-│       │   │   └── PlegadoConstantes/
+│       │   │   ├── PlegadoConstantes/
+│       │   │   └── ReutilizacionOffsets/
 │       │   ├── PruebaDeEstresYLimites.ctds
 │       │   ├── TS/
 │       │   ├── Lexico/
@@ -147,7 +148,7 @@ El trabajo se aborda de una manera incremental, mediante las siguientes etapas:
 5. Generación de **código Assembly y ejecutable**.
 6. **Optimizador** y extensiones.
 
-Actualmente se encuentran implementadas las etapas de **análisis léxico**, **análisis sintáctico**, **generación del árbol sintáctico abstracto (AST)**, **generación de la tabla de símbolos (TS)**, **análisis semántico**, **optimizador del AST (plegado de constantes y eliminación de código muerto)**, **generación de código intermedio**, **generación de código Assembly** y el **enlazado final** con la librería de runtime.
+Actualmente se encuentran implementadas las etapas de **análisis léxico**, **análisis sintáctico**, **generación del árbol sintáctico abstracto (AST)**, **generación de la tabla de símbolos (TS)**, **análisis semántico**, **optimizador del AST (plegado de constantes y eliminación de código muerto)**, **optimizador del backend Assembly (reutilización de offsets en pila)**, **generación de código intermedio**, **generación de código Assembly** y el **enlazado final** con la librería de runtime.
 
 ## *Compilación y ejecución*
 
@@ -187,12 +188,14 @@ Las etapas admitidas son:
 | `codinter` | Análisis semántico y generación de código intermedio |
 | `assembly` | Generación de código Assembly x86-64 |
 
-Para aplicar **optimizaciones sobre el AST** antes de la generación de código:
+Para aplicar **optimizaciones** antes o durante la generación de código:
 
 ```bash
 ./build/c-tds -opt plegado-constantes archivo.ctds
 
 ./build/c-tds -opt codigo-muerto archivo.ctds
+
+./build/c-tds -opt reutilizacion-offsets archivo.ctds
 ```
 
 O para activar **todas las optimizaciones disponibles**:
@@ -215,7 +218,7 @@ El **objetivo `tests`** permite ejecutar todas las pruebas correspondientes a la
 make tests
 ```
 
-Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico**, del **árbol sintáctico abstracto (AST)**, de la **tabla de símbolos (TS)**, del **análisis semántico**, del **generador de código intermedio**, del **generador de código Assembly y ejecutables** y del **optimizador del AST (plegado de constantes y eliminación de código muerto)**.
+Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico**, del **árbol sintáctico abstracto (AST)**, de la **tabla de símbolos (TS)**, del **análisis semántico**, del **generador de código intermedio**, del **generador de código Assembly y ejecutables**, del **optimizador del AST (plegado de constantes y eliminación de código muerto)** y del **optimizador del backend Assembly (reutilización de offsets)**.
 
 Para **ejecutar solamente las pruebas del análisis léxico**:
 
@@ -258,7 +261,7 @@ Para **ejecutar solamente las pruebas de código Assembly y ejecutables**:
 make tests-assembly
 ```
 
-Para **ejecutar solamente las pruebas de optimización (plegado de constantes y eliminación de código muerto)**:
+Para **ejecutar solamente las pruebas de optimización (plegado de constantes, eliminación de código muerto y reutilización de offsets)**:
 
 ```bash
 make tests-optimizador
