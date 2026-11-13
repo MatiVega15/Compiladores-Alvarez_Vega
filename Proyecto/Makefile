@@ -41,6 +41,20 @@ RESULTADOS_CODINT_DIR = $(RESULTADOS_DIR)/CodigoIntermedio
 ASSEMBLY_TEST_DIR = $(TEST_DIR)/CodigoAssembly
 RESULTADOS_ASSEMBLY_DIR = $(RESULTADOS_DIR)/CodigoAssembly
 
+OPTIMIZADOR_TEST_DIR = $(TEST_DIR)/Optimizador
+PLEGADO_CONSTANTES_TEST_DIR = $(OPTIMIZADOR_TEST_DIR)/PlegadoConstantes
+CODIGO_MUERTO_TEST_DIR = $(OPTIMIZADOR_TEST_DIR)/CodigoMuerto
+REUTILIZACION_OFFSETS_TEST_DIR = $(OPTIMIZADOR_TEST_DIR)/ReutilizacionOffsets
+REDUCCION_FUERZA_TEST_DIR = $(OPTIMIZADOR_TEST_DIR)/ReduccionFuerza
+INTEGRALES_TEST_DIR = $(OPTIMIZADOR_TEST_DIR)
+
+RESULTADOS_OPTIMIZADOR_DIR = $(RESULTADOS_DIR)/Optimizador
+RESULTADOS_PLEGADO_CONSTANTES_DIR = $(RESULTADOS_OPTIMIZADOR_DIR)/PlegadoConstantes
+RESULTADOS_CODIGO_MUERTO_DIR = $(RESULTADOS_OPTIMIZADOR_DIR)/CodigoMuerto
+RESULTADOS_REUTILIZACION_OFFSETS_DIR = $(RESULTADOS_OPTIMIZADOR_DIR)/ReutilizacionOffsets
+RESULTADOS_REDUCCION_FUERZA_DIR = $(RESULTADOS_OPTIMIZADOR_DIR)/ReduccionFuerza
+RESULTADOS_INTEGRALES_DIR = $(RESULTADOS_OPTIMIZADOR_DIR)
+
 # ========== Archivos fuente ==========
 
 LEXER_SRC = Src/Lexer/AnalizadorLexico.lex
@@ -53,6 +67,8 @@ SEMANTICO_SRC = Src/Semantico/AnalizadorSemantico.c
 CUADRUPLOS_SRC = Src/CodigoIntermedio/Cuadruplos.c
 GENERADOR_CI_SRC = Src/CodigoIntermedio/GeneradorCodigoIntermedio.c
 GENERADOR_ASS_SRC = Src/CodigoAssembly/GeneradorCodigoAssembly.c
+
+OPTIMIZADOR_SRC = Src/Optimizador/OptimizadorAST.c
 
 MAIN_SRC = Src/main.c
 RUNTIME_SRC = Src/runtime.c
@@ -69,6 +85,8 @@ SEMANTICO_H = Src/Semantico/AnalizadorSemantico.h
 CUADRUPLOS_H = Src/CodigoIntermedio/Cuadruplos.h
 GENERADOR_CI_H = Src/CodigoIntermedio/GeneradorCodigoIntermedio.h
 GENERADOR_ASS_H = Src/CodigoAssembly/GeneradorCodigoAssembly.h
+
+OPTIMIZADOR_H = Src/Optimizador/OptimizadorAST.h
 
 # ========== Archivos generados ==========
 
@@ -98,9 +116,15 @@ PRUEBAS_CODINT = $(wildcard $(CODINT_TEST_DIR)/*.ctds)
 
 PRUEBAS_ASSEMBLY = $(wildcard $(ASSEMBLY_TEST_DIR)/*.ctds)
 
+PRUEBAS_PLEGADO_CONSTANTES = $(wildcard $(PLEGADO_CONSTANTES_TEST_DIR)/*.ctds)
+PRUEBAS_CODIGO_MUERTO = $(wildcard $(CODIGO_MUERTO_TEST_DIR)/*.ctds)
+PRUEBAS_REUTILIZACION_OFFSETS = $(wildcard $(REUTILIZACION_OFFSETS_TEST_DIR)/*.ctds)
+PRUEBAS_REDUCCION_FUERZA = $(wildcard $(REDUCCION_FUERZA_TEST_DIR)/*.ctds)
+PRUEBAS_INTEGRALES = $(wildcard $(INTEGRALES_TEST_DIR)/*.ctds)
+
 # ========== Objetivos ==========
 
-.PHONY: all tests tests-lexico tests-sintactico tests-ast tests-ts tests-semantico tests-codint tests-assembly clean
+.PHONY: all tests tests-lexico tests-sintactico tests-ast tests-ts tests-semantico tests-codint tests-assembly tests-optimizador clean
 
 # ========== Compilación del compilador ==========
 
@@ -112,9 +136,10 @@ $(BIN): $(MAIN_SRC) $(RUNTIME_SRC) $(PARSER_C) \
 		$(LEXER_C) $(AST_SRC) $(TS_SRC) \
 		$(SEMANTICO_SRC) $(CUADRUPLOS_SRC) \
 		$(GENERADOR_CI_SRC) $(GENERADOR_ASS_SRC) \
-		$(AST_H) $(TS_H) $(SEMANTICO_H) \
-		$(CUADRUPLOS_H) $(GENERADOR_CI_H) \
-		$(TIPOS_H) $(GENERADOR_ASS_H)
+		$(OPTIMIZADOR_SRC) $(AST_H) $(TS_H) \
+		$(SEMANTICO_H) $(CUADRUPLOS_H) \
+		$(GENERADOR_CI_H) $(TIPOS_H) \
+		$(GENERADOR_ASS_H) $(OPTIMIZADOR_H)
 
 	@mkdir -p $(BUILD_DIR)
 	@gcc -I$(BUILD_DIR) \
@@ -124,6 +149,7 @@ $(BIN): $(MAIN_SRC) $(RUNTIME_SRC) $(PARSER_C) \
 		-ISrc/Semantico \
 		-ISrc/CodigoIntermedio \
 		-ISrc/CodigoAssembly \
+		-ISrc/Optimizador \
 		$(MAIN_SRC) \
 		$(RUNTIME_SRC) \
 		$(PARSER_C) \
@@ -134,6 +160,7 @@ $(BIN): $(MAIN_SRC) $(RUNTIME_SRC) $(PARSER_C) \
 		$(CUADRUPLOS_SRC) \
 		$(GENERADOR_CI_SRC) \
 		$(GENERADOR_ASS_SRC) \
+		$(OPTIMIZADOR_SRC) \
 		-o $(BIN)
 
 # ========== Generación del analizador sintáctico ==========
@@ -153,7 +180,7 @@ $(LEXER_C): $(LEXER_SRC) $(PARSER_H)
 # ========== Ejecución de todas las pruebas ==========
 
 # Ejecuta todas las pruebas disponibles.
-tests: tests-lexico tests-sintactico tests-ast tests-ts tests-semantico tests-codint tests-assembly
+tests: tests-lexico tests-sintactico tests-ast tests-ts tests-semantico tests-codint tests-assembly tests-optimizador
 	@echo "========================================="
 	@echo "      TODAS LAS PRUEBAS FINALIZADAS"
 	@echo "========================================="
@@ -545,6 +572,262 @@ tests-assembly: $(BIN)
 		else \
 			echo "ADVERTENCIA: No se encontró archivo .expected para $$nombre"; \
 			echo "RESULTADO: OK (compilación exitosa)"; \
+			ok=$$((ok + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	echo "======================"; \
+	echo "Pruebas correctas: $$ok"; \
+	echo "Pruebas fallidas: $$fallidas"; \
+	echo "======================"; \
+	echo "";
+
+# ========== Pruebas de optimizaciones ==========
+
+# Ejecuta todas las pruebas del optimizador (comparando versión normal y optimizada).
+tests-optimizador: $(BIN)
+	@mkdir -p $(RESULTADOS_PLEGADO_CONSTANTES_DIR)
+	@mkdir -p $(RESULTADOS_CODIGO_MUERTO_DIR)
+	@mkdir -p $(RESULTADOS_REUTILIZACION_OFFSETS_DIR)
+	@mkdir -p $(RESULTADOS_REDUCCION_FUERZA_DIR)
+	@mkdir -p $(RESULTADOS_INTEGRALES_DIR)
+
+	@fallidas=0; \
+	ok=0; \
+	echo ""; \
+	echo "==========================================="; \
+	echo "          PRUEBAS DE OPTIMIZACIÓN"; \
+	echo "==========================================="; \
+	echo ""; \
+	echo "========== PLEGADO DE CONSTANTES =========="; \
+	echo ""; \
+	for prueba in $(PRUEBAS_PLEGADO_CONSTANTES); do \
+		nombre=$$(basename $$prueba .ctds); \
+		salida_norm=$(RESULTADOS_PLEGADO_CONSTANTES_DIR)/$$nombre.ci; \
+		dot_norm=$(RESULTADOS_PLEGADO_CONSTANTES_DIR)/$$nombre.dot; \
+		png_norm=$(RESULTADOS_PLEGADO_CONSTANTES_DIR)/$$nombre.png; \
+		salida_opt=$(RESULTADOS_PLEGADO_CONSTANTES_DIR)/$${nombre}_opt.ci; \
+		dot_opt=$(RESULTADOS_PLEGADO_CONSTANTES_DIR)/$${nombre}_opt.dot; \
+		png_opt=$(RESULTADOS_PLEGADO_CONSTANTES_DIR)/$${nombre}_opt.png; \
+		error=$(RESULTADOS_PLEGADO_CONSTANTES_DIR)/$$nombre.err; \
+		echo "---- $$nombre ----"; \
+		$(BIN) -debug -target codinter -o $$salida_norm $$prueba > /dev/null 2> $$error; \
+		res_norm=$$?; \
+		if [ $$res_norm -eq 0 ] && [ -f $$dot_norm ]; then \
+			dot -Tpng $$dot_norm -o $$png_norm 2> /dev/null; \
+		fi; \
+		$(BIN) -debug -opt plegado-constantes -target codinter -o $$salida_opt $$prueba > /dev/null 2>> $$error; \
+		res_opt=$$?; \
+		if [ $$res_opt -eq 0 ] && [ -f $$dot_opt ]; then \
+			dot -Tpng $$dot_opt -o $$png_opt 2> /dev/null; \
+		fi; \
+		if [ ! -s $$error ]; then \
+			rm -f $$error; \
+		fi; \
+		if [ $$res_norm -eq 0 ] && [ $$res_opt -eq 0 ]; then \
+			echo "RESULTADO: OK"; \
+			ok=$$((ok + 1)); \
+		else \
+			echo "RESULTADO: FALLIDA"; \
+			fallidas=$$((fallidas + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	echo "======= ELIMINACIÓN DE CÓDIGO MUERTO ======="; \
+	echo ""; \
+	for prueba in $(PRUEBAS_CODIGO_MUERTO); do \
+		nombre=$$(basename $$prueba .ctds); \
+		salida_norm=$(RESULTADOS_CODIGO_MUERTO_DIR)/$$nombre.ci; \
+		dot_norm=$(RESULTADOS_CODIGO_MUERTO_DIR)/$$nombre.dot; \
+		png_norm=$(RESULTADOS_CODIGO_MUERTO_DIR)/$$nombre.png; \
+		salida_opt=$(RESULTADOS_CODIGO_MUERTO_DIR)/$${nombre}_opt.ci; \
+		dot_opt=$(RESULTADOS_CODIGO_MUERTO_DIR)/$${nombre}_opt.dot; \
+		png_opt=$(RESULTADOS_CODIGO_MUERTO_DIR)/$${nombre}_opt.png; \
+		error=$(RESULTADOS_CODIGO_MUERTO_DIR)/$$nombre.err; \
+		echo "---- $$nombre ----"; \
+		$(BIN) -debug -target codinter -o $$salida_norm $$prueba > /dev/null 2> $$error; \
+		res_norm=$$?; \
+		if [ $$res_norm -eq 0 ] && [ -f $$dot_norm ]; then \
+			dot -Tpng $$dot_norm -o $$png_norm 2> /dev/null; \
+		fi; \
+		$(BIN) -debug -opt codigo-muerto -target codinter -o $$salida_opt $$prueba > /dev/null 2>> $$error; \
+		res_opt=$$?; \
+		if [ $$res_opt -eq 0 ] && [ -f $$dot_opt ]; then \
+			dot -Tpng $$dot_opt -o $$png_opt 2> /dev/null; \
+		fi; \
+		if [ ! -s $$error ]; then \
+			rm -f $$error; \
+		fi; \
+		if [ $$res_norm -eq 0 ] && [ $$res_opt -eq 0 ]; then \
+			echo "RESULTADO: OK"; \
+			ok=$$((ok + 1)); \
+		else \
+			echo "RESULTADO: FALLIDA"; \
+			fallidas=$$((fallidas + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	echo "========= REUTILIZACIÓN DE OFFSETS ========="; \
+	echo ""; \
+	for prueba in $(PRUEBAS_REUTILIZACION_OFFSETS); do \
+		nombre=$$(basename $$prueba .ctds); \
+		salida_ass=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$$nombre.ass; \
+		salida_ass_opt=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$${nombre}_opt.ass; \
+		ejecutable=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$$nombre.out; \
+		ejecutable_opt=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$${nombre}_opt.out; \
+		salida_actual=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$$nombre.actual; \
+		salida_actual_opt=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$${nombre}_opt.actual; \
+		archivo_esperado=$(REUTILIZACION_OFFSETS_TEST_DIR)/$$nombre.expected; \
+		archivo_in=$(REUTILIZACION_OFFSETS_TEST_DIR)/$$nombre.in; \
+		error=$(RESULTADOS_REUTILIZACION_OFFSETS_DIR)/$$nombre.err; \
+		echo "---- $$nombre ----"; \
+		$(BIN) -target assembly -o $$salida_ass $$prueba 2> $$error; \
+		res_ass=$$?; \
+		$(BIN) -opt reutilizacion-offsets -target assembly -o $$salida_ass_opt $$prueba 2>> $$error; \
+		res_ass_opt=$$?; \
+		$(BIN) -o $$ejecutable $$prueba 2>> $$error; \
+		res_bin=$$?; \
+		$(BIN) -opt reutilizacion-offsets -o $$ejecutable_opt $$prueba 2>> $$error; \
+		res_bin_opt=$$?; \
+		if [ $$res_ass -ne 0 ] || [ $$res_ass_opt -ne 0 ] || [ $$res_bin -ne 0 ] || [ $$res_bin_opt -ne 0 ]; then \
+			echo "RESULTADO: FALLIDA (error de compilación/ensamblado)"; \
+			fallidas=$$((fallidas + 1)); \
+			continue; \
+		fi; \
+		if [ -f $$archivo_in ]; then \
+			$$ejecutable < $$archivo_in > $$salida_actual 2>> $$error; \
+			$$ejecutable_opt < $$archivo_in > $$salida_actual_opt 2>> $$error; \
+		else \
+			$$ejecutable > $$salida_actual 2>> $$error; \
+			$$ejecutable_opt > $$salida_actual_opt 2>> $$error; \
+		fi; \
+		if [ ! -s $$error ]; then \
+			rm -f $$error; \
+		fi; \
+		if ! diff -u --strip-trailing-cr $$salida_actual $$salida_actual_opt > /dev/null; then \
+			echo "RESULTADO: FALLIDA (salidas de ejecutable normal y optimizado difieren)"; \
+			fallidas=$$((fallidas + 1)); \
+			continue; \
+		fi; \
+		if [ -f $$archivo_esperado ]; then \
+			if diff -u --strip-trailing-cr $$salida_actual $$archivo_esperado > /dev/null; then \
+				echo "RESULTADO: OK"; \
+				ok=$$((ok + 1)); \
+			else \
+				echo "RESULTADO: FALLIDA (la salida no coincide con el .expected)"; \
+				diff -u --strip-trailing-cr $$salida_actual $$archivo_esperado; \
+				fallidas=$$((fallidas + 1)); \
+			fi; \
+		else \
+			echo "RESULTADO: OK (compilación y ejecuciones equivalentes)"; \
+			ok=$$((ok + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	echo "=========== REDUCCIÓN DE FUERZA ==========="; \
+	echo ""; \
+	for prueba in $(PRUEBAS_REDUCCION_FUERZA); do \
+		nombre=$$(basename $$prueba .ctds); \
+		salida_ass=$(RESULTADOS_REDUCCION_FUERZA_DIR)/$$nombre.ass; \
+		salida_ass_opt=$(RESULTADOS_REDUCCION_FUERZA_DIR)/$${nombre}_opt.ass; \
+		ejecutable=$(RESULTADOS_REDUCCION_FUERZA_DIR)/$$nombre.out; \
+		ejecutable_opt=$(RESULTADOS_REDUCCION_FUERZA_DIR)/$${nombre}_opt.out; \
+		salida_actual=$(RESULTADOS_REDUCCION_FUERZA_DIR)/$$nombre.actual; \
+		salida_actual_opt=$(RESULTADOS_REDUCCION_FUERZA_DIR)/$${nombre}_opt.actual; \
+		archivo_esperado=$(REDUCCION_FUERZA_TEST_DIR)/$$nombre.expected; \
+		archivo_in=$(REDUCCION_FUERZA_TEST_DIR)/$$nombre.in; \
+		error=$(RESULTADOS_REDUCCION_FUERZA_DIR)/$$nombre.err; \
+		echo "---- $$nombre ----"; \
+		$(BIN) -target assembly -o $$salida_ass $$prueba 2> $$error; \
+		res_ass=$$?; \
+		$(BIN) -opt reduccion-fuerza -target assembly -o $$salida_ass_opt $$prueba 2>> $$error; \
+		res_ass_opt=$$?; \
+		$(BIN) -o $$ejecutable $$prueba 2>> $$error; \
+		res_bin=$$?; \
+		$(BIN) -opt reduccion-fuerza -o $$ejecutable_opt $$prueba 2>> $$error; \
+		res_bin_opt=$$?; \
+		if [ $$res_ass -ne 0 ] || [ $$res_ass_opt -ne 0 ] || [ $$res_bin -ne 0 ] || [ $$res_bin_opt -ne 0 ]; then \
+			echo "RESULTADO: FALLIDA (error de compilación/ensamblado)"; \
+			fallidas=$$((fallidas + 1)); \
+			continue; \
+		fi; \
+		if [ -f $$archivo_in ]; then \
+			$$ejecutable < $$archivo_in > $$salida_actual 2>> $$error; \
+			$$ejecutable_opt < $$archivo_in > $$salida_actual_opt 2>> $$error; \
+		else \
+			$$ejecutable > $$salida_actual 2>> $$error; \
+			$$ejecutable_opt > $$salida_actual_opt 2>> $$error; \
+		fi; \
+		if [ ! -s $$error ]; then \
+			rm -f $$error; \
+		fi; \
+		if ! diff -u --strip-trailing-cr $$salida_actual $$salida_actual_opt > /dev/null; then \
+			echo "RESULTADO: FALLIDA (salidas de ejecutable normal y optimizado difieren)"; \
+			fallidas=$$((fallidas + 1)); \
+			continue; \
+		fi; \
+		if [ -f $$archivo_esperado ]; then \
+			if diff -u --strip-trailing-cr $$salida_actual $$archivo_esperado > /dev/null; then \
+				echo "RESULTADO: OK"; \
+				ok=$$((ok + 1)); \
+			else \
+				echo "RESULTADO: FALLIDA (la salida no coincide con el .expected)"; \
+				diff -u --strip-trailing-cr $$salida_actual $$archivo_esperado; \
+				fallidas=$$((fallidas + 1)); \
+			fi; \
+		else \
+			echo "RESULTADO: OK (compilación y ejecuciones equivalentes)"; \
+			ok=$$((ok + 1)); \
+		fi; \
+		echo ""; \
+	done; \
+	echo "=========== PRUEBAS INTEGRALES ==========="; \
+	echo ""; \
+	for prueba in $(PRUEBAS_INTEGRALES); do \
+		nombre=$$(basename $$prueba .ctds); \
+		salida_ass=$(RESULTADOS_INTEGRALES_DIR)/$$nombre.ass; \
+		salida_ass_opt=$(RESULTADOS_INTEGRALES_DIR)/$${nombre}_opt.ass; \
+		ejecutable=$(RESULTADOS_INTEGRALES_DIR)/$$nombre.out; \
+		ejecutable_opt=$(RESULTADOS_INTEGRALES_DIR)/$${nombre}_opt.out; \
+		salida_actual=$(RESULTADOS_INTEGRALES_DIR)/$$nombre.actual; \
+		salida_actual_opt=$(RESULTADOS_INTEGRALES_DIR)/$${nombre}_opt.actual; \
+		archivo_esperado=$(INTEGRALES_TEST_DIR)/$$nombre.expected; \
+		error=$(RESULTADOS_INTEGRALES_DIR)/$$nombre.err; \
+		echo "---- $$nombre ----"; \
+		$(BIN) -target assembly -o $$salida_ass $$prueba 2> $$error; \
+		res_ass=$$?; \
+		$(BIN) -opt all -target assembly -o $$salida_ass_opt $$prueba 2>> $$error; \
+		res_ass_opt=$$?; \
+		$(BIN) -o $$ejecutable $$prueba 2>> $$error; \
+		res_bin=$$?; \
+		$(BIN) -opt all -o $$ejecutable_opt $$prueba 2>> $$error; \
+		res_bin_opt=$$?; \
+		if [ $$res_ass -ne 0 ] || [ $$res_ass_opt -ne 0 ] || [ $$res_bin -ne 0 ] || [ $$res_bin_opt -ne 0 ]; then \
+			echo "RESULTADO: FALLIDA (error de compilación/ensamblado)"; \
+			fallidas=$$((fallidas + 1)); \
+			continue; \
+		fi; \
+		$$ejecutable > $$salida_actual 2>> $$error; \
+		$$ejecutable_opt > $$salida_actual_opt 2>> $$error; \
+		if [ ! -s $$error ]; then \
+			rm -f $$error; \
+		fi; \
+		if ! diff -u --strip-trailing-cr $$salida_actual $$salida_actual_opt > /dev/null; then \
+			echo "RESULTADO: FALLIDA (salidas de ejecutable normal y con -opt all difieren)"; \
+			fallidas=$$((fallidas + 1)); \
+			continue; \
+		fi; \
+		if [ -f $$archivo_esperado ]; then \
+			if diff -u --strip-trailing-cr $$salida_actual $$archivo_esperado > /dev/null; then \
+				echo "RESULTADO: OK"; \
+				ok=$$((ok + 1)); \
+			else \
+				echo "RESULTADO: FALLIDA (la salida no coincide con el .expected)"; \
+				diff -u --strip-trailing-cr $$salida_actual $$archivo_esperado; \
+				fallidas=$$((fallidas + 1)); \
+			fi; \
+		else \
+			echo "RESULTADO: OK (compilación y ejecuciones equivalentes)"; \
 			ok=$$((ok + 1)); \
 		fi; \
 		echo ""; \

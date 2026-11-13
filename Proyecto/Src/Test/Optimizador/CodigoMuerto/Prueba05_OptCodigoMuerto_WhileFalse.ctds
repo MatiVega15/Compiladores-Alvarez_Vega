@@ -1,0 +1,14 @@
+int main () {
+    int iteracion;
+    iteracion = 0;
+
+    while (false) {
+        iteracion = iteracion + 1;
+
+        if (iteracion > 5) {
+            return 10;
+        }
+    }
+
+    return iteracion;
+}

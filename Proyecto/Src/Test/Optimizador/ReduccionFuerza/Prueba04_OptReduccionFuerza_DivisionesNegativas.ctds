@@ -1,0 +1,14 @@
+extern void printInt (int valor);
+
+void main () {
+    int a, b, c, x;
+
+    x = -64;
+    a = -32 / 4;    // sarq $2.
+    b = -100 / 8;   // sarq $3.
+    c = x / 16;     // sarq $4.
+
+    printInt (a);
+    printInt (b);
+    printInt (c);
+}

@@ -1,0 +1,7 @@
+int calcular () {
+    return (100 - 50) / (2 * 5);
+}
+
+int main () {
+    return calcular ();
+}

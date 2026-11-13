@@ -4,6 +4,7 @@
 #include "Cuadruplos.h"
 #include "GeneradorCodigoIntermedio.h"
 #include "GeneradorCodigoAssembly.h"
+#include "OptimizadorAST.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,6 +56,10 @@ typedef struct {
     int debug;
     int optimizar;
     int optimizar_todo;
+    int optimizar_plegado_constantes;
+    int optimizar_codigo_muerto;
+    int optimizar_offsets;
+    int optimizar_potencias;
 } Configuracion;
 
 /* ========== Prototipos de funciones auxiliares ========== */
@@ -87,16 +92,13 @@ int main (int argc, char *argv []) {
     configuracion.debug = 0;
     configuracion.optimizar = 0;
     configuracion.optimizar_todo = 0;
+    configuracion.optimizar_plegado_constantes = 0;
+    configuracion.optimizar_codigo_muerto = 0;
+    configuracion.optimizar_offsets = 0;
+    configuracion.optimizar_potencias = 0;
 
     // Se procesan los argumentos de la línea de comandos.
     if (procesar_argumentos (argc, argv, &configuracion) != 0) {
-        return EXIT_FAILURE;
-    }
-
-    // Optimizaciones aún sin implementar.
-    if (configuracion.optimizar) {
-        fprintf (stderr, "ERROR: Las optimizaciones todavía no están implementadas.\n");
-
         return EXIT_FAILURE;
     }
 
@@ -150,6 +152,27 @@ int main (int argc, char *argv []) {
 
                 resultado = analizar_semanticamente (&configuracion, salida, &ts);
             
+                // Si el semántico fue exitoso, se aplican las optimizaciones en el AST.
+                if (resultado == EXIT_SUCCESS && configuracion.optimizar) {
+                    OpcionesOptimizacion opciones_opt = {0};
+
+                    if (modo_debug) {
+                        opciones_opt.modo_debug = 1;
+                    }
+
+                    if (configuracion.optimizar_todo || configuracion.optimizar_plegado_constantes) {
+                        opciones_opt.plegado_constantes = 1;
+                    }
+
+                    if (configuracion.optimizar_todo || configuracion.optimizar_codigo_muerto) {
+                        opciones_opt.eliminacion_codigo_muerto = 1;
+                    }
+
+                    if (configuracion.optimizar_todo || configuracion.optimizar_plegado_constantes || configuracion.optimizar_codigo_muerto) {
+                        arbol = optimizar_ast (arbol, opciones_opt);
+                    }
+                }
+                
                 // Se genera un archivo DOT del AST enriquecido por el semántico.
                 if (configuracion.debug) {
                     char *nombre_dot;
@@ -369,6 +392,23 @@ static int procesar_argumentos (int argc, char *argv [], Configuracion *configur
             // "all" activa todas las optimizaciones.
             if (strcmp (argv [i], "all") == 0) {
                 configuracion -> optimizar_todo = 1;
+            }
+            else if (strcmp (argv [i], "plegado-constantes") == 0) {
+                configuracion -> optimizar_plegado_constantes = 1;
+            }
+            else if (strcmp (argv [i], "codigo-muerto") == 0) {
+                configuracion -> optimizar_codigo_muerto = 1;
+            }
+            else if (strcmp (argv [i], "reutilizacion-offsets") == 0) {
+                configuracion -> optimizar_offsets = 1;
+            }
+            else if (strcmp (argv [i], "reduccion-fuerza") == 0) {
+                configuracion -> optimizar_potencias = 1;
+            }
+            else {
+                fprintf (stderr, "ERROR: Optimización desconocida '%s'.\n", argv [i]);
+                
+                return 1;
             }
         }
 
@@ -666,8 +706,20 @@ static int procesar_codigo_assembly (const Configuracion *configuracion, FILE *s
         return EXIT_FAILURE;
     }
 
+    // Se determina si se activa la reutilización de offsets en pila.
+    int optimizar_offsets = 0;
+    if (configuracion -> optimizar_todo || configuracion -> optimizar_offsets) {
+        optimizar_offsets = 1;
+    }
+
+    // Se determina si se activa la optimización de reducción de fuerza (potencias de 2).
+    int optimizar_potencias = 0;
+    if (configuracion -> optimizar_todo || configuracion->optimizar_potencias) {
+        optimizar_potencias = 1;
+    }
+
     // Se traduce la lista de cuádruplos a instrucciones de Assembly en el archivo de salida.
-    if (!generar_codigo_assembly (lista, ts, salida, configuracion -> debug)) {
+    if (!generar_codigo_assembly (lista, ts, salida, configuracion -> debug, optimizar_offsets, optimizar_potencias)) {
         fprintf (stderr, "ERROR: Ocurrió un error en la generación de Assembly.\n");
         return EXIT_FAILURE;
     }

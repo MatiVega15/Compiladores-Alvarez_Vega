@@ -18,6 +18,8 @@ static const char *REGISTROS_ARG [] = {"%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%
 typedef struct {
     FILE *archivo;
     int modo_debug;
+    int optimizar_offsets;
+    int optimizar_potencias;
     int error;
 
     // Arreglo para mapear el número de un temporal a su offset en la pila.
@@ -28,18 +30,29 @@ typedef struct {
     int tope_argumentos;
 } ContextoAssembly;
 
+/**
+ * Estructura para el Análisis de Vida Útil (Liveness Analysis) de los temporales.
+ */
+typedef struct {
+    int id;
+    int inicio;
+    int fin;
+} IntervaloTemporal;
+
 /* =========== Funciones auxiliares privadas =========== */
 
 static void escribir_seccion_datos (TablaSimbolos *ts, ContextoAssembly *contexto);
 static void procesar_funcion (NodoCuadruplo **actual, ContextoAssembly *contexto);
 static void calcular_entorno_funcion (NodoCuadruplo *inicio, ContextoAssembly *contexto, int *bytes_locales, int *cantidad_parametros);
 static void obtener_referencia_operando (Operando *op, ContextoAssembly *contexto, char *buffer);
+static int comparar_intervalos (const void *a, const void *b);
+static int obtener_exponente_potencia_dos (Operando *op);
 static void debug_assembly (ContextoAssembly *contexto, const char *mensaje);
 static void registrar_error (ContextoAssembly *contexto, const char *mensaje);
 
 /* =========== Función principal =========== */
 
-int generar_codigo_assembly (ListaCuadruplos *lista, TablaSimbolos *ts, FILE *archivo_salida, int modo_debug) {
+int generar_codigo_assembly (ListaCuadruplos *lista, TablaSimbolos *ts, FILE *archivo_salida, int modo_debug, int optimizar_offsets, int optimizar_potencias) {
     // Se validan los argumentos.
     if (lista == NULL || ts == NULL || archivo_salida == NULL) {
         return 0;
@@ -47,6 +60,8 @@ int generar_codigo_assembly (ListaCuadruplos *lista, TablaSimbolos *ts, FILE *ar
 
     ContextoAssembly contexto;
     contexto.modo_debug = modo_debug;
+    contexto.optimizar_offsets = optimizar_offsets;
+    contexto.optimizar_potencias = optimizar_potencias;
     contexto.error = 0;
     contexto.archivo = archivo_salida;
 
@@ -211,21 +226,93 @@ static void procesar_funcion (NodoCuadruplo **actual_ptr, ContextoAssembly *cont
                 fprintf (contexto -> archivo, "\tmovq %%r10, %s\n", res);
                 break;
 
-            case CI_MULTIPLICAR:
-                fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", ref1);
-                fprintf (contexto -> archivo, "\timulq %s, %%r10\n", ref2);
-                fprintf (contexto -> archivo, "\tmovq %%r10, %s\n", res);
-                break;
+            case CI_MULTIPLICAR: {
+                int shift = -1;
+                const char *operando_base = NULL;
+                
+                // En caso de que se haya solicitado la optimización de reducción de fuerza.
+                if (contexto -> optimizar_potencias) {
+                    // Caso 1: x * 2^k (constante a la derecha).
+                    shift = obtener_exponente_potencia_dos (&inst.arg2);
 
-            case CI_DIVIDIR:
-                // La división entera requiere que el dividendo esté en %rax (y su signo extendido en %rdx mediante 'cqo').
-                fprintf (contexto -> archivo, "\tmovq %s, %%rax\n", ref1);
-                fprintf (contexto -> archivo, "\tcqo\n");
-                fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", ref2);
-                // idiv divide rdx:rax por r10. El cociente queda en rax.
-                fprintf (contexto -> archivo, "\tidivq %%r10\n");
-                fprintf (contexto -> archivo, "\tmovq %%rax, %s\n", res);
+                    if (shift != -1) {
+                        operando_base = ref1;
+                    }
+
+                    // Caso 2: 2^k * x (constante a la izquierda).
+                    else {
+                        shift = obtener_exponente_potencia_dos (&inst.arg1);
+
+                        if (shift != -1) {
+                            operando_base = ref2;
+                        }
+                    }
+                }
+                
+                // Se encontró una potencia de 2 para optimizar.
+                if (shift != -1) {
+                    if (contexto -> modo_debug) {
+                        printf ("[OPTIMIZADOR] Multiplicación reemplazada por shlq $%d.\n", shift);
+                    }
+
+                    fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", operando_base);
+                    fprintf (contexto -> archivo, "\tshlq $%d, %%r10\n", shift);
+                    fprintf (contexto -> archivo, "\tmovq %%r10, %s\n", res);
+                }
+                // No hay una potencia de 2 para optimizar.
+                else {
+                    fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", ref1);
+                    fprintf (contexto -> archivo, "\timulq %s, %%r10\n", ref2);
+                    fprintf (contexto -> archivo, "\tmovq %%r10, %s\n", res);
+                }
                 break;
+            }
+
+            case CI_DIVIDIR: {
+                int shift = -1;
+
+                // En caso de que se haya solicitado la optimización de reducción de fuerza.
+                if (contexto -> optimizar_potencias) {
+                    // En la división solo es válido si el divisor (arg2) es potencia de 2.
+                    shift = obtener_exponente_potencia_dos (&inst.arg2);
+                }
+
+                // Se encontró una potencia de 2 para optimizar.
+                if (shift != -1) {
+                    if (contexto -> modo_debug) {
+                        printf ("[OPTIMIZADOR] División reemplazada por sarq $%d con ajuste de signo.\n", shift);
+                    }
+
+                    // Se carga el dividendo en %r10 y se lo copia a %r11 para evaluar el signo.
+                    fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", ref1);
+                    fprintf (contexto -> archivo, "\tmovq %%r10, %%r11\n");
+
+                    // Se llena %r11 con 1s (-1) si era negativo, o con 0s si era positivo.
+                    fprintf (contexto -> archivo, "\tsarq $63, %%r11\n");
+
+                    // Desplazamiento lógico para obtener el sesgo (2^k - 1) si era negativo, o 0 si era positivo.
+                    fprintf (contexto -> archivo, "\tshrq $%d, %%r11\n", 64 - shift);
+
+                    // Se suma el sesgo al dividendo original (corrige el redondeo en los números negativos).
+                    fprintf (contexto -> archivo, "\taddq %%r11, %%r10\n");
+
+                    // Desplazamiento aritmético que ejecuta la división exacta en 1 solo ciclo de reloj.
+                    fprintf (contexto -> archivo, "\tsarq $%d, %%r10\n", shift);
+                    fprintf (contexto -> archivo, "\tmovq %%r10, %s\n", res);
+                }
+                // No hay una potencia de 2 para optimizar.
+                else {
+                    // La división entera requiere que el dividendo esté en %rax (y su signo extendido en %rdx mediante 'cqo').
+                    fprintf (contexto -> archivo, "\tmovq %s, %%rax\n", ref1);
+                    fprintf (contexto -> archivo, "\tcqo\n");
+                    fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", ref2);
+
+                    // idiv divide rdx:rax por r10. El cociente queda en rax.
+                    fprintf (contexto -> archivo, "\tidivq %%r10\n");
+                    fprintf (contexto -> archivo, "\tmovq %%rax, %s\n", res);
+                }
+                break;
+            }
 
             case CI_MODULO:
                 // Similar a la división, pero el resto de la operación queda almacenado en %rdx.
@@ -407,7 +494,8 @@ static void calcular_entorno_funcion (NodoCuadruplo *inicio, ContextoAssembly *c
         actual = actual -> siguiente;
     }
 
-    // 2. Asignar offset a las variables locales y a los temporales a medida que aparecen.
+    // 2. Asignar offset a las variables locales del usuario.
+    // (Permanecen fijas para garantizar la seguridad en ciclos y saltos).
     actual = inicio -> siguiente;
     while (actual != NULL && actual -> instruccion.op != CI_FIN_FUNCION) {
         // Se revisa los tres posibles operandos del cuádruplo.
@@ -424,19 +512,125 @@ static void calcular_entorno_funcion (NodoCuadruplo *inicio, ContextoAssembly *c
                     offset_local -= 8;
                 }
             }
-            else if (ops [i] -> tipo == OPERANDO_TEMPORAL) {
-                // Se extrae el número del temporal.
-                int num = atoi (ops [i] -> nombre + 1);
-
-                if (num < MAX_TEMPORALES && contexto -> offset_temporales [num] == 0) {
-                    contexto -> offset_temporales [num] = offset_local;
-
-                    offset_local -= 8;
-                }
-            }
         }
 
         actual = actual -> siguiente;
+    }
+
+    // 3. Asignar offsets a los temporales (con o sin optimización de reutilización).
+    if (!contexto -> optimizar_offsets) {
+        // Modo sin optimización: se asigna un offset único a cada temporal a medida que aparecen.
+        actual = inicio -> siguiente;
+        while (actual != NULL && actual -> instruccion.op != CI_FIN_FUNCION) {
+            // Se revisa los tres posibles operandos del cuádruplo.
+            Operando *ops [] = {&actual -> instruccion.arg1, &actual -> instruccion.arg2, &actual -> instruccion.resultado};
+
+            for (int i = 0; i < 3; i ++) {
+                if (ops [i] -> tipo == OPERANDO_TEMPORAL) {
+                    // Se extrae el número del temporal.
+                    int num = atoi (ops [i] -> nombre + 1);
+
+                    if (num < MAX_TEMPORALES && contexto -> offset_temporales [num] == 0) {
+                        contexto -> offset_temporales [num] = offset_local;
+
+                        offset_local -= 8;
+                    }
+                }
+            }
+
+            actual = actual -> siguiente;
+        }
+    }
+    else {
+        // Modo optimizado: Análisis de Vida Útil para reciclar offsets de temporales.
+        IntervaloTemporal intervalos [MAX_TEMPORALES];
+        int cant_temporales = 0;
+
+        for (int i = 0; i < MAX_TEMPORALES; i ++) {
+            intervalos [i].id = i;
+            intervalos [i].inicio = -1;
+            intervalos [i].fin = -1;
+        }
+
+        // Paso A: Escaneo lineal de cuádruplos para registrar nacimiento (inicio) y muerte (fin).
+        actual = inicio -> siguiente;
+        int indice_inst = 0;
+
+        while (actual != NULL && actual -> instruccion.op != CI_FIN_FUNCION) {
+            // Se revisa los tres posibles operandos del cuádruplo.
+            Operando *ops [] = {&actual -> instruccion.arg1, &actual -> instruccion.arg2, &actual -> instruccion.resultado};
+
+            for (int i = 0; i < 3; i ++) {
+                if (ops [i] -> tipo == OPERANDO_TEMPORAL) {
+                    // Se extrae el número del temporal.
+                    int num = atoi (ops [i] -> nombre + 1);
+
+                    if (num < MAX_TEMPORALES) {
+                        // Si es la primera vez que aparece, se registra su nacimiento.
+                        if (intervalos [num].inicio == -1) {
+                            intervalos [num].inicio = indice_inst;
+                            cant_temporales ++;
+                        }
+
+                        // Se actualiza el final en cada uso (el último será su muerte).
+                        intervalos [num].fin = indice_inst;
+                    }
+                }
+            }
+
+            actual = actual -> siguiente;
+            indice_inst ++;
+        }
+
+        // Paso B: Filtrar temporales y ordenarlos por momento de nacimiento.
+        IntervaloTemporal activos [MAX_TEMPORALES];
+        int idx = 0;
+        
+        for (int i = 0; i < MAX_TEMPORALES; i ++) {
+            if (intervalos [i].inicio != -1) {
+                activos [idx ++] = intervalos [i];
+            }
+        }
+
+        qsort (activos, cant_temporales, sizeof (IntervaloTemporal), comparar_intervalos);
+
+        // Paso C: Asignar offsets reutilizando ranuras libres.
+        int pool_fin [MAX_TEMPORALES];
+        int pool_offset [MAX_TEMPORALES];
+        int num_pool = 0;
+        int reutilizaciones = 0;
+
+        for (int i = 0; i < cant_temporales; i ++) {
+            IntervaloTemporal temp = activos [i];
+            int asignado = 0;
+
+            // Se busca si hay alguna ranura libre (cuyo uso previo murió antes de este nacimiento).
+            for (int j = 0; j < num_pool; j ++) {
+                if (pool_fin [j] < temp.inicio) {
+                    // Se recicla la ranura.
+                    pool_fin [j] = temp.fin;
+                    contexto -> offset_temporales [temp.id] = pool_offset [j];
+                    asignado = 1;
+                    reutilizaciones ++;
+                    break;
+                }
+            }
+
+            // Si todas las ranuras activas siguen vivas, se crea un offset físico nuevo.
+            if (!asignado) {
+                contexto -> offset_temporales [temp.id] = offset_local;
+                pool_offset [num_pool] = offset_local;
+                pool_fin [num_pool] = temp.fin;
+
+                num_pool ++;
+                offset_local -= 8;
+            }
+        }
+
+        if (contexto -> modo_debug && cant_temporales > 0) {
+            char *nombre_func = inicio -> instruccion.arg1.nombre;
+            printf ("[OPTIMIZADOR] %s (): %d temporales lógicos -> %d ranuras físicas (%d reusadas).\n", nombre_func, cant_temporales, num_pool, reutilizaciones);
+        }
     }
 
     // Si no se asignó nada, offset_local será -8. El tamaño total debe ser positivo.
@@ -490,6 +684,66 @@ static void obtener_referencia_operando (Operando *op, ContextoAssembly *context
         // Las etiquetas locales inician con '.'.
         sprintf (buffer, ".%s", op -> nombre);
     }
+}
+
+/**
+ * Comparador utilizado por qsort () de C para ordenar los temporales cronológicamente.
+ * 
+ * Ordena los temporales de menor a mayor según la instrucción en la que nacen.
+ * 
+ * Convención que exige el algoritmo de ordenamiento qsort ():
+ *  - Retorna un valor negativo (< 0) si el primer elemento debe ir antes.
+ *  - Retorna un valor positivo (> 0) si el primer elemento debe ir después.
+ *  - Retorna cero (0) si ambos elementos son iguales en el criterio de orden.
+ */
+static int comparar_intervalos (const void *a, const void *b) {
+    // Se convierten los punteros genéricos (void *) al tipo de la estructura.
+    const IntervaloTemporal *temporal_a = (const IntervaloTemporal *) a;
+    const IntervaloTemporal *temporal_b = (const IntervaloTemporal *) b;
+
+    // Se compara el momento de nacimiento (inicio) de cada temporal.
+    if (temporal_a -> inicio < temporal_b -> inicio) {
+        // El temporal_a nació antes, va primero en la lista.
+        return -1;
+    }
+
+    if (temporal_a -> inicio > temporal_b -> inicio) {
+        // El temporal_a nació después, va más adelante en la lista.
+        return 1;
+    }
+
+    // Ambos nacieron exactamente en la misma instrucción.
+    return 0;
+}
+
+/**
+ * Verifica si un operando es una constante entera positiva potencia de 2 (>= 2).
+ * 
+ * En caso de que lo sea, retorna su exponente k (tal que valor == 2^k).
+ * En caso contrario, retorna -1.
+ */
+static int obtener_exponente_potencia_dos (Operando *op) {
+    // Se valida el argumento.
+    if (op == NULL || op -> tipo != OPERANDO_CONSTANTE || op -> tipo_dato != TIPO_INT) {
+        return -1;
+    }
+
+    int val = atoi (op -> nombre);
+
+    // Se verifica que sea >= 2 y tenga exactamente un bit encendido.
+    if (val < 2 || (val & (val - 1)) != 0) {
+        return -1;
+    }
+
+    int exponente = 0;
+    
+    // Se divide por 2 repetidamente hasta llegar a 1, contando los desplazamientos.
+    while (val > 1) {
+        val >>= 1;      // Desplaza los bits a la derecha (equivale a dividir por 2).
+        exponente ++;   // Cada desplazamiento suma 1 al exponente resultante (k).
+    }
+    
+    return exponente;
 }
 
 /**

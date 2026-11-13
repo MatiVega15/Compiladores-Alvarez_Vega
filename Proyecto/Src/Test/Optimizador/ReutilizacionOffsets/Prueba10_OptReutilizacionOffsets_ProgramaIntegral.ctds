@@ -1,0 +1,35 @@
+extern void printInt (int valor);
+
+int acumulador (int n) {
+    int i, acc;
+
+    i = 1;
+    acc = 0;
+
+    while (i < n) {
+        if ((i % 2) == 0) {
+            acc = acc + (i * 10);
+        } else {
+            acc = acc + i;
+        }
+
+        i = i + 1;
+    }
+    
+    return acc;
+}
+
+void main () {
+    int val, cond;
+
+    val = acumulador (6);
+    printInt (val);
+
+    if (val > 20) {
+        cond = (val / 2) + (val % 3);
+        printInt (cond);
+    }
+    else {
+        printInt (0);
+    }
+}

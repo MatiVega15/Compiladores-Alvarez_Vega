@@ -1,0 +1,38 @@
+extern void printInt (int valor);
+
+void main () {
+    int resultado;
+    int x;
+
+    resultado = 0;
+    x = 10;
+
+    // 1. Plegado de constantes.
+    if (1 == 0) {
+        // 2. Código muerto.
+        resultado = 999;
+    } else {
+        // 3. Reducción de fuerza.
+        resultado = x * 16;
+    }
+
+    // 1. Plegado de constantes.
+    if (5 > 10) {
+        // 2. Código muerto.
+        while (1 == 1) {
+            resultado = resultado + 1;
+        }
+    } else {
+        // 3. Reducción de fuerza.
+        resultado = resultado + (-200 / 8);
+    }
+
+    // 4. Reutilización de offsets.
+    {
+        int temp;
+        temp = resultado - 35;
+        resultado = temp * 2;
+    }
+
+    printInt (resultado);
+}

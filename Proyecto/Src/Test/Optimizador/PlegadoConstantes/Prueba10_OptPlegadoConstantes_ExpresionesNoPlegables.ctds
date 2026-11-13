@@ -1,0 +1,11 @@
+int obtener_valor () {
+    return 42;
+}
+
+int main () {
+    int res;
+
+    res = obtener_valor () + (5 * 2) - 3;
+
+    return 0;
+}

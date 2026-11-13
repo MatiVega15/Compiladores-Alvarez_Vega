@@ -1,0 +1,14 @@
+extern void printInt (int valor);
+
+void main () {
+    int x;
+    x = 10;
+
+    {
+        int x;
+        x = 15 + 5;
+        printInt (x + 10);
+    }
+
+    printInt (x);
+}

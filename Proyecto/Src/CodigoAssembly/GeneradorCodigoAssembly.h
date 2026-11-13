@@ -16,6 +16,6 @@
  * 
  * Retorna 1 si la generación fue exitosa, o 0 si ocurrió un error.
  */
-int generar_codigo_assembly (ListaCuadruplos *lista, TablaSimbolos *ts, FILE *archivo_salida, int modo_debug);
+int generar_codigo_assembly (ListaCuadruplos *lista, TablaSimbolos *ts, FILE *archivo_salida, int modo_debug, int optimizar_offsets, int optimizar_potencias);
 
 #endif

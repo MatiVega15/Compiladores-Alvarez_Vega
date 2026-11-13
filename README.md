@@ -56,6 +56,7 @@
 │       ├── CodigoIntermedio/
 │       ├── Common/
 │       ├── Lexer/
+│       ├── Optimizador/
 │       ├── Parser/
 │       ├── Semantico/
 │       ├── TS/
@@ -63,6 +64,12 @@
 │       │   ├── AST/
 │       │   ├── CodigoIntermedio/
 │       │   ├── CodigoAssembly/
+│       │   ├── Optimizador/
+│       │   │   ├── CodigoMuerto/
+│       │   │   ├── PlegadoConstantes/
+│       │   │   ├── ReutilizacionOffsets/
+│       │   │   ├── ReduccionFuerza/
+│       │   │   └── Prueba01_Optimizaciones_IntegracionTodasOptimizaciones.ctds
 │       │   ├── PruebaDeEstresYLimites.ctds
 │       │   ├── TS/
 │       │   ├── Lexico/
@@ -143,7 +150,7 @@ El trabajo se aborda de una manera incremental, mediante las siguientes etapas:
 5. Generación de **código Assembly y ejecutable**.
 6. **Optimizador** y extensiones.
 
-Actualmente se encuentran implementadas las etapas de **análisis léxico**, **análisis sintáctico**, **generación del árbol sintáctico abstracto (AST)**, **generación de la tabla de símbolos (TS)**, **análisis semántico**, **generación de código intermedio**, **generación de código Assembly** y el **enlazado final** con la librería de runtime.
+Actualmente se encuentran implementadas las etapas de **análisis léxico**, **análisis sintáctico**, **generación del árbol sintáctico abstracto (AST)**, **generación de la tabla de símbolos (TS)**, **análisis semántico**, **optimizador del AST (plegado de constantes y eliminación de código muerto)**, **optimizador del backend Assembly (reutilización de offsets en pila y reducción de fuerza para potencias de 2)**, **generación de código intermedio**, **generación de código Assembly** y el **enlazado final** con la librería de runtime.
 
 ## *Compilación y ejecución*
 
@@ -183,13 +190,31 @@ Las etapas admitidas son:
 | `codinter` | Análisis semántico y generación de código intermedio |
 | `assembly` | Generación de código Assembly x86-64 |
 
+Para aplicar **optimizaciones** antes o durante la generación de código:
+
+```bash
+./build/c-tds -opt plegado-constantes archivo.ctds
+
+./build/c-tds -opt codigo-muerto archivo.ctds
+
+./build/c-tds -opt reutilizacion-offsets archivo.ctds
+
+./build/c-tds -opt reduccion-fuerza archivo.ctds
+```
+
+O para activar **todas las optimizaciones disponibles**:
+
+```bash
+./build/c-tds -opt all archivo.ctds
+```
+
 Para activar el **modo depuración**:
 
 ```bash
 ./build/c-tds -debug archivo.ctds
 ```
 
-El modo de depuración muestra **información adicional** durante la etapa de análisis que se esté ejecutando.
+El modo de depuración muestra **información adicional** durante la etapa de análisis, optimización o generación que se esté ejecutando (`[LEX]`, `[PARSE]`, `[SEM]`, `[OPTIMIZADOR]`, `[CODINT]`, `[ASSEMBLY]`).
 
 El **objetivo `tests`** permite ejecutar todas las pruebas correspondientes a las etapas implementadas:
 
@@ -197,7 +222,7 @@ El **objetivo `tests`** permite ejecutar todas las pruebas correspondientes a la
 make tests
 ```
 
-Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico**, del **árbol sintáctico abstracto (AST)**, de la **tabla de símbolos (TS)**, del **análisis semántico**, del **generador de código intermedio** y del **generador de código Assembly y ejecutables**.
+Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico**, del **árbol sintáctico abstracto (AST)**, de la **tabla de símbolos (TS)**, del **análisis semántico**, del **generador de código intermedio**, del **generador de código Assembly y ejecutables**, del **optimizador del AST (plegado de constantes y eliminación de código muerto)** y del **optimizador del backend Assembly (reutilización de offsets y reducción de fuerzas para potencias de 2)**.
 
 Para **ejecutar solamente las pruebas del análisis léxico**:
 
@@ -238,6 +263,12 @@ Para **ejecutar solamente las pruebas de código Assembly y ejecutables**:
 
 ```bash
 make tests-assembly
+```
+
+Para **ejecutar solamente las pruebas de optimización (plegado de constantes, eliminación de código muerto, reutilización de offsets, reducción de fuerza y prueba integral)**:
+
+```bash
+make tests-optimizador
 ```
 
 Para **limpiar** los archivos generados:

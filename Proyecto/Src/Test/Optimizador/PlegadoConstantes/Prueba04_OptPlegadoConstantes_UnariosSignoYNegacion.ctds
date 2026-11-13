@@ -1,0 +1,11 @@
+int main () {
+    int x;
+    float y;
+    boolean b;
+
+    x = -(-5);
+    y = -3.14;
+    b = !true;
+
+    return -10;
+}

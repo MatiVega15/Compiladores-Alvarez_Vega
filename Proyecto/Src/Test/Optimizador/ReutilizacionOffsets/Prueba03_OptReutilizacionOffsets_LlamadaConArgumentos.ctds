@@ -1,0 +1,15 @@
+extern void printInt (int valor);
+
+int calcular (int p1, int p2, int p3) {
+    return p1 + (p2 * p3);
+}
+
+void main () {
+    int a, b, res;
+
+    a = 4;
+    b = 2;
+
+    res = calcular (a + 1, b * 3, a - b);
+    printInt (res);
+}

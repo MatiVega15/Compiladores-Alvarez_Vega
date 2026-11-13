@@ -1,0 +1,14 @@
+extern void printInt (int valor);
+
+void main () {
+    int a, b, res1, res2;
+
+    a = 27;
+    b = 4;
+
+    res1 = (a / b) + (a % b);
+    printInt (res1);
+
+    res2 = ((a * 2) / (b + 1) % 5);
+    printInt (res2);
+}

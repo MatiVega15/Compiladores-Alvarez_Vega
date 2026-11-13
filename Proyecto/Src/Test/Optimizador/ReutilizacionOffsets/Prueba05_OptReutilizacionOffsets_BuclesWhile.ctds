@@ -1,0 +1,15 @@
+extern void printInt (int valor);
+
+void main () {
+    int i, suma;
+
+    i = 1;
+    suma = 0;
+
+    while (i < 6) {
+        suma = suma + (i * i);
+        i = i + 1;
+    }
+
+    printInt (suma);
+}
