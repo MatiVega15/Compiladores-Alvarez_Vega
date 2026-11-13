@@ -59,6 +59,7 @@ typedef struct {
     int optimizar_plegado_constantes;
     int optimizar_codigo_muerto;
     int optimizar_offsets;
+    int optimizar_potencias;
 } Configuracion;
 
 /* ========== Prototipos de funciones auxiliares ========== */
@@ -94,6 +95,7 @@ int main (int argc, char *argv []) {
     configuracion.optimizar_plegado_constantes = 0;
     configuracion.optimizar_codigo_muerto = 0;
     configuracion.optimizar_offsets = 0;
+    configuracion.optimizar_potencias = 0;
 
     // Se procesan los argumentos de la línea de comandos.
     if (procesar_argumentos (argc, argv, &configuracion) != 0) {
@@ -399,6 +401,9 @@ static int procesar_argumentos (int argc, char *argv [], Configuracion *configur
             }
             else if (strcmp (argv [i], "reutilizacion-offsets") == 0) {
                 configuracion -> optimizar_offsets = 1;
+            }
+            else if (strcmp (argv [i], "reduccion-fuerza") == 0) {
+                configuracion -> optimizar_potencias = 1;
             }
             else {
                 fprintf (stderr, "ERROR: Optimización desconocida '%s'.\n", argv [i]);
@@ -707,8 +712,14 @@ static int procesar_codigo_assembly (const Configuracion *configuracion, FILE *s
         optimizar_offsets = 1;
     }
 
+    // Se determina si se activa la optimización de reducción de fuerza (potencias de 2).
+    int optimizar_potencias = 0;
+    if (configuracion -> optimizar_todo || configuracion->optimizar_potencias) {
+        optimizar_potencias = 1;
+    }
+
     // Se traduce la lista de cuádruplos a instrucciones de Assembly en el archivo de salida.
-    if (!generar_codigo_assembly (lista, ts, salida, configuracion -> debug, optimizar_offsets)) {
+    if (!generar_codigo_assembly (lista, ts, salida, configuracion -> debug, optimizar_offsets, optimizar_potencias)) {
         fprintf (stderr, "ERROR: Ocurrió un error en la generación de Assembly.\n");
         return EXIT_FAILURE;
     }
