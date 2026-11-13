@@ -19,6 +19,7 @@ typedef struct {
     FILE *archivo;
     int modo_debug;
     int optimizar_offsets;
+    int optimizar_potencias;
     int error;
 
     // Arreglo para mapear el número de un temporal a su offset en la pila.
@@ -45,12 +46,13 @@ static void procesar_funcion (NodoCuadruplo **actual, ContextoAssembly *contexto
 static void calcular_entorno_funcion (NodoCuadruplo *inicio, ContextoAssembly *contexto, int *bytes_locales, int *cantidad_parametros);
 static void obtener_referencia_operando (Operando *op, ContextoAssembly *contexto, char *buffer);
 static int comparar_intervalos (const void *a, const void *b);
+static int obtener_exponente_potencia_dos (Operando *op);
 static void debug_assembly (ContextoAssembly *contexto, const char *mensaje);
 static void registrar_error (ContextoAssembly *contexto, const char *mensaje);
 
 /* =========== Función principal =========== */
 
-int generar_codigo_assembly (ListaCuadruplos *lista, TablaSimbolos *ts, FILE *archivo_salida, int modo_debug, int optimizar_offsets) {
+int generar_codigo_assembly (ListaCuadruplos *lista, TablaSimbolos *ts, FILE *archivo_salida, int modo_debug, int optimizar_offsets, int optimizar_potencias) {
     // Se validan los argumentos.
     if (lista == NULL || ts == NULL || archivo_salida == NULL) {
         return 0;
@@ -59,6 +61,7 @@ int generar_codigo_assembly (ListaCuadruplos *lista, TablaSimbolos *ts, FILE *ar
     ContextoAssembly contexto;
     contexto.modo_debug = modo_debug;
     contexto.optimizar_offsets = optimizar_offsets;
+    contexto.optimizar_potencias = optimizar_potencias;
     contexto.error = 0;
     contexto.archivo = archivo_salida;
 
@@ -223,21 +226,93 @@ static void procesar_funcion (NodoCuadruplo **actual_ptr, ContextoAssembly *cont
                 fprintf (contexto -> archivo, "\tmovq %%r10, %s\n", res);
                 break;
 
-            case CI_MULTIPLICAR:
-                fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", ref1);
-                fprintf (contexto -> archivo, "\timulq %s, %%r10\n", ref2);
-                fprintf (contexto -> archivo, "\tmovq %%r10, %s\n", res);
-                break;
+            case CI_MULTIPLICAR: {
+                int shift = -1;
+                const char *operando_base = NULL;
+                
+                // En caso de que se haya solicitado la optimización de reducción de fuerza.
+                if (contexto -> optimizar_potencias) {
+                    // Caso 1: x * 2^k (constante a la derecha).
+                    shift = obtener_exponente_potencia_dos (&inst.arg2);
 
-            case CI_DIVIDIR:
-                // La división entera requiere que el dividendo esté en %rax (y su signo extendido en %rdx mediante 'cqo').
-                fprintf (contexto -> archivo, "\tmovq %s, %%rax\n", ref1);
-                fprintf (contexto -> archivo, "\tcqo\n");
-                fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", ref2);
-                // idiv divide rdx:rax por r10. El cociente queda en rax.
-                fprintf (contexto -> archivo, "\tidivq %%r10\n");
-                fprintf (contexto -> archivo, "\tmovq %%rax, %s\n", res);
+                    if (shift != -1) {
+                        operando_base = ref1;
+                    }
+
+                    // Caso 2: 2^k * x (constante a la izquierda).
+                    else {
+                        shift = obtener_exponente_potencia_dos (&inst.arg1);
+
+                        if (shift != -1) {
+                            operando_base = ref2;
+                        }
+                    }
+                }
+                
+                // Se encontró una potencia de 2 para optimizar.
+                if (shift != -1) {
+                    if (contexto -> modo_debug) {
+                        printf ("[OPTIMIZADOR] Multiplicación reemplazada por shlq $%d.\n", shift);
+                    }
+
+                    fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", operando_base);
+                    fprintf (contexto -> archivo, "\tshlq $%d, %%r10\n", shift);
+                    fprintf (contexto -> archivo, "\tmovq %%r10, %s\n", res);
+                }
+                // No hay una potencia de 2 para optimizar.
+                else {
+                    fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", ref1);
+                    fprintf (contexto -> archivo, "\timulq %s, %%r10\n", ref2);
+                    fprintf (contexto -> archivo, "\tmovq %%r10, %s\n", res);
+                }
                 break;
+            }
+
+            case CI_DIVIDIR: {
+                int shift = -1;
+
+                // En caso de que se haya solicitado la optimización de reducción de fuerza.
+                if (contexto -> optimizar_potencias) {
+                    // En la división solo es válido si el divisor (arg2) es potencia de 2.
+                    shift = obtener_exponente_potencia_dos (&inst.arg2);
+                }
+
+                // Se encontró una potencia de 2 para optimizar.
+                if (shift != -1) {
+                    if (contexto -> modo_debug) {
+                        printf ("[OPTIMIZADOR] División reemplazada por sarq $%d con ajuste de signo.\n", shift);
+                    }
+
+                    // Se carga el dividendo en %r10 y se lo copia a %r11 para evaluar el signo.
+                    fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", ref1);
+                    fprintf (contexto -> archivo, "\tmovq %%r10, %%r11\n");
+
+                    // Se llena %r11 con 1s (-1) si era negativo, o con 0s si era positivo.
+                    fprintf (contexto -> archivo, "\tsarq $63, %%r11\n");
+
+                    // Desplazamiento lógico para obtener el sesgo (2^k - 1) si era negativo, o 0 si era positivo.
+                    fprintf (contexto -> archivo, "\tshrq $%d, %%r11\n", 64 - shift);
+
+                    // Se suma el sesgo al dividendo original (corrige el redondeo en los números negativos).
+                    fprintf (contexto -> archivo, "\taddq %%r11, %%r10\n");
+
+                    // Desplazamiento aritmético que ejecuta la división exacta en 1 solo ciclo de reloj.
+                    fprintf (contexto -> archivo, "\tsarq $%d, %%r10\n", shift);
+                    fprintf (contexto -> archivo, "\tmovq %%r10, %s\n", res);
+                }
+                // No hay una potencia de 2 para optimizar.
+                else {
+                    // La división entera requiere que el dividendo esté en %rax (y su signo extendido en %rdx mediante 'cqo').
+                    fprintf (contexto -> archivo, "\tmovq %s, %%rax\n", ref1);
+                    fprintf (contexto -> archivo, "\tcqo\n");
+                    fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", ref2);
+
+                    // idiv divide rdx:rax por r10. El cociente queda en rax.
+                    fprintf (contexto -> archivo, "\tidivq %%r10\n");
+                    fprintf (contexto -> archivo, "\tmovq %%rax, %s\n", res);
+                }
+                break;
+            }
 
             case CI_MODULO:
                 // Similar a la división, pero el resto de la operación queda almacenado en %rdx.
@@ -639,6 +714,36 @@ static int comparar_intervalos (const void *a, const void *b) {
 
     // Ambos nacieron exactamente en la misma instrucción.
     return 0;
+}
+
+/**
+ * Verifica si un operando es una constante entera positiva potencia de 2 (>= 2).
+ * 
+ * En caso de que lo sea, retorna su exponente k (tal que valor == 2^k).
+ * En caso contrario, retorna -1.
+ */
+static int obtener_exponente_potencia_dos (Operando *op) {
+    // Se valida el argumento.
+    if (op == NULL || op -> tipo != OPERANDO_CONSTANTE || op -> tipo_dato != TIPO_INT) {
+        return -1;
+    }
+
+    int val = atoi (op -> nombre);
+
+    // Se verifica que sea >= 2 y tenga exactamente un bit encendido.
+    if (val < 2 || (val & (val - 1)) != 0) {
+        return -1;
+    }
+
+    int exponente = 0;
+    
+    // Se divide por 2 repetidamente hasta llegar a 1, contando los desplazamientos.
+    while (val > 1) {
+        val >>= 1;      // Desplaza los bits a la derecha (equivale a dividir por 2).
+        exponente ++;   // Cada desplazamiento suma 1 al exponente resultante (k).
+    }
+    
+    return exponente;
 }
 
 /**
