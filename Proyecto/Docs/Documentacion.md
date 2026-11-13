@@ -1879,6 +1879,7 @@ Este contexto concentra la **información** necesaria durante el recorrido secue
 - Un **búfer LIFO** para retener los argumentos de funciones que superan el límite de registros antes de ser apilados.
 - El estado del modo de **depuración** y las banderas de **error**.
 - La bandera `optimizar_offsets`, que indica si se debe aplicar **reutilización de temporales en la pila**.
+- La bandera `optimizar_potencias`, que indica si se debe aplicar **reducción de fuerza** al dividir o multiplicar por una potencia de 2.
 
 El generador asume que el código intermedio está lógicamente validado. Por lo tanto, se enfoca exclusivamente en la **traducción de operaciones, selección de registros y gestión de la memoria física (Stack y Data)**.
 
@@ -1917,6 +1918,8 @@ La **traducción de cuádruplos a Assembly x86-64** se realiza mediante un `swit
 
 - **Asignaciones y movimientos**: Como x86-64 no permite movimientos directos de memoria a memoria, **las asignaciones se triangulan utilizando el registro temporal de propósito general `%r10`** (`movq mem, %r10` y luego `movq %r10, mem`).
 - **Aritmética**: Se utilizan las **instrucciones nativas de 64 bits** `addq`, `subq`, e `imulq` para sumar, restar y multiplicar, respectivamente. Para la división (`idivq`) y el módulo, se carga el dividendo en `%rax`, se extiende su signo hacia `%rdx` mediante `cqo` y, tras operar, se rescata el cociente de `%rax` o el resto de `%rdx`.
+  
+  Cuando se habilita la **optimización de reducción de fuerza**, las multiplicaciones por potencias de 2 se reemplazan eficientemente mediante desplazamientos a la izquierda (`shlq`), y las divisiones por potencias de 2 se optimizan con desplazamientos aritméticos a derecha (`sarq`), incorporando un cálculo de sesgo o corrección de signo por complemento a 2 para garantizar el truncamiento correcto hacia cero en valores negativos.
 - **Relacionales**: Las comparaciones (`==`, `<`, `>`) se resuelven mediante `cmpq` seguido de **movimientos condicionales** (`cmove`, `cmovl`, `cmovg`), depositando un `1` o un `0` en el destino sin necesidad de ramificar el flujo.
 - **Control de flujo**: Los cuádruplos de salto se traducen directamente a `jmp` (**salto incondicional**) o `je` (**salto si es falso**, al comparar contra `0`).
 - **Retornos**: Se traducen cargando el valor en `%rax` y ejecutando el **epílogo** (`leave` seguido de `ret`). Si la función `main` alcanza el final sin un retorno explícito, se inyecta un **retorno exitoso** (`$0` en `%rax`) por seguridad semántica.
@@ -1937,6 +1940,8 @@ Cuando está activo, el compilador emite mensajes por consola utilizando el **pr
 - El **nombre de la instrucción intermedia** que está siendo traducida en cada momento, facilitando la identificación del cuádruplo exacto en caso de un fallo en la emisión de código.
 
 Adicionalmente, cuando la optimización de reutilización de offsets (`-opt reutilizacion-offsets` o `-opt all`) se encuentra habilitada, el backend emite trazas informativas con el prefijo `[OPTIMIZADOR]` detallando para cada función el número de **temporales lógicos**, las **ranuras físicas finales asignadas** en la pila y la cantidad de **ranuras reutilizadas**.
+
+De manera similar, cuando la optimización de reducción de fuerza (`-opt reducción fuerza` o `-opt all`) se encuentra habilitada, el backend emite trazas informativas con el prefijo `[OPTIMIZADOR]` detallando aquellas **multiplicaciones o divisiones que hayan sido reemplazadas por una cierta cantidad de desplazamientos**.
 
 ### *5.8 Salida del generador*
 
@@ -2018,12 +2023,13 @@ La etapa de optimización fue implementada en **lenguaje C** y actúa en dos niv
 
 1. **Optimizador de AST**: Modifica la estructura del AST en memoria (*plegado de constantes* y *eliminación de código muerto*) antes de la generación del código intermedio.
 2. **Optimizador de Stack Frame (Assembly)**: Analiza el intervalo de vida de los temporales en el código intermedio para reusar desplazamientos de pila (*reutilización de offsets*) durante la generación de código máquina.
+3. **Optimizador de Backend - Reducción de Fuerza**: Reemplaza operaciones costosas de multiplicación (`imulq`) y división (`idivq`) por instrucciones de desplazamiento de bits de alta velocidad (`shlq` y `sarq`) cuando las operaciones son potencias exactas de 2.
 
-El objetivo conjunto de las optimizaciones es **reducir el tiempo de ejecución, la cantidad de cuádruplos y el tamaño del marco de pila (Stack Frame)**, manteniendo la estricta equivalencia semántica del programa.
+El objetivo conjunto de las optimizaciones es **reducir el tiempo de ejecución, la cantidad de cuádruplos e instrucciones y el tamaño del marco de pila (Stack Frame)**, manteniendo la estricta equivalencia semántica del programa.
 
 *Para revisar los detalles de implementación, consultar [OptimizadorAST.h](../Src/Optimizador/OptimizadorAST.h), [OptimizadorAST.c](../Src/Optimizador/OptimizadorAST.c), [GeneradorCodigoAssembly.h](../Src/CodigoAssembly/GeneradorCodigoAssembly.h) y [GeneradorCodigoAssembly.c](../Src/CodigoAssembly/GeneradorCodigoAssembly.c).*
 
-La interfaz define la estructura `OpcionesOptimizacion`, que permite **activar o desactivar** de forma independiente los pases disponibles (como `plegado_constantes` y `eliminacion_codigo_muerto`) y configurar el comportamiento de **depuración** (`modo_debug`). El **punto de entrada principal** es la función `optimizar_ast ()`, la cual recibe la raíz del árbol junto con la configuración de banderas de optimización seleccionadas desde la línea de comandos.
+La interfaz del optimizador del AST define la estructura `OpcionesOptimizacion`, que permite **activar o desactivar** de forma independiente los pases disponibles (como `plegado_constantes` y `eliminacion_codigo_muerto`) y configurar el comportamiento de **depuración** (`modo_debug`). El **punto de entrada principal** es la función `optimizar_ast ()`, la cual recibe la raíz del árbol junto con la configuración de banderas de optimización seleccionadas desde la línea de comandos.
 
 ### *6.1 Plegado de constantes (constant folding)*
 
@@ -2237,13 +2243,94 @@ Las **pruebas** cubren las siguientes construcciones y escenarios de borde:
 
 Para cada prueba se genera el código Assembly en su versión estándar (`.ass`) y en su **versión optimizada** (`_opt.ass`), compilando y ejecutando ambos binarios (`.out`) para comprobar la estricta coincidencia de la salida por consola contra el resultado esperado (`.expected`). Asimismo, la inspección del **prólogo** `enter $(N), $0` en los archivos `.ass` permite auditar la reducción efectiva en bytes del marco de pila alcanzada por la optimización.
 
+### *6.4 Reducción de fuerza (strength reduction)*
+
+La **reducción de fuerza** consiste en reemplazar operaciones costosas a nivel de ciclos de reloj de CPU (como la multiplicación `imulq` y la división entera `idivq` con operandos constantes que son potencias exactas de 2) por instrucciones de desplazamiento de bits de altísima velocidad (`shlq` y `sarq`).
+
+#### *6.4.1 Diseño y decisiones*
+
+El pase se implementa directamente en el **backend de Assembly** (`GeneradorCodigoAssembly.c`) al traducir los cuádruplos `CI_MULTIPLICAR` y `CI_DIVIDIR`:
+
+- **Identificación de potencias de 2**: Mediante la función auxiliar `obtener_exponente_potencia_dos ()`, se evalúa si el operando constante es un entero positivo mayor o igual a 2 y si cumple con la condición bit a bit clásica de las potencias de dos: `(val & (val - 1)) == 0`.
+- **Multiplicación por $2^k$ (`shlq`)**: Si el operando derecho o izquierdo de la multiplicación es una potencia de 2, la operación se traduce directamente a un desplazamiento aritmético a izquierda de *k* bits (`shlq $k`), ahorrando los ciclos de una multiplicación completa.
+- **División por $2^k$ con ajuste de sesgo (`sarq`)**: Como el desplazamiento aritmético a derecha (`sarq`) en complemento a 2 redondea hacia infinito negativo (afectando a los números negativos), el compilador emite una secuencia compacta de instrucciones que calcula un sesgo de signo condicional para los números negativos, asegurando que la división entera trunque correctamente hacia cero de manera idéntica a `idivq`, pero ejecutándose en un solo ciclo de reloj.
+
+#### *6.4.2 Integración en el flujo del compilador*
+
+Este pase se activa al pasar la **bandera `-opt reduccion-fuerza` o bien `-opt all`**:
+
+- **Impacto en el backend**: Elimina instrucciones pesadas de división y multiplicación estándar por constantes, acelerando significativamente la ejecución de bucles y expresiones aritméticas intensivas.
+
+#### *6.4.3 Modo de depuración*
+
+Cuando el **modo de depuración** (`-debug`) se encuentra activo y la optimización de potencias está habilitada, el backend emite trazas informativas por consola utilizando el prefijo `[OPTIMIZADOR]`, por ejemplo:
+
+```text
+[OPTIMIZADOR] Multiplicación reemplazada por shlq $3.
+[OPTIMIZADOR] División reemplazada por sarq $2 con ajuste de signo.
+```
+
+#### *6.4.4 Pruebas*
+
+Se incorporó un conjunto de **7 pruebas** automatizadas destinadas a verificar la correcta traducción y equivalencia semántica de las operaciones de multiplicación y división entera optimizadas.
+
+Las pruebas se encuentran **organizadas** en el directorio:
+
+```text
+Src/Test/Optimizador/ReduccionFuerza/
+```
+
+Los **resultados** generados durante su ejecución se almacenan en:
+
+```text
+Src/Test/Resultados/Optimizador/ReduccionFuerza/
+```
+
+Los resultados generados durante las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
+
+Las **pruebas** cubren los siguientes casos:
+
+- **Multiplicaciones** positivas y negativas por potencias de 2.
+- **Divisiones** positivas y negativas por potencias de 2 (validando el correcto truncamiento hacia cero).
+- **Expresiones** con potencias de 2 pasadas directamente como **argumentos**.
+- **Expresiones mixtas con variables y constantes** para asegurar que solo se optimicen los factores constantes.
+- **Casos límites** (como potencias grandes y exclusión del 1 y 0).
+
+Para cada prueba se genera el código Assembly en su versión estándar (`.ass`) y en su **versión optimizada** (`_opt.ass`), compilando y ejecutando ambos binarios (`.out`) para comprobar la estricta coincidencia de la salida por consola contra el resultado esperado (`.expected`). La ausencia de operaciones `imulq` e `idivq` y la presencia de operaciones `shlq` y `sarq` en el código Assembly optimizado son señales de una correcta optimización.
+
+### *6.5 Pruebas integrales (`-opt all`)*
+
+Para verificar la **composición y coexistencia entre todas las optimizaciones** del compilador, (plegado de constantes, eliminación de código muerto de ramas condicionales, reducción de fuerza y reutilización de offsets en la pila), se incorporó una suite de pruebas integrales activadas mediante la bandera `-opt all`.
+
+La prueba integral desarrollada **combina** en un único flujo de ejecución:
+
+- Estructuras condicionales con **condiciones constantes que se pliegan** en tiempo de compilación y permiten podar **ramas muertas de código**.
+- Expresiones aritméticas complejas que integran **multiplicaciones y divisiones por potencias de 2 con ajuste de signo**.
+- Bloques de código anidados que ponen a prueba el análisis de vida útil de los temporales y la **compresión eficiente del Stack Frame**.
+
+La prueba integral se encuentra **ubicada** en:
+
+```text
+Src/Test/Optimizador/
+```
+
+Su **resultado** generado se almacena en:
+
+```text
+Src/Test/Resultados/Optimizador/
+```
+
+Su resultado **no forma parte del repositorio** y se encuentra excluido mediante [.gitignore](../../.gitignore).
+
+Para la prueba se genera el código Assembly en su versión estándar (`.ass`) y en su **versión optimizada** (`_opt.ass`), compilando y ejecutando ambos binarios (`.out`) para comprobar la estricta coincidencia de la salida por consola contra el resultado esperado (`.expected`).
+
 ---
 
 ## *Programa principal*
 
 Se incorporó [main.c](../Src/main.c), encargado de **coordinar la ejecución del compilador y de gestionar la interfaz de línea de comandos**.
 
-En la etapa actual, el programa principal permite ejecutar el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico**, la **generación de código intermedio** y la **generación de código Assembly** del archivo fuente. El procesamiento por defecto avanza hasta la **generación de un archivo ejecutable `.out`**. El **módulo de optimización** se encuentra integrado al flujo de compilación, permitiendo aplicar pases de transformación sobre el AST una vez superado el análisis semántico y antes de la generación de código intermedio.
+En la etapa actual, el programa principal permite ejecutar el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico**, la **generación de código intermedio** y la **generación de código Assembly** del archivo fuente. El procesamiento por defecto avanza hasta la **generación de un archivo ejecutable `.out`**. El **módulo de optimización** se encuentra integrado al flujo de compilación, permitiendo aplicar pases de transformación sobre el AST una vez superado el análisis semántico y antes de la generación de código intermedio. Además, se permiten realizar optimizaciones directamente sobre el backend Assembly.
 
 El **procesamiento** actual consiste en:
 
@@ -2255,7 +2342,7 @@ El **procesamiento** actual consiste en:
    - **Análisis léxico** mediante Flex, para la etapa `scan`.
    - **Análisis sintáctico** mediante Bison, utilizando los tokens proporcionados por Flex, para la etapa `parse`.
    - **Análisis semántico** mediante el AST y la tabla de símbolos, como parte del procesamiento completo.
-   - **Optimizador del AST y backend**, para las opciones `-opt plegado-constantes`, `-opt codigo-muerto`, `-opt reutilizacion-offsets` o `-opt all`. Aplica transformaciones sobre el AST en memoria y/o habilita la reutilización de ranuras de pila en la generación de Assembly.
+   - **Optimizador del AST y backend**, para las opciones `-opt plegado-constantes`, `-opt codigo-muerto`, `-opt reutilizacion-offsets`, `-opt reduccion-fuerza` o `-opt all`. Aplica transformaciones sobre el AST en memoria y/o habilita la reutilización de ranuras de pila en la generación de Assembly, así como el reemplazo eficiente de multiplicaciones y divisiones enteras (por potencias de 2) por operaciones de desplazamientos.
    - **Generación de código intermedio**, para la etapa `codinter`, a partir del AST validado semánticamente, cuando el análisis semántico finaliza correctamente y no se está ejecutando el modo de pruebas semánticas.
    - **Generación de código Assembly** a partir de los cuádruplos intermedios y la tabla de símbolos, para la etapa `assembly`.
    - **Ensamblado y enlazado final mediante `gcc`** junto con la librería de runtime (`runtime.c`), generando el archivo ejecutable por defecto.
@@ -2448,13 +2535,14 @@ La opción:
 -opt <optimización>
 ```
 
-permite activar **pases de optimización** específicos sobre el AST antes de la generación de código.
+permite activar **pases de optimización** específicos sobre el AST antes de la generación de código, así como optimizaciones en los cuádruplos e instrucciones durante la generación de código.
 
 Actualmente, se encuentran implementadas las optimizaciones:
 
 - `plegado-constantes`: Activa el constant folding sobre el AST.
 - `codigo-muerto`: Activa la poda de ramas inalcanzables, bucles falsos y código post-return (dead code elimination).
 - `reutilizacion-offsets`: Activa la optimización de espacio en pila (liveness analysis / stack packing) sobre los temporales.
+- `reduccion-fuerza`: Activa el reemplazo de operaciones de multiplicación y división entera (por potencias de 2) por operaciones eficientes de desplazamientos.
 
 Por ejemplo:
 
@@ -2472,6 +2560,12 @@ O bien:
 
 ```bash
 c-tds -opt reutilizacion-offsets programa.ctds
+```
+
+O bien:
+
+```bash
+c-tds -opt reduccion-fuerza programa.ctds
 ```
 
 También se contempla:
@@ -2663,7 +2757,7 @@ Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**, verifi
 
 ### *Ejecutar las pruebas de optimización*
 
-Para **ejecutar todas las pruebas del optimizador del AST (plegado de constantes y eliminación de código muerto)**:
+Para **ejecutar todas las pruebas del optimizador del AST (plegado de constantes y eliminación de código muerto) y del optimizador del backend Assembly (reutilización de offsets y reducción de fuerza)**:
 
 ```bash
 make tests-optimizador
@@ -2689,6 +2783,18 @@ Src/Test/Optimizador/CodigoMuerto/
 Src/Test/Optimizador/ReutilizacionOffsets/
 ```
 
+- Las **7 pruebas** de reducción de fuerza en:
+
+```text
+Src/Test/Optimizador/ReduccionFuerza/
+```
+
+- La **prueba integral** con todas las optimizaciones:
+
+```text
+Src/Test/Optimizador/
+```
+
 Los **resultados** de estas pruebas se generan en:
 
 ```text
@@ -2697,11 +2803,15 @@ Src/Test/Resultados/Optimizador/PlegadoConstantes/
 Src/Test/Resultados/Optimizador/CodigoMuerto/
 
 Src/Test/Resultados/Optimizador/ReutilizacionOffsets/
+
+Src/Test/Resultados/Optimizador/ReduccionFuerza/
+
+Src/Test/Resultados/Optimizador/
 ```
 
 Para cada prueba de optimización de AST, el comando genera tanto el código intermedio normal (`.ci`) y su gráfico (`.dot` / `.png`), como la **versión optimizada** (`_opt.ci`, `_opt.dot` / `_opt.png`), permitiendo comparar visualmente y por texto la reducción lograda por el optimizador.
 
-Por su parte, para cada prueba de optimización de backend Assembly, el comando genera tanto el código Assembly normal (`.ass`) como la **versión optimizada** (`_opt.ass`), permitiendo comparar directamente por texto la reducción de bytes lograda en el marco de pila (`enter $(N)`) y comprobar la estricta coincidencia semántica de la salida producida por sus ejecutables correspondientes (`.out` / `_opt.out`).
+Por su parte, para cada prueba de optimización de backend Assembly, así como también para la prueba integral, el comando genera tanto el código Assembly normal (`.ass`) como la **versión optimizada** (`_opt.ass`), permitiendo comparar directamente por texto la reducción de bytes lograda en el marco de pila (`enter $(N)`) y comprobar la estricta coincidencia semántica de la salida producida por sus ejecutables correspondientes (`.out` / `_opt.out`).
 
 Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**.
 
@@ -2724,7 +2834,7 @@ En el estado actual del proyecto, esto equivale a ejecutar:
 5. Las pruebas del **análisis semántico**.
 6. Las pruebas de **código intermedio**.
 7. Las pruebas de **código assembly y ejecutables**.
-8. Las pruebas de **optimización (plegado de constantes, eliminación de código muerto y reutilización de offsets)**.
+8. Las pruebas de **optimización (plegado de constantes, eliminación de código muerto, reutilización de offsets, reducción de fuerza y prueba integral)**.
 
 ### *Ejecutar el compilador manualmente*
 
