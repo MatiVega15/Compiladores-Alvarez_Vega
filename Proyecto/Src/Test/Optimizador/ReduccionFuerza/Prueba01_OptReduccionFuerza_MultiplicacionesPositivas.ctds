@@ -1,0 +1,14 @@
+extern void printInt (int valor);
+
+void main () {
+    int a, b, c, x;
+    
+    x = 7;
+    a = 5 * 2;  // shlq $1.
+    b = 4 * 8;  // shlq $3.
+    c = x * 16; // shlq $4.
+
+    printInt (a);
+    printInt (b);
+    printInt (c);
+}

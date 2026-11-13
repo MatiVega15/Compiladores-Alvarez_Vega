@@ -1,0 +1,15 @@
+extern void printInt (int valor);
+
+void main () {
+    int a, b, c, d;
+
+    a = 25 * 1; // Es potencia de 2 (2^0) pero no debería shiftear.
+    b = 0 * 32;
+    c = 0 / 16;
+    d = 25 * 256;
+
+    printInt (a);
+    printInt (b);
+    printInt (c);
+    printInt (d);
+}
