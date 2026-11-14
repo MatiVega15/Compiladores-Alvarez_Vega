@@ -15,7 +15,7 @@ El trabajo se aborda de una manera incremental, mediante las siguientes etapas:
 
 Previo a comenzar con esta etapa, se dejó descripta la **gramática del lenguaje**, así como también sus **expresiones regulares** asociadas.
 
-*Ver [Especificación del Proyecto](Especificacion.md) para más detalles.*
+*Ver [Especificación del Lenguaje C-TDS](Especificacion.md) para más detalles.*
 
 ### *1.1 Análisis léxico*
 
@@ -85,7 +85,7 @@ El analizador mantiene el **número de línea y columna** de la entrada para pod
 
 El número de línea es gestionado mediante `yylineno`, mientras que la columna se mantiene mediante la variable `yycolumn`.
 
-Para cada **token reconocido**, la macro `REGISTRAR_UBICACION()` establece en `yyloc`:
+Para cada **token reconocido**, la macro `REGISTRAR_UBICACION()` establece en `yylloc`:
 
 - **Línea** inicial y final.
 - **Columna** inicial y final.
@@ -93,6 +93,18 @@ Para cada **token reconocido**, la macro `REGISTRAR_UBICACION()` establece en `y
 La **columna inicial** corresponde a la posición en la que comienza el lexema y la **columna final** a la posición de su último carácter.
 
 Cuando se encuentra un **carácter no reconocido**, se informa el error indicando el carácter, la línea y la columna correspondiente.
+
+El formato utilizado es:
+
+```text
+ERROR LÉXICO: Carácter no reconocido 'X' en línea L, columna C.
+```
+
+Por ejemplo:
+
+```text
+ERROR LÉXICO: Carácter no reconocido '$' en línea 2, columna 5.
+```
 
 **El análisis no se detiene al primer error léxico**. Se registra la existencia del error mediante `error_lexico` y se continúa procesando la entrada, permitiendo **detectar múltiples errores** en una misma ejecución.
 
@@ -103,6 +115,14 @@ Cuando se encuentra un **carácter no reconocido**, se informa el error indicand
 Se incorporó un mecanismo de **modo debug** mediante la variable `modo_debug`, que es configurada por `main.c` a partir de la opción `-debug`.
 
 Cuando se encuentra **desactivado**, el analizador no produce salida para los tokens reconocidos. Cuando se **activa**, muestra información sobre cada token junto con su línea y columna.
+
+Por ejemplo:
+
+```text
+[LEX] PALABRA RESERVADA: int (línea 1, columna 1)
+[LEX] IDENTIFICADOR: x (línea 1, columna 5)
+[LEX] DELIMITADOR: ; (línea 1, columna 6)
+```
 
 **El modo debug se mantiene separado de la generación del archivo `.lex`**. De esta manera, la salida destinada al usuario durante la ejecución y la salida correspondiente al resultado de una etapa de compilación no se mezclan.
 
