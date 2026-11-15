@@ -5,7 +5,7 @@
  * Representa los tipos de datos que admite el lenguaje.
  * 
  * TIPO_NO_DEFINIDO se utiliza cuando el tipo todavía no
- * fue determinado o debe determinarse posteriormente a
+ * fue determinado o debe determinarse posteriormente
  * durante el análisis semántico.
  */
 typedef enum {
