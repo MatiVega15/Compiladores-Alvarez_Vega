@@ -119,9 +119,9 @@ Cuando se encuentra **desactivado**, el analizador no produce salida para los to
 Por ejemplo:
 
 ```text
-[LEX] PALABRA RESERVADA: int (línea 1, columna 1)
-[LEX] IDENTIFICADOR: x (línea 1, columna 5)
-[LEX] DELIMITADOR: ; (línea 1, columna 6)
+[LEX] PALABRA RESERVADA: int (línea 1, columna 1).
+[LEX] IDENTIFICADOR: x (línea 1, columna 5).
+[LEX] DELIMITADOR: ; (línea 1, columna 6).
 ```
 
 **El modo debug se mantiene separado de la generación del archivo `.lex`**. De esta manera, la salida destinada al usuario durante la ejecución y la salida correspondiente al resultado de una etapa de compilación no se mezclan.
@@ -278,7 +278,7 @@ El **orden en que se registran las construcciones** en el archivo `.sint` no nec
 
 La salida `.sint` es **independiente de los valores semánticos utilizados internamente por Bison**. Su objetivo es documentar el resultado de esta etapa de compilación sin interferir con el funcionamiento del parser.
 
-Además, si el **modo de depuración** se encuentra activo, la ejecución exitosa muestra por pantalla una **representación textual del AST** asociado al programa, y genera un **archivo .dot con la estructura del AST**. Así, puede obtenerse una **representación visual usando Graphviz** con el comando:
+Además, si el **modo de depuración** se encuentra activo, la ejecución exitosa muestra por pantalla una **representación textual del AST** asociado al programa, y genera un **archivo `.dot` con la estructura del AST**. Así, puede obtenerse una **representación visual usando Graphviz** con el comando:
 
 ```bash
 dot -Tpng -o salida.png archivo.dot
@@ -356,7 +356,7 @@ PROGRAMA
                   TRUE
 ```
 
-Por su parte, el **modo depuración** deja preparado un **archivo .dot** con la estructura del AST, que posteriormente puede ser convertido a **.png** con **Graphviz**.
+Por su parte, el **modo depuración** deja preparado un **archivo `.dot`** con la estructura del AST, que posteriormente puede ser convertido a **`.png`** con **Graphviz**.
 
 Por ejemplo:
 
@@ -532,7 +532,7 @@ Las **pruebas inválidas** cubren:
 - Declaraciones después de sentencias.
 - Sentencias sin separadores.
 - Encadenamiento de operadores relacionales no asociativos.
-- Múltiples errores sintácticos en una misma entrada.
+- Múltiples errores sintácticos en una misma entrada (verificando que se informe el primero y el análisis finalice limpiamente).
 
 Las pruebas se encuentran **organizadas** en:
 
@@ -556,7 +556,7 @@ Para cada prueba se genera el **archivo `.sint`** correspondiente. En las prueba
 
 Los archivos `.err` **solamente se conservan cuando contienen información**. De esta manera, las pruebas válidas que no producen errores no generan archivos de error vacíos.
 
-Por otro lado, las pruebas válidas también generan **archivos .dot y .png** con el AST generado, para poder verificar visualmente que el parser está construyendo los árboles esperados para las etapas posteriores.
+Por otro lado, las pruebas válidas también generan **archivos `.dot` y `.png`** con el AST generado, para poder verificar visualmente que el parser está construyendo los árboles esperados para las etapas posteriores.
 
 ## *2. Generación del árbol sintáctico abstracto (AST) y generación de la tabla de símbolos (TS)*
 
