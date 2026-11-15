@@ -11,7 +11,7 @@ static int generar_dot_nodo (const NodoAST *nodo, FILE *archivo, int *contador);
 static void generar_etiqueta_nodo (const NodoAST *nodo, FILE *archivo, int identificador);
 
 NodoAST *crear_nodo (TipoNodo tipo, int linea, int columna) {
-    // Se reserva memoria para el AST.
+    // Se reserva memoria para el nodo del AST.
     NodoAST *nodo = malloc (sizeof (NodoAST));
     
     if (nodo == NULL) {
@@ -21,7 +21,7 @@ NodoAST *crear_nodo (TipoNodo tipo, int linea, int columna) {
 
     nodo -> tipo = tipo;
 
-    // El tipo de dato se determina posteriormente.
+    // El tipo de dato se determina posteriormente y la unión se inicializa limpia.
     nodo -> tipo_dato = TIPO_NO_DEFINIDO;
     nodo -> valor.identificador = NULL;
 
@@ -89,12 +89,13 @@ void liberar_arbol (NodoAST *raiz) {
         free (raiz -> valor.identificador);
     }
 
+    // Los símbolos no se liberan acá, su memoria pertenece a la TS.
+
     // Se libera el arreglo de hijos.
     free (raiz -> hijos);
 
     // Se libera el nodo.
     free (raiz);
-
 }
 
 void imprimir_arbol (const NodoAST *raiz) {
@@ -182,11 +183,11 @@ static const char *nombre_tipo_nodo (TipoNodo tipo) {
         case AST_PROGRAMA:
             return "PROGRAMA";
         case AST_DECLARACION_VARIABLE:
-            return "DECLARACION VARIABLE";
+            return "DECLARACIÓN VARIABLE";
         case AST_DECLARACION_FUNCION:
-            return "DECLARACION FUNCIÓN";
+            return "DECLARACIÓN FUNCIÓN";
         case AST_DECLARACION_FUNCION_EXTERNA:
-            return "DECLARACION FUNCIÓN EXTERNA";
+            return "DECLARACIÓN FUNCIÓN EXTERNA";
         case AST_PARAMETRO:
             return "PARÁMETRO";
         
@@ -275,8 +276,8 @@ static const char *nombre_tipo_dato (TipoDato tipo) {
 /**
  * Genera recursivamente la representación DOT de un nodo y sus descendientes.
  * 
- * A cada nodo se le asigna un identificador numérico único.
- * Se generan las relaciones entre cada nodo padre y sus hijos.
+ * Realiza un recorrido en preorden asignando un identificador numérico único
+ * a cada nodo y retornándolo al padre para trazar las aristas dirigidas.
  */
 static int generar_dot_nodo (const NodoAST *nodo, FILE *archivo, int *contador) {
     if (nodo == NULL) {
