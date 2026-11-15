@@ -930,7 +930,7 @@ Al momento de insertar un nuevo símbolo, este campo se **inicializa** con `offs
 
 Adicionalmente, cada símbolo incluye los campos `es_global` y `es_externa`. El valor de `es_global` **se calcula de forma dinámica al momento de la inserción**, determinando si el identificador pertenece al ámbito global (evaluando si el nivel actual carece de un nivel anterior). Por su parte, `es_externa` **se inicializa con `0`** y se configura específicamente al procesar las declaraciones de funciones externas en el analizador semántico.
 
-Estas banderas resultan fundamentales para las etapas de generación de código, ya que permiten **distinguir rápidamente si un identificador debe ser declarado en la sección de datos globales, manejado en la pila local, o referenciado mediante directivas de enlazado al sistema operativo**. El cálculo efectivo de los offsets y la correcta evaluación de estas banderas corresponden entonces a etapas posteriores de código.
+Estas banderas resultan fundamentales para las etapas de generación de código, ya que permiten **distinguir rápidamente si un identificador debe ser declarado en la sección de datos globales, manejado en la pila local, o referenciado mediante directivas de enlazado al sistema operativo**. El cálculo efectivo de los offsets y la correcta evaluación de estas banderas corresponden entonces a etapas posteriores del compilador.
 
 #### *2.2.9 Manejo de memoria*
 
