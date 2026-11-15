@@ -77,7 +77,7 @@ void cerrar_nivel (TablaSimbolos *ts) {
     // El nivel anterior pasa a ser el nuevo nivel actual.
     ts -> nivel_actual = nivel_a_cerrar -> anterior;
 
-    // El nivel deja de participar en las búsquedas pero se conserva su estructura.
+    // Se desvincula el nivel de la pila activa antes de archivarlo.
     nivel_a_cerrar -> anterior = NULL;
 
     // Se incorpora el nivel a la lista de niveles cerrados.
@@ -136,7 +136,7 @@ Simbolo *insertar_elemento (TablaSimbolos *ts, const char *nombre, TipoDato tipo
     if (simbolo -> clase == SIMBOLO_PARAMETRO) {
         simbolo -> inicializada = 1;
     }
-    // Las variables comienzan sin inicializar.
+    // Las variables y las funciones comienzan sin inicializar.
     else {
         simbolo -> inicializada = 0;
     }
@@ -147,7 +147,7 @@ Simbolo *insertar_elemento (TablaSimbolos *ts, const char *nombre, TipoDato tipo
     // Por defecto, no es una función externa.
     simbolo -> es_externa = 0;
 
-    // Es una variable global si el nivel actual no tiene un nivel anterior.
+    // Pertenece al ámbito global (nivel base) si no existe un nivel anterior.
     if (ts -> nivel_actual -> anterior == NULL) {
         simbolo -> es_global = 1;
     }

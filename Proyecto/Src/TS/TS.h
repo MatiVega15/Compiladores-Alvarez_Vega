@@ -22,10 +22,10 @@ typedef enum {
  * - nombre: nombre del identificador.
  * - tipo: tipo de dato asociado al símbolo.
  * - clase: clase del símbolo.
- * - inicializado: si el identificador tiene ya un valor asociado o no.
- * - offset: desplazamiento en el Stack.
- * - es_externa: 1 si es una función externa, 0 si es normal.
- * - es_global: 1 si es variable global, 0 si es local/parámetro.
+ * - inicializada: indica si el identificador ya posee un valor asociado (1) o no (0).
+ * - offset: desplazamiento en el Stack (-1 si aún no fue calculado).
+ * - es_externa: 1 si es una función externa, 0 en caso contrario.
+ * - es_global: 1 si pertenece al ámbito global (nivel base), 0 si es local o parámetro.
  * 
  * Los símbolos de un mismo nivel se organizan mediante una lista enlazada.
  */
@@ -118,12 +118,15 @@ void abrir_nivel (TablaSimbolos *ts);
 void cerrar_nivel (TablaSimbolos *ts);
 
 /**
- * Inserta un nuevo símbolo en el nivel actual.
+ * Inserta un nuevo símbolo en el nivel actual realizando una copia
+ * independiente de su nombre.
  * 
  * No se permiten insertar dos símbolos con el mismo nombre en un mismo nivel.
+ * Inicializa 'inicializada' en 1 para parámetros (0 en otro caso), 'offset'
+ * en -1, 'es_externa' en 0 y 'es_global' según si el nivel actual es el global.
  * 
  * Retorna un puntero al símbolo insertado si la operación fue exitosa,
- * o NULL si el símbolo ya existe o la tabla es inválida.
+ * o NULL si el símbolo ya existe o los parámetros son inválidos.
  */
 Simbolo *insertar_elemento (TablaSimbolos *ts, const char *nombre, TipoDato tipo, ClaseSimbolo clase);
 
