@@ -57,7 +57,10 @@ static void liberar_lista_nodos (ListaNodos *lista);
 
 /* - DEFINICIONES - */
 
-/* Permite utilizar los tipos definidos en AST.h. */
+/*
+ * Bison inserta %code requires en el archivo de cabecera generado (.tab.h),
+ * permitiendo que el lexer conozca los tipos usados dentro de %union.
+ */
 %code requires {
     #include "AST.h"
 
@@ -139,12 +142,12 @@ static void liberar_lista_nodos (ListaNodos *lista);
 /* De menor a mayor precedencia. */
 %left OR
 %left AND
-%nonassoc IGUAL
-%nonassoc '<' '>'
+%nonassoc IGUAL        // No asociativo: impide encadenar comparaciones (ej. a == b == c).
+%nonassoc '<' '>'      // No asociativo: impide encadenar relaciones (ej. a < b < c).
 %left '+' '-'
 %left '*' '/' '%'
 %right '!'
-%right UMINUS // Menos unario.
+%right UMINUS          // Menos unario.
 
 %%
 
@@ -167,6 +170,11 @@ program             :   lista_declaraciones                             {
                     ;
 
     /* - Declaraciones - */
+    /*
+     * El prefijo 'type id' se factoriza mediante declaracion_tipo para evitar
+     * ambigüedad LALR(1) entre variables globales y funciones no void,
+     * manteniendo el orden estricto: variables -> extern -> funciones.
+     */
 
 lista_declaraciones :   %empty                                          {
                                                                             $$ = crear_lista_nodos ();
@@ -522,7 +530,7 @@ method_call         :   id '(' lista_argumentos ')'                     {
 
                                                                             $$ -> valor.identificador = $1 -> valor.identificador;
 
-                                                                            // El nombre pasa a ser propiedad de la llamada.
+                                                                            // El nombre pasa a ser propiedad de la llamada; se libera solo el nodo hoja envolvente.
                                                                             $1 -> valor.identificador = NULL;
                                                                             free ($1);
 
@@ -839,6 +847,9 @@ static void agregar_nodos_lista (ListaNodos *destino, ListaNodos *origen) {
 
 /*
  * Agrega un hijo al principio de un nodo AST.
+ *
+ * Se utiliza en la regla factorizada 'type id declaracion_tipo', donde el nodo
+ * de declaración se crea después de haber reducido el primer identificador.
  */
 static void agregar_hijo_al_inicio (NodoAST *padre, NodoAST *hijo) {
     if (padre == NULL || hijo == NULL) {
