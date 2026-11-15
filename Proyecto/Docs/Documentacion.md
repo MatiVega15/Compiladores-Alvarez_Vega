@@ -335,16 +335,16 @@ Por ejemplo:
 
 Estos mensajes permiten observar el orden en que Bison reduce las expresiones y comprobar el comportamiento de las **reglas de precedencia y asociatividad**.
 
-Además, en el **modo depuración** se genera una **representación textual** de la estructura del programa reconocido, correspondiente al AST. 
+Además, en el **modo de depuración** se genera una **representación textual** de la estructura del programa reconocido, correspondiente al AST. 
 
 Por ejemplo:
 
 ```text
 PROGRAMA
-   DECLARACION FUNCIÓN [BOOLEAN]
+   DECLARACIÓN FUNCIÓN [BOOLEAN]
       IDENTIFICADOR: main
       BLOQUE
-         DECLARACION VARIABLE [BOOLEAN]
+         DECLARACIÓN VARIABLE [BOOLEAN]
             IDENTIFICADOR: resultado
          =
             IDENTIFICADOR: resultado
@@ -356,18 +356,18 @@ PROGRAMA
                   TRUE
 ```
 
-Por su parte, el **modo depuración** deja preparado un **archivo `.dot`** con la estructura del AST, que posteriormente puede ser convertido a **`.png`** con **Graphviz**.
+Por su parte, el **modo de depuración** deja preparado un **archivo `.dot`** con la estructura del AST, que posteriormente puede ser convertido a **`.png`** con **Graphviz**.
 
 Por ejemplo:
 
 ```text
 digraph AST {
     nodo0 [label="PROGRAMA"];
-    nodo1 [label="DECLARACION FUNCIÓN [BOOLEAN]"];
+    nodo1 [label="DECLARACIÓN FUNCIÓN [BOOLEAN]"];
     nodo2 [label="IDENTIFICADOR: main"];
     nodo1 -> nodo2;
     nodo3 [label="BLOQUE"];
-    nodo4 [label="DECLARACION VARIABLE [BOOLEAN]"];
+    nodo4 [label="DECLARACIÓN VARIABLE [BOOLEAN]"];
     nodo5 [label="IDENTIFICADOR: resultado"];
     nodo4 -> nodo5;
     nodo3 -> nodo4;
@@ -745,7 +745,7 @@ El archivo resultante puede procesarse con **Graphviz** para obtener una represe
 dot -Tpng -o salida.png archivo.dot
 ```
 
-La generación de DOT se utiliza actualmente durante el **modo depuración** del análisis sintáctico.
+La generación de DOT se utiliza actualmente durante el **modo de depuración** del análisis sintáctico.
 
 Esta funcionalidad permite **comprobar visualmente** que la estructura construida por las acciones semánticas de Bison coincide con la estructura esperada para el programa analizado.
 
@@ -2226,7 +2226,7 @@ Este pase se activa al pasar la **bandera `-opt reutilizacion-offsets` o bien `-
 
 #### *6.3.3 Modo de depuración*
 
-Cuando el modo depuración (`-debug`) se encuentra activo y la optimización está habilitada, el backend emite una traza descriptiva por consola indicando **la reducción de temporales lograda por función**, por ejemplo:
+Cuando el modo de depuración (`-debug`) se encuentra activo y la optimización está habilitada, el backend emite una traza descriptiva por consola indicando **la reducción de temporales lograda por función**, por ejemplo:
 
 ```text
 [OPTIMIZADOR] main (): 7 temporales lógicos -> 1 ranuras físicas (6 reusadas).
