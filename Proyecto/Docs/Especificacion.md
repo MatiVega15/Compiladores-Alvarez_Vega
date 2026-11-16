@@ -97,7 +97,11 @@ V_T =
         \},\ 
         ;,\ 
         .,\ 
-        ,
+        ,,\
+        a\text{-}z,\ 
+        A\text{-}Z,\ 
+        0\text{-}9,\ 
+        \_
     \}
 ```
 
@@ -137,6 +141,7 @@ Una declaración de función externa se indica con la **palabra reservada** `ext
 
 ```math
 \langle extern\_decl \rangle \rightarrow
+extern\ 
 \{ \langle type \rangle\ |\ void \}
 \ \langle id \rangle
 \ (\ 
@@ -303,7 +308,7 @@ Un identificador **comienza con una letra y puede continuar con cero o más letr
 
 #### **- Caracteres alfanuméricos**
 
-Un caracter alfanumérico puede ser **una letra, un dígito o un '_'**.
+Un carácter alfanumérico puede ser **una letra, un dígito o un '_'**.
 
 ```math
 \langle alpha\_num \rangle \rightarrow
@@ -422,7 +427,7 @@ Esta producción especifica la sintaxis de las **firmas de funciones externas**.
               | void
 
 <method_decl_resto> → ( <lista_parametros> ) <block>
-``` 
+```
 
 El no terminal `<method_decl_resto>` permite **reutilizar la parte común de una declaración de función** una vez reconocidos su tipo y su identificador.
 
@@ -583,10 +588,10 @@ El lenguaje C-TDS es **case-sensitive**, por lo que las palabras reservadas y lo
 ### *Literales o valores constantes*
 
 ```math
-[0-9]^+ \ |\ true \ |\ false \ |\ [0-9]^+.[0-9]^+
+[0-9]^+ \ |\ true \ |\ false \ |\ [0-9]^+"."[0-9]^+
 ```
 
-Los literales pueden ser **enteros, booleanos o reales**. Se permiten **ceros a la izquierda** en los valores enteros y reales.
+Los literales pueden ser **enteros, booleanos o reales**. Se permiten **ceros a la izquierda** (no significativos) en los valores enteros y reales.
 
 ### *Operadores*
 
@@ -628,8 +633,8 @@ Si se detecta una violación de alguna de estas reglas, el compilador deberá ge
 2. Los identificadores deben ser **declarados antes de ser utilizados**.
 3. Una función únicamente puede ser invocada desde **código ubicado después de su declaración**.
 4. Los distintos ámbitos se encuentran **anidados**. Un identificador declarado en un ámbito interno puede **ocultar** a otro identificador con el mismo nombre perteneciente a un ámbito exterior.
-5. Un identificador utilizado como `location` debe corresponder a una **variable global**, una **variable local** o un **parámetro** de la función actual.
-6. Una función **no puede utilizarse como `location`** de una asignación.
+5. Un identificador utilizado en el lado izquierdo de una asignación debe corresponder a una **variable global**, una **variable local** o un **parámetro** de la función actual.
+6. Una función **no puede utilizarse como destino** de una asignación.
 7. Las **funciones externas** (`extern`) se declaran en el ámbito global. Comparten el espacio de nombres con las funciones regulares, por lo que no puede existir una función externa y una función regular con el mismo identificador, ni redeclararse una función externa ya existente.
 
 ### *3.2 Función `main`*
@@ -645,14 +650,14 @@ La **ejecución** del programa comienza en la función `main`.
 Una asignación tiene la **forma**:
 
 ```text
-<location> = <expr>
+<id> = <expr>
 ```
 
-La `location` debe corresponder a una **variable o parámetro declarado** y visible en el punto donde se realiza la asignación.
+El identificador `id` debe corresponder a una **variable o parámetro declarado** y visible en el punto donde se realiza la asignación.
 
-El tipo de la `location` y el tipo de la expresión asignada deben ser **compatibles** de acuerdo con las reglas de tipos del lenguaje.
+El tipo del identificador y el tipo de la expresión asignada deben ser **compatibles** de acuerdo con las reglas de tipos del lenguaje.
 
-Los **parámetros** pueden utilizarse como `location` de una asignación. Las modificaciones realizadas sobre un parámetro tienen efecto únicamente dentro del **ámbito** de la función correspondiente, debido a que los parámetros son pasados por valor.
+Los **parámetros** pueden utilizarse como destino de una asignación. Las modificaciones realizadas sobre un parámetro tienen efecto únicamente dentro del **ámbito** de la función correspondiente, debido a que los parámetros son pasados por valor.
 
 ### *3.4 Tipos de expresiones*
 
@@ -716,7 +721,7 @@ Una **función `void`** únicamente puede ser **invocada como una sentencia** y 
 
 Una **función que retorna un valor** puede ser **invocada tanto como una expresión como una sentencia**. Cuando se utiliza como una sentencia, el valor retornado es ignorado.
 
-Las reglas anteriores aplican de forma idéntica tanto para la invocación de **funciones definidas localmente en el programa** como para las **funciones externas (`extern`)**.
+Las reglas anteriores aplican de forma idéntica tanto para la invocación de **funciones definidas globalmente en el programa** como para las **funciones externas (`extern`)**.
 
 ### *3.9 Sentencias `return`*
 

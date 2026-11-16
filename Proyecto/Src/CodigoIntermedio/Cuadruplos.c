@@ -343,7 +343,7 @@ const char *nombre_tipo_dato (TipoDato tipo) {
  * se pudo reservar la memoria necesaria.
  */
 static char *copiar_cadena (const char *cadena) {
-    // No se pudo copiar una cadena inexistente.
+    // No se puede copiar una cadena inexistente.
     if (cadena == NULL) {
         return NULL;
     }

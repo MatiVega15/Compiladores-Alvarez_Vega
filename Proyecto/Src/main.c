@@ -1,3 +1,16 @@
+/**
+ * Punto de entrada y coordinador principal del compilador C-TDS.
+ * 
+ * Gestiona la interfaz de línea de comandos, valida los argumentos y
+ * orquesta secuencialmente las etapas del compilador:
+ *   1. Análisis léxico (Flex).
+ *   2. Análisis sintáctico y construcción del AST (Bison).
+ *   3. Análisis semántico y tabla de símbolos.
+ *   4. Generación de código intermedio (código de tres direcciones con cuádruplos).
+ *   5. Generación de código Assembly x86-64 y enlazado final con GCC.
+ *   6. Optimizaciones a nivel de AST y de backend Assembly.
+ */
+
 #include "AST.h"
 #include "TS.h"
 #include "AnalizadorSemantico.h"
@@ -173,7 +186,8 @@ int main (int argc, char *argv []) {
                     }
                 }
                 
-                // Se genera un archivo DOT del AST enriquecido por el semántico.
+                // Se genera un archivo DOT del AST enriquecido por el semántico
+                // (y simplificado por el optimizador, si se especificó -opt).
                 if (configuracion.debug) {
                     char *nombre_dot;
                     FILE *archivo_dot;
@@ -212,6 +226,8 @@ int main (int argc, char *argv []) {
                     free (nombre_dot);
                 }
 
+                // En modo -test-sem se detiene la compilación tras el análisis semántico,
+                // ya que la salida fue escrita directamente en 'salida' y no se genera código.
                 if (configuracion.prueba_semantica) {
                     if (ts != NULL) {
                         liberar_TS (ts);
@@ -232,9 +248,9 @@ int main (int argc, char *argv []) {
                             if (configuracion.target_especificado) {
                                 resultado = procesar_codigo_assembly (&configuracion, salida, ts);
                             }
-                            // Si no hay target, se genera un .out usando GCC.
+                            // Sin -target explícito, el Assembly se vuelca en un archivo temporal '.s'
+                            // que luego GCC ensambla y enlaza junto con 'runtime.c' sobre 'nombre_salida'.
                             else {
-                                // Se crea un archivo temporal .s para el assembly.
                                 char nombre_temp [] = "temp_compiler_output.s";
                                 FILE *temp_ass = fopen (nombre_temp, "w");
 
@@ -310,6 +326,9 @@ int main (int argc, char *argv []) {
  *      -o <salida>
  *      -target <etapa>
  *      -opt <optimizacion>
+ *      -test-sem
+ * 
+ * Retorna 0 si los argumentos son válidos, o 1 si hubo algún error.
  */
 static int procesar_argumentos (int argc, char *argv [], Configuracion *configuracion) {
     // Se verifica el número mínimo necesario de argumentos.
@@ -614,7 +633,7 @@ static int analizar_semanticamente (const Configuracion *configuracion, FILE *sa
 
     // Verificación de argumentos.
     if (arbol == NULL || ts_salida == NULL) {
-        fprintf (stderr, "ERROR: no se puede realizar el análisis semántico.\n");
+        fprintf (stderr, "ERROR: No se puede realizar el análisis semántico.\n");
         return EXIT_FAILURE;
     }
 
@@ -683,10 +702,13 @@ static int procesar_codigo_intermedio (const Configuracion *configuracion, FILE 
 /* ========== Generación de código Assembly ========== */
 
 /**
- * Genera el código de máquina (Assembly x86-64).
+ * Genera el código de máquina (Assembly x86-64) en 'salida'.
  * 
- * Requiere construir primero los cuádruplos del código intermedio en
- * memoria para que el generador de Assembly pueda traducirlos.
+ * Construye temporalmente la lista de cuádruplos en memoria, delega la
+ * traducción (junto con las optimizaciones de backend activas) al generador
+ * de Assembly y libera los cuádruplos antes de finalizar.
+ * 
+ * Retorna EXIT_SUCCESS si la generación fue exitosa, o EXIT_FAILURE en caso de error.
  */
 static int procesar_codigo_assembly (const Configuracion *configuracion, FILE *salida, TablaSimbolos *ts) {
     ListaCuadruplos *lista;
@@ -714,7 +736,7 @@ static int procesar_codigo_assembly (const Configuracion *configuracion, FILE *s
 
     // Se determina si se activa la optimización de reducción de fuerza (potencias de 2).
     int optimizar_potencias = 0;
-    if (configuracion -> optimizar_todo || configuracion->optimizar_potencias) {
+    if (configuracion -> optimizar_todo || configuracion -> optimizar_potencias) {
         optimizar_potencias = 1;
     }
 

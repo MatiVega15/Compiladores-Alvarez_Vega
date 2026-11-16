@@ -81,8 +81,23 @@ typedef union {
  * que pueden contener una cantidad variable de elementos, como
  * programas, bloques, parámetros y argumentos.
  * 
- * Las operaciones binarias tienen dos hijos y las operaciones
- * unarias tienen un hijo.
+ * Convención posicional de hijos según el tipo de nodo:
+ * 
+ * - AST_PROGRAMA: [0..n-1] declaraciones globales (variables, extern, funciones).
+ * - AST_DECLARACION_VARIABLE: [0..n-1] identificadores declarados.
+ * - AST_DECLARACION_FUNCION: [0] identificador, [1..n-2] parámetros, [n-1] bloque.
+ * - AST_DECLARACION_FUNCION_EXTERNA: [0] identificador, [1..n-1] parámetros (sin bloque).
+ * - AST_PARAMETRO: [0] identificador del parámetro.
+ * - AST_BLOQUE: [0..k-1] declaraciones locales, [k..n-1] sentencias.
+ * - AST_ASIGNACION: [0] identificador destino, [1] expresión.
+ * - AST_LLAMADA: [0..n-1] expresiones de los argumentos.
+ * - AST_IF: [0] condición, [1] bloque then, [2] bloque else (opcional).
+ * - AST_WHILE: [0] condición, [1] bloque cuerpo.
+ * - AST_RETURN: [0] expresión de retorno (opcional).
+ * - Operaciones binarias: [0] operando izquierdo, [1] operando derecho.
+ * - Operaciones unarias: [0] operando único.
+ * - Nodos hoja (0 hijos): AST_SENTENCIA_VACIA, AST_IDENTIFICADOR, AST_NUMERO,
+ *   AST_REAL, AST_TRUE, AST_FALSE.
  * 
  * Cada nodo posee:
  * 

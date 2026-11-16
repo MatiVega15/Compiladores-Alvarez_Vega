@@ -122,6 +122,10 @@ ListaCuadruplos *crear_lista_cuadruplos (void);
 /**
  * Agrega un cuádruplo al final de la lista.
  * 
+ * Realiza copias independientes de los operandos recibidos,
+ * por lo que el llamador conserva la propiedad de los operandos
+ * originales y debe liberarlos si corresponde.
+ * 
  * Retorna 1 si la instrucción se agregó correctamente
  * o 0 si ocurrió un error.
  */
@@ -141,6 +145,9 @@ Operando crear_operando_vacio (void);
  * El valor se almacena como una cadena independiente.
  * El tipo de dato conserva la información semántica
  * de la constante.
+ * 
+ * Si el valor es NULL o falla la reserva de memoria,
+ * retorna un operando de tipo OPERANDO_VACIO.
  */
 Operando crear_operando_constante (const char *valor, TipoDato tipo_dato);
 
@@ -149,6 +156,9 @@ Operando crear_operando_constante (const char *valor, TipoDato tipo_dato);
  * 
  * El identificador del temporal se almacena como
  * una cadena independiente.
+ * 
+ * Si el nombre es NULL o falla la reserva de memoria,
+ * retorna un operando de tipo OPERANDO_VACIO.
  */
 Operando crear_operando_temporal (const char *nombre, TipoDato tipo_dato);
 
@@ -158,6 +168,9 @@ Operando crear_operando_temporal (const char *nombre, TipoDato tipo_dato);
  * La referencia al símbolo se conserva sin copiarlo.
  * El nombre se copia independientemente para permitir
  * utilizar identificadores internos únicos.
+ * 
+ * Si el símbolo o el nombre son NULL, o falla la reserva
+ * de memoria, retorna un operando de tipo OPERANDO_VACIO.
  */
 Operando crear_operando_simbolo (Simbolo *simbolo, const char *nombre);
 
@@ -166,6 +179,9 @@ Operando crear_operando_simbolo (Simbolo *simbolo, const char *nombre);
  * 
  * Las etiquetas se almacenan como cadenas independientes
  * de las instrucciones que las utilizan.
+ * 
+ * Si el nombre es NULL o falla la reserva de memoria,
+ * retorna un operando de tipo OPERANDO_VACIO.
  */
 Operando crear_operando_etiqueta (const char *nombre);
 

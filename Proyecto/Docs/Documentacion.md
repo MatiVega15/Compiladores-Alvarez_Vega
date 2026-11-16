@@ -15,7 +15,7 @@ El trabajo se aborda de una manera incremental, mediante las siguientes etapas:
 
 Previo a comenzar con esta etapa, se dejó descripta la **gramática del lenguaje**, así como también sus **expresiones regulares** asociadas.
 
-*Ver [Especificación del Proyecto](Especificacion.md) para más detalles.*
+*Ver [Especificación del Lenguaje C-TDS](Especificacion.md) para más detalles.*
 
 ### *1.1 Análisis léxico*
 
@@ -85,7 +85,7 @@ El analizador mantiene el **número de línea y columna** de la entrada para pod
 
 El número de línea es gestionado mediante `yylineno`, mientras que la columna se mantiene mediante la variable `yycolumn`.
 
-Para cada **token reconocido**, la macro `REGISTRAR_UBICACION()` establece en `yyloc`:
+Para cada **token reconocido**, la macro `REGISTRAR_UBICACION()` establece en `yylloc`:
 
 - **Línea** inicial y final.
 - **Columna** inicial y final.
@@ -93,6 +93,18 @@ Para cada **token reconocido**, la macro `REGISTRAR_UBICACION()` establece en `y
 La **columna inicial** corresponde a la posición en la que comienza el lexema y la **columna final** a la posición de su último carácter.
 
 Cuando se encuentra un **carácter no reconocido**, se informa el error indicando el carácter, la línea y la columna correspondiente.
+
+El formato utilizado es:
+
+```text
+ERROR LÉXICO: Carácter no reconocido 'X' en línea L, columna C.
+```
+
+Por ejemplo:
+
+```text
+ERROR LÉXICO: Carácter no reconocido '$' en línea 2, columna 5.
+```
 
 **El análisis no se detiene al primer error léxico**. Se registra la existencia del error mediante `error_lexico` y se continúa procesando la entrada, permitiendo **detectar múltiples errores** en una misma ejecución.
 
@@ -103,6 +115,14 @@ Cuando se encuentra un **carácter no reconocido**, se informa el error indicand
 Se incorporó un mecanismo de **modo debug** mediante la variable `modo_debug`, que es configurada por `main.c` a partir de la opción `-debug`.
 
 Cuando se encuentra **desactivado**, el analizador no produce salida para los tokens reconocidos. Cuando se **activa**, muestra información sobre cada token junto con su línea y columna.
+
+Por ejemplo:
+
+```text
+[LEX] PALABRA RESERVADA: int (línea 1, columna 1).
+[LEX] IDENTIFICADOR: x (línea 1, columna 5).
+[LEX] DELIMITADOR: ; (línea 1, columna 6).
+```
 
 **El modo debug se mantiene separado de la generación del archivo `.lex`**. De esta manera, la salida destinada al usuario durante la ejecución y la salida correspondiente al resultado de una etapa de compilación no se mezclan.
 
@@ -258,7 +278,7 @@ El **orden en que se registran las construcciones** en el archivo `.sint` no nec
 
 La salida `.sint` es **independiente de los valores semánticos utilizados internamente por Bison**. Su objetivo es documentar el resultado de esta etapa de compilación sin interferir con el funcionamiento del parser.
 
-Además, si el **modo de depuración** se encuentra activo, la ejecución exitosa muestra por pantalla una **representación textual del AST** asociado al programa, y genera un **archivo .dot con la estructura del AST**. Así, puede obtenerse una **representación visual usando Graphviz** con el comando:
+Además, si el **modo de depuración** se encuentra activo, la ejecución exitosa muestra por pantalla una **representación textual del AST** asociado al programa, y genera un **archivo `.dot` con la estructura del AST**. Así, puede obtenerse una **representación visual usando Graphviz** con el comando:
 
 ```bash
 dot -Tpng -o salida.png archivo.dot
@@ -315,16 +335,16 @@ Por ejemplo:
 
 Estos mensajes permiten observar el orden en que Bison reduce las expresiones y comprobar el comportamiento de las **reglas de precedencia y asociatividad**.
 
-Además, en el **modo depuración** se genera una **representación textual** de la estructura del programa reconocido, correspondiente al AST. 
+Además, en el **modo de depuración** se genera una **representación textual** de la estructura del programa reconocido, correspondiente al AST. 
 
 Por ejemplo:
 
 ```text
 PROGRAMA
-   DECLARACION FUNCIÓN [BOOLEAN]
+   DECLARACIÓN FUNCIÓN [BOOLEAN]
       IDENTIFICADOR: main
       BLOQUE
-         DECLARACION VARIABLE [BOOLEAN]
+         DECLARACIÓN VARIABLE [BOOLEAN]
             IDENTIFICADOR: resultado
          =
             IDENTIFICADOR: resultado
@@ -336,18 +356,18 @@ PROGRAMA
                   TRUE
 ```
 
-Por su parte, el **modo depuración** deja preparado un **archivo .dot** con la estructura del AST, que posteriormente puede ser convertido a **.png** con **Graphviz**.
+Por su parte, el **modo de depuración** deja preparado un **archivo `.dot`** con la estructura del AST, que posteriormente puede ser convertido a **`.png`** con **Graphviz**.
 
 Por ejemplo:
 
 ```text
 digraph AST {
     nodo0 [label="PROGRAMA"];
-    nodo1 [label="DECLARACION FUNCIÓN [BOOLEAN]"];
+    nodo1 [label="DECLARACIÓN FUNCIÓN [BOOLEAN]"];
     nodo2 [label="IDENTIFICADOR: main"];
     nodo1 -> nodo2;
     nodo3 [label="BLOQUE"];
-    nodo4 [label="DECLARACION VARIABLE [BOOLEAN]"];
+    nodo4 [label="DECLARACIÓN VARIABLE [BOOLEAN]"];
     nodo5 [label="IDENTIFICADOR: resultado"];
     nodo4 -> nodo5;
     nodo3 -> nodo4;
@@ -512,7 +532,7 @@ Las **pruebas inválidas** cubren:
 - Declaraciones después de sentencias.
 - Sentencias sin separadores.
 - Encadenamiento de operadores relacionales no asociativos.
-- Múltiples errores sintácticos en una misma entrada.
+- Múltiples errores sintácticos en una misma entrada (verificando que se informe el primero y el análisis finalice limpiamente).
 
 Las pruebas se encuentran **organizadas** en:
 
@@ -536,7 +556,7 @@ Para cada prueba se genera el **archivo `.sint`** correspondiente. En las prueba
 
 Los archivos `.err` **solamente se conservan cuando contienen información**. De esta manera, las pruebas válidas que no producen errores no generan archivos de error vacíos.
 
-Por otro lado, las pruebas válidas también generan **archivos .dot y .png** con el AST generado, para poder verificar visualmente que el parser está construyendo los árboles esperados para las etapas posteriores.
+Por otro lado, las pruebas válidas también generan **archivos `.dot` y `.png`** con el AST generado, para poder verificar visualmente que el parser está construyendo los árboles esperados para las etapas posteriores.
 
 ## *2. Generación del árbol sintáctico abstracto (AST) y generación de la tabla de símbolos (TS)*
 
@@ -725,7 +745,7 @@ El archivo resultante puede procesarse con **Graphviz** para obtener una represe
 dot -Tpng -o salida.png archivo.dot
 ```
 
-La generación de DOT se utiliza actualmente durante el **modo depuración** del análisis sintáctico.
+La generación de DOT se utiliza actualmente durante el **modo de depuración** del análisis sintáctico.
 
 Esta funcionalidad permite **comprobar visualmente** que la estructura construida por las acciones semánticas de Bison coincide con la estructura esperada para el programa analizado.
 
@@ -910,7 +930,7 @@ Al momento de insertar un nuevo símbolo, este campo se **inicializa** con `offs
 
 Adicionalmente, cada símbolo incluye los campos `es_global` y `es_externa`. El valor de `es_global` **se calcula de forma dinámica al momento de la inserción**, determinando si el identificador pertenece al ámbito global (evaluando si el nivel actual carece de un nivel anterior). Por su parte, `es_externa` **se inicializa con `0`** y se configura específicamente al procesar las declaraciones de funciones externas en el analizador semántico.
 
-Estas banderas resultan fundamentales para las etapas de generación de código, ya que permiten **distinguir rápidamente si un identificador debe ser declarado en la sección de datos globales, manejado en la pila local, o referenciado mediante directivas de enlazado al sistema operativo**. El cálculo efectivo de los offsets y la correcta evaluación de estas banderas corresponden entonces a etapas posteriores de código.
+Estas banderas resultan fundamentales para las etapas de generación de código, ya que permiten **distinguir rápidamente si un identificador debe ser declarado en la sección de datos globales, manejado en la pila local, o referenciado mediante directivas de enlazado al sistema operativo**. El cálculo efectivo de los offsets y la correcta evaluación de estas banderas corresponden entonces a etapas posteriores del compilador.
 
 #### *2.2.9 Manejo de memoria*
 
@@ -982,8 +1002,8 @@ En esta sección se documentan las **decisiones de implementación y los mecanis
 
 El analizador semántico se encuentra implementado en:
 
-- [AnalizadorSemantico.h](../Src/Semantico/AnalizadorSemantico.h).
-- [AnalizadorSemantico.c](../Src/Semantico/AnalizadorSemantico.c).
+- [`AnalizadorSemantico.h`](../Src/Semantico/AnalizadorSemantico.h).
+- [`AnalizadorSemantico.c`](../Src/Semantico/AnalizadorSemantico.c).
 
 La implementación se **integra** con el AST, la TS y el programa principal para realizar el análisis después de que la entrada haya sido reconocida sintácticamente.
 
@@ -1161,7 +1181,7 @@ ERROR SEMÁNTICO: línea X, columna Y - mensaje.
 Por ejemplo:
 
 ```text
-ERROR SEMÁNTICO: línea 4, columna 5 - La variable 'x' no fue declarada.
+ERROR SEMÁNTICO: línea 4, columna 5 - El identificador utilizado en la expresión no está declarado.
 ```
 
 La utilización de las posiciones almacenadas en el AST permite que las funciones semánticas puedan **informar el lugar correspondiente** sin depender nuevamente del analizador léxico.
@@ -1188,9 +1208,9 @@ Por ejemplo:
 
 ```text
 [SEM] Entrando al programa.
-[SEM] Declaración de variable analizada.
+[SEM] Variable 'x' declarada como int.
 [SEM] Abriendo ámbito de bloque.
-[SEM] Condición de if analizada.
+[SEM] Condición de if analizada: tipo boolean.
 [SEM] Cerrando ámbito de bloque.
 ```
 
@@ -1206,10 +1226,10 @@ El análisis semántico se ejecuta sobre el **AST generado por el analizador sin
 
 La separación entre ambas etapas permite mantener una **división clara de responsabilidades**:
 
-* **Flex** reconoce los componentes léxicos.
-* **Bison** verifica la estructura sintáctica y construye el AST.
-* **El analizador semántico** interpreta la información del AST y verifica las restricciones semánticas.
-* **La tabla de símbolos** conserva la información de declaraciones y ámbitos.
+- **Flex** reconoce los componentes léxicos.
+- **Bison** verifica la estructura sintáctica y construye el AST.
+- **El analizador semántico** interpreta la información del AST y verifica las restricciones semánticas.
+- **La tabla de símbolos** conserva la información de declaraciones y ámbitos.
 
 El **parser** no realiza búsquedas en la tabla de símbolos ni realiza comprobaciones semánticas. Su responsabilidad termina con la **construcción del AST**.
 
@@ -1245,8 +1265,8 @@ Entre los principales **cambios** se encuentran:
 
 Se incorporó un conjunto de **146 pruebas** para el análisis semántico, dividido en:
 
-* **65 pruebas válidas**, destinadas a comprobar que programas que cumplen las restricciones semánticas sean aceptados.
-* **81 pruebas inválidas**, destinadas a comprobar que programas que violan alguna restricción semántica sean rechazados.
+- **65 pruebas válidas**, destinadas a comprobar que programas que cumplen las restricciones semánticas sean aceptados.
+- **81 pruebas inválidas**, destinadas a comprobar que programas que violan alguna restricción semántica sean rechazados.
 
 Las pruebas se encuentran **organizadas** en:
 
@@ -1266,7 +1286,7 @@ Src/Test/Resultados/Semantico/
 
 Los resultados generados durante las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
 
-Las **pruebas semánticas** se ejecutan mediante la **opción interna `test-sem`**, que permite realizar el análisis semántico sin continuar con la generación de código intermedio. El archivo de salida indicado para cada prueba se utiliza para registrar los resultados del análisis.
+Las **pruebas semánticas** se ejecutan mediante la **opción interna `-test-sem`**, que permite realizar el análisis semántico sin continuar con la generación de código intermedio. El archivo de salida indicado para cada prueba se utiliza para registrar los resultados del análisis.
 
 La ejecución de las pruebas **no requiere seleccionar un nuevo `target`**, ya que el modo de pruebas semánticas se controla mediante esta opción específica.
 
@@ -1322,8 +1342,8 @@ En esta sección se documentan las **decisiones de implementación y los mecanis
 
 La implementación se encuentra dividida en dos componentes:
 
-- [Cuadruplos.h](../Src/CodigoIntermedio/Cuadruplos.h) y [Cuadruplos.c](../Src/CodigoIntermedio/Cuadruplos.c).
-- [GeneradorCodigoIntermedio.h](../Src/CodigoIntermedio/GeneradorCodigoIntermedio.h) y [GeneradorCodigoIntermedio.c](../Src/CodigoIntermedio/GeneradorCodigoIntermedio.c).
+- [`Cuadruplos.h`](../Src/CodigoIntermedio/Cuadruplos.h) y [`Cuadruplos.c`](../Src/CodigoIntermedio/Cuadruplos.c).
+- [`GeneradorCodigoIntermedio.h`](../Src/CodigoIntermedio/GeneradorCodigoIntermedio.h) y [`GeneradorCodigoIntermedio.c`](../Src/CodigoIntermedio/GeneradorCodigoIntermedio.c).
 
 El primer componente define la **representación de las instrucciones y las operaciones para administrar la lista de cuádruplos**. El segundo se encarga de **recorrer el AST y traducir sus construcciones a dicha representación**.
 
@@ -1447,12 +1467,12 @@ La siguiente tabla resume las **operaciones definidas** en `Cuadruplos.h`.
 | `LABEL` | Marca una posición del código mediante una etiqueta. | No se utiliza | No se utiliza | Etiqueta | `LABEL - - L1` |
 | `GOTO` | Transfiere incondicionalmente la ejecución a una etiqueta. | No se utiliza | No se utiliza | Etiqueta destino | `GOTO - - L1` |
 | `IF_FALSE` | Transfiere la ejecución a una etiqueta si la condición es falsa. | Condición booleana | No se utiliza | Etiqueta destino | `IF_FALSE a - L1` |
-| `FUNC_BEGIN` | Marca el comienzo de una función. | No se utiliza | No se utiliza | Nombre de la función | `FUNC_BEGIN calcular - -` |
+| `FUNC_BEGIN` | Marca el comienzo de una función. | Nombre de la función | No se utiliza | No se utiliza | `FUNC_BEGIN calcular - -` |
 | `PARAM` | Representa un parámetro de una función. | Nombre del parámetro | No se utiliza | No se utiliza | `PARAM x - -` |
 | `ARG` | Registra un argumento de una llamada a función. | Valor del argumento | Índice del argumento | No se utiliza | `ARG a 0 -` |
 | `CALL` | Invoca una función con una cantidad determinada de argumentos. | Nombre de la función | Cantidad de argumentos | Temporal para el valor retornado, si corresponde | `CALL sumar 2 T1` |
 | `RETURN` | Devuelve un valor y finaliza la ejecución de la función. También admite una devolución vacía. | Valor retornado o `-` | No se utiliza | No se utiliza | `RETURN a - -` |
-| `FUNC_END` | Marca el final de una función. | No se utiliza | No se utiliza | Nombre de la función | `FUNC_END calcular - -` |
+| `FUNC_END` | Marca el final de una función. | Nombre de la función | No se utiliza | No se utiliza | `FUNC_END calcular - -` |
 
 **Consideraciones sobre las operaciones:**
 
@@ -1862,7 +1882,7 @@ En conjunto, estas pruebas permiten comprobar que las distintas construcciones d
 
 ## *5. Código Assembly y ejecutable*
 
-La generación de código Assembly se encuentra **implementada** en [GeneradorCodigoAssembly.c](../Src/CodigoAssembly/GeneradorCodigoAssembly.c) y expuesta mediante la **interfaz** definida en [GeneradorCodigoAssembly.h](../Src/CodigoAssembly/GeneradorCodigoAssembly.h).
+La generación de código Assembly se encuentra **implementada** en [`GeneradorCodigoAssembly.c`](../Src/CodigoAssembly/GeneradorCodigoAssembly.c) y expuesta mediante la **interfaz** definida en [`GeneradorCodigoAssembly.h`](../Src/CodigoAssembly/GeneradorCodigoAssembly.h).
 
 Su función es **recorrer la lista de cuádruplos generada en la etapa anterior y traducir cada instrucción a código máquina textual (Assembly x86-64)**, respetando estrictamente la convención de llamadas **System V AMD64 ABI** utilizada en sistemas Linux.
 
@@ -1897,8 +1917,8 @@ Adicionalmente, al finalizar la generación, se inyecta la **directiva de seguri
 El diseño del backend administra la **pila de ejecución (Stack Frame)** de manera estricta para cada función. Antes de emitir las instrucciones de una función, `calcular_entorno_funcion ()` realiza una pasada previa sobre los cuádruplos para:
 
 1. **Asignar offsets**: Asigna **posiciones de memoria negativas relativas al Base Pointer** (`%rbp`) para las variables locales, los primeros 6 parámetros y los temporales (ej. `-8(%rbp)`, `-16(%rbp)`). Los parámetros pasados por pila (del 7 en adelante) reciben **offsets positivos** (`16(%rbp)`, `24(%rbp)`).
--  *Sin optimización*: Asigna un offset único e independiente a cada variable temporal a medida que aparece.
--  *Con optimización* (`reutilizacion-offsets`): Implementa un análisis de vida útil (liveness analysis) mediante la estructura `IntervaloTemporal`, registrando el inicio y fin de cada temporal en la secuencia de cuádruplos. Mediante un recorrido de escaneo lineal, recicla aquellas ranuras cuyo intervalo anterior haya finalizado, minimizando la cantidad de ranuras físicas requeridas.
+   - *Sin optimización*: Asigna un offset único e independiente a cada variable temporal a medida que aparece.
+   - *Con optimización* (`reutilizacion-offsets`): Implementa un análisis de vida útil (liveness analysis) mediante la estructura `IntervaloTemporal`, registrando el inicio y fin de cada temporal en la secuencia de cuádruplos. Mediante un recorrido de escaneo lineal, recicla aquellas ranuras cuyo intervalo anterior haya finalizado, minimizando la cantidad de ranuras físicas requeridas.
 2. **Alineación a 16 bytes**: Para cumplir con la restricción fundamental de la **System V ABI** y evitar fallos de segmentación (`Segmentation fault`) al invocar funciones que utilizan instrucciones vectoriales (como `get_int ()`), el generador **suma el espacio total requerido por la función y lo redondea hacia arriba al múltiplo de 16 bytes más cercano**.
 
 Este tamaño total se utiliza para construir el **prólogo de la función** mediante la instrucción `enter $(bytes_locales), $0`.
@@ -1918,7 +1938,7 @@ La **traducción de cuádruplos a Assembly x86-64** se realiza mediante un `swit
 
 - **Asignaciones y movimientos**: Como x86-64 no permite movimientos directos de memoria a memoria, **las asignaciones se triangulan utilizando el registro temporal de propósito general `%r10`** (`movq mem, %r10` y luego `movq %r10, mem`).
 - **Aritmética**: Se utilizan las **instrucciones nativas de 64 bits** `addq`, `subq`, e `imulq` para sumar, restar y multiplicar, respectivamente. Para la división (`idivq`) y el módulo, se carga el dividendo en `%rax`, se extiende su signo hacia `%rdx` mediante `cqo` y, tras operar, se rescata el cociente de `%rax` o el resto de `%rdx`.
-  
+
   Cuando se habilita la **optimización de reducción de fuerza**, las multiplicaciones por potencias de 2 se reemplazan eficientemente mediante desplazamientos a la izquierda (`shlq`), y las divisiones por potencias de 2 se optimizan con desplazamientos aritméticos a derecha (`sarq`), incorporando un cálculo de sesgo o corrección de signo por complemento a 2 para garantizar el truncamiento correcto hacia cero en valores negativos.
 - **Relacionales**: Las comparaciones (`==`, `<`, `>`) se resuelven mediante `cmpq` seguido de **movimientos condicionales** (`cmove`, `cmovl`, `cmovg`), depositando un `1` o un `0` en el destino sin necesidad de ramificar el flujo.
 - **Control de flujo**: Los cuádruplos de salto se traducen directamente a `jmp` (**salto incondicional**) o `je` (**salto si es falso**, al comparar contra `0`).
@@ -1928,7 +1948,7 @@ La **traducción de cuádruplos a Assembly x86-64** se realiza mediante un `swit
 
 El generador de Assembly actual se encuentra disponible para el **procesamiento completo de tipos enteros (`int`) y lógicos (`boolean`)**, empleando registros y operaciones de 64 bits (con desbordamiento en complemento a 2 propio de arquitecturas enteras). **Actualmente, no hay soporte para las operaciones que involucran el tipo real** (`float`).
 
-En la implementación actual, cuando el generador detecta un operando de tipo `float`, **interrumpe la traducción de esa instrucción específica y emite un comentario estructurado** (`# TODO: Implementar coerción/operación float`) en el código fuente Assembly. Esta decisión permite que el compilador no interrumpa el proceso de generación ni falle abruptamente, facilitando la futura incorporación del módulo de punto flotante sin reestructurar la lógica central.
+En la implementación actual, cuando el generador detecta un operando de tipo `float`, **interrumpe la traducción de esa instrucción específica y emite un comentario estructurado** (`# TODO: Implementar coerción/operación float (<OPERACION>).`) en el código fuente Assembly. Esta decisión permite que el compilador no interrumpa el proceso de generación ni falle abruptamente, facilitando la futura incorporación del módulo de punto flotante sin reestructurar la lógica central.
 
 ### *5.7 Modo de depuración*
 
@@ -1941,13 +1961,13 @@ Cuando está activo, el compilador emite mensajes por consola utilizando el **pr
 
 Adicionalmente, cuando la optimización de reutilización de offsets (`-opt reutilizacion-offsets` o `-opt all`) se encuentra habilitada, el backend emite trazas informativas con el prefijo `[OPTIMIZADOR]` detallando para cada función el número de **temporales lógicos**, las **ranuras físicas finales asignadas** en la pila y la cantidad de **ranuras reutilizadas**.
 
-De manera similar, cuando la optimización de reducción de fuerza (`-opt reducción fuerza` o `-opt all`) se encuentra habilitada, el backend emite trazas informativas con el prefijo `[OPTIMIZADOR]` detallando aquellas **multiplicaciones o divisiones que hayan sido reemplazadas por una cierta cantidad de desplazamientos**.
+De manera similar, cuando la optimización de reducción de fuerza (`-opt reduccion-fuerza` o `-opt all`) se encuentra habilitada, el backend emite trazas informativas con el prefijo `[OPTIMIZADOR]` detallando aquellas **multiplicaciones o divisiones que hayan sido reemplazadas por una cierta cantidad de desplazamientos**.
 
 ### *5.8 Salida del generador*
 
 Como resultado de la etapa de generación de código Assembly, **se genera un archivo con extensión `.ass`**, únicamente si la etapa se solicita de forma explícita mediante la opción `-target assembly`. Dicho archivo contiene el **código fuente Assembly**.
 
-En caso de no especificarse ninguna etapa, la generación de código Assembly se ejecuta de manera silenciosa como **soporte fundamental** para la generación del ejecutable, volcando sus resultados en un archivo temporal `.s`, a partir del cual `gcc` genera el ejecutable `.out` final. 
+En caso de no especificarse ninguna etapa, la generación de código Assembly se ejecuta de manera silenciosa como **soporte fundamental** para la generación del ejecutable, volcando sus resultados en un archivo temporal `.s`, a partir del cual `gcc` genera el ejecutable `.out` final.
 
 Naturalmente, esta etapa no se ejecuta en absoluto si el usuario solicitó un **objetivo estrictamente anterior**, como `-target scan`, `-target parse` o `-target codinter`.
 
@@ -1975,7 +1995,7 @@ Src/Test/Resultados/CodigoAssembly/
 
 Los resultados generados durante las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
 
-Los archivos de resultados permiten **inspeccionar el código Assembly `.s` generado, el binario `.out` compilado y la salida por consola** producida por el programa durante su ejecución.
+Los archivos de resultados permiten **inspeccionar el código Assembly `.ass` generado, el binario `.out` compilado y la salida por consola** producida por el programa durante su ejecución.
 
 A diferencia de las etapas anteriores, las pruebas de Assembly no se limitan a verificar la estructura, sino que **validan el comportamiento físico del programa a nivel de sistema operativo y hardware**.
 
@@ -1994,7 +2014,7 @@ Las **pruebas** cubren las principales construcciones que debe traducir el gener
 - **Sentencias de retorno** con expresiones simples, complejas o sin expresión en funciones `void` y `main`.
 - **Invocación a funciones externas** (`extern`) como `printInt` y `get_int`.
 
-El entorno de pruebas automatizadas realiza un **flujo completo** de extremo a extremo para cada archivo: 
+El entorno de pruebas automatizadas realiza un **flujo completo** de extremo a extremo para cada archivo:
 
 1. **Compila** el archivo `.ctds` produciendo el código Assembly `.ass`.
 2. Invoca a `gcc` para **ensamblar el código y enlazar las funciones de runtime**, generando el binario ejecutable `.out`.
@@ -2003,9 +2023,9 @@ El entorno de pruebas automatizadas realiza un **flujo completo** de extremo a e
 
 #### *5.10.1 Prueba de estrés y excepciones de hardware*
 
-Adicionalmente, se diseñó [PruebaDeEstresYLimites.ctds](../Src/Test/PruebaDeEstresYLimites.ctds), enfocada específicamente en la **auditoría de límites físicos y de robustez del backend** frente a entradas dinámicas impredecibles. Utilizando la función externa `get_int ()`, el binario se somete a las siguientes evaluaciones de estrés:
+Adicionalmente, se diseñó [`PruebaDeEstresYLimites.ctds`](../Src/Test/PruebaDeEstresYLimites.ctds), enfocada específicamente en la **auditoría de límites físicos y de robustez del backend** frente a entradas dinámicas impredecibles. Utilizando la función externa `get_int ()`, el binario se somete a las siguientes evaluaciones de estrés:
 
-- **Desbordamiento aritmético (Integer Overflow)**: Al ingresar valores que, multiplicados, superan el límite de los enteros con signo de 32 bits ($2^{31} - 1$), el binario recorta los bits excedentes y realiza un wrap-around hacia los valores negativos, respetando la representación en complemento a 2.
+- **Desbordamiento aritmético (Integer Overflow)**: Al ingresar valores que superan el límite de los enteros con signo de 64 bits ($2^{63} - 1$) en los registros de la CPU —o el límite de 32 bits ($2^{31} - 1$) al ser truncados por la interfaz de `printInt ()` en C—, el binario recorta los bits excedentes y realiza un wrap-around hacia los valores negativos, respetando la representación en complemento a 2.
 - **División por cero en tiempo de ejecución**: Al forzar una división por cero dinámica, la instrucción `idivq` dispara la interrupción de hardware, provocando que el sistema operativo intercepte la falla y finalice el proceso con un `Floating point exception (core dumped)` limpio.
 - **Límite de la pila (Stack Overflow)**: Forzando una profundidad de recursión extrema, se agotan intencionalmente las páginas de memoria reservadas para la pila. El programa finaliza con un `Segmentation fault (core dumped)`, lo que certifica mecánicamente que los marcos de pila y los punteros `%rbp` / `%rsp` se construyen y destruyen de forma estrictamente simétrica en cada llamada sin corromper registros ni memoria adyacente.
 
@@ -2019,7 +2039,7 @@ Esta decisión responde a que la prueba **requiere interacción mediante la entr
 
 ## *6. Optimizaciones*
 
-La etapa de optimización fue implementada en **lenguaje C** y actúa en dos niveles del compilador:
+La etapa de optimización fue implementada en **lenguaje C** y actúa en **dos niveles** del compilador (nivel de AST y backend Assembly) mediante **tres técnicas**:
 
 1. **Optimizador de AST**: Modifica la estructura del AST en memoria (*plegado de constantes* y *eliminación de código muerto*) antes de la generación del código intermedio.
 2. **Optimizador de Stack Frame (Assembly)**: Analiza el intervalo de vida de los temporales en el código intermedio para reusar desplazamientos de pila (*reutilización de offsets*) durante la generación de código máquina.
@@ -2027,7 +2047,7 @@ La etapa de optimización fue implementada en **lenguaje C** y actúa en dos niv
 
 El objetivo conjunto de las optimizaciones es **reducir el tiempo de ejecución, la cantidad de cuádruplos e instrucciones y el tamaño del marco de pila (Stack Frame)**, manteniendo la estricta equivalencia semántica del programa.
 
-*Para revisar los detalles de implementación, consultar [OptimizadorAST.h](../Src/Optimizador/OptimizadorAST.h), [OptimizadorAST.c](../Src/Optimizador/OptimizadorAST.c), [GeneradorCodigoAssembly.h](../Src/CodigoAssembly/GeneradorCodigoAssembly.h) y [GeneradorCodigoAssembly.c](../Src/CodigoAssembly/GeneradorCodigoAssembly.c).*
+*Para revisar los detalles de implementación, consultar [`OptimizadorAST.h`](../Src/Optimizador/OptimizadorAST.h), [`OptimizadorAST.c`](../Src/Optimizador/OptimizadorAST.c), [`GeneradorCodigoAssembly.h`](../Src/CodigoAssembly/GeneradorCodigoAssembly.h) y [`GeneradorCodigoAssembly.c`](../Src/CodigoAssembly/GeneradorCodigoAssembly.c).*
 
 La interfaz del optimizador del AST define la estructura `OpcionesOptimizacion`, que permite **activar o desactivar** de forma independiente los pases disponibles (como `plegado_constantes` y `eliminacion_codigo_muerto`) y configurar el comportamiento de **depuración** (`modo_debug`). El **punto de entrada principal** es la función `optimizar_ast ()`, la cual recibe la raíz del árbol junto con la configuración de banderas de optimización seleccionadas desde la línea de comandos.
 
@@ -2180,7 +2200,7 @@ Las **pruebas** cubren los siguientes casos de evaluación:
 - Bucles **`while` con condición constante falsa (`false`)**, podando y desvinculando todo el ciclo inalcanzable de la estructura del AST.
 - Sentencias **`return` que truncan y eliminan todas las instrucciones siguientes** dentro del mismo ámbito estricto.
 - Estructuras de control y bloques **anidados**.
-- Reducción en **cascada multipase** sobre estructuras muertas. 
+- Reducción en **cascada multipase** sobre estructuras muertas.
 
 Para cada prueba se genera el archivo de código intermedio estándar (`.ci`) y su representación gráfica (`.dot` / `.png`), así como sus **versiones optimizadas** correspondientes (`_opt.ci` y `_opt.dot` / `_opt.png`). Esto permite verificar visualmente y por texto la eliminación de instrucciones intermedias y la simplificación alcanzada en la estructura del AST.
 
@@ -2190,7 +2210,7 @@ La **reutilización de offsets de temporales** (Stack Packing) consiste en anali
 
 #### *6.3.1 Diseño y decisiones*
 
-El pase se implementa dentro del backend de Assembly ([GeneradorCodigoAssembly.c](../Src/CodigoAssembly/GeneradorCodigoAssembly.c)) durante la fase de cálculo del entorno de función (`calcular_entorno_funcion ()`), utilizando el algoritmo de **Linear Scan Register Allocation adaptado a la pila**:
+El pase se implementa dentro del backend de Assembly ([`GeneradorCodigoAssembly.c`](../Src/CodigoAssembly/GeneradorCodigoAssembly.c)) durante la fase de cálculo del entorno de función (`calcular_entorno_funcion ()`), utilizando el algoritmo de **Linear Scan Register Allocation adaptado a la pila**:
 
 - **Estructura `IntervaloTemporal`**: Registra para cada temporal su identificador numérico, su instrucción de nacimiento (`inicio`, primera aparición) y su instrucción de muerte (`fin`, último uso).
 - **Escaneo de cuádruplos (Paso A)**: Recorre linealmente la secuencia de cuádruplos de la función identificando la posición del primer y último uso de cada temporal.
@@ -2206,7 +2226,7 @@ Este pase se activa al pasar la **bandera `-opt reutilizacion-offsets` o bien `-
 
 #### *6.3.3 Modo de depuración*
 
-Cuando el modo depuración (`-debug`) se encuentra activo y la optimización está habilitada, el backend emite una traza descriptiva por consola indicando **la reducción de temporales lograda por función**, por ejemplo:
+Cuando el modo de depuración (`-debug`) se encuentra activo y la optimización está habilitada, el backend emite una traza descriptiva por consola indicando **la reducción de temporales lograda por función**, por ejemplo:
 
 ```text
 [OPTIMIZADOR] main (): 7 temporales lógicos -> 1 ranuras físicas (6 reusadas).
@@ -2300,7 +2320,7 @@ Para cada prueba se genera el código Assembly en su versión estándar (`.ass`)
 
 ### *6.5 Pruebas integrales (`-opt all`)*
 
-Para verificar la **composición y coexistencia entre todas las optimizaciones** del compilador, (plegado de constantes, eliminación de código muerto de ramas condicionales, reducción de fuerza y reutilización de offsets en la pila), se incorporó una suite de pruebas integrales activadas mediante la bandera `-opt all`.
+Para verificar la **composición y coexistencia entre todas las optimizaciones** del compilador (plegado de constantes, eliminación de código muerto de ramas condicionales, reducción de fuerza y reutilización de offsets en la pila), se incorporó una suite de pruebas integrales activadas mediante la bandera `-opt all`.
 
 La prueba integral desarrollada **combina** en un único flujo de ejecución:
 
@@ -2328,7 +2348,7 @@ Para la prueba se genera el código Assembly en su versión estándar (`.ass`) y
 
 ## *Programa principal*
 
-Se incorporó [main.c](../Src/main.c), encargado de **coordinar la ejecución del compilador y de gestionar la interfaz de línea de comandos**.
+Se incorporó [`main.c`](../Src/main.c), encargado de **coordinar la ejecución del compilador y de gestionar la interfaz de línea de comandos**.
 
 En la etapa actual, el programa principal permite ejecutar el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico**, la **generación de código intermedio** y la **generación de código Assembly** del archivo fuente. El procesamiento por defecto avanza hasta la **generación de un archivo ejecutable `.out`**. El **módulo de optimización** se encuentra integrado al flujo de compilación, permitiendo aplicar pases de transformación sobre el AST una vez superado el análisis semántico y antes de la generación de código intermedio. Además, se permiten realizar optimizaciones directamente sobre el backend Assembly.
 
@@ -2342,7 +2362,7 @@ El **procesamiento** actual consiste en:
    - **Análisis léxico** mediante Flex, para la etapa `scan`.
    - **Análisis sintáctico** mediante Bison, utilizando los tokens proporcionados por Flex, para la etapa `parse`.
    - **Análisis semántico** mediante el AST y la tabla de símbolos, como parte del procesamiento completo.
-   - **Optimizador del AST y backend**, para las opciones `-opt plegado-constantes`, `-opt codigo-muerto`, `-opt reutilizacion-offsets`, `-opt reduccion-fuerza` o `-opt all`. Aplica transformaciones sobre el AST en memoria y/o habilita la reutilización de ranuras de pila en la generación de Assembly, así como el reemplazo eficiente de multiplicaciones y divisiones enteras (por potencias de 2) por operaciones de desplazamientos.
+   - **Optimizador del AST y backend**, para las opciones `-opt plegado-constantes`, `-opt codigo-muerto`, `-opt reutilizacion-offsets`, `-opt reduccion-fuerza` o `-opt all`. Aplica transformaciones sobre el AST en memoria y/o habilita la reutilización de ranuras de pila en la generación de Assembly, así como el reemplazo eficiente de multiplicaciones y divisiones enteras (por potencias de 2) por operaciones de desplazamiento.
    - **Generación de código intermedio**, para la etapa `codinter`, a partir del AST validado semánticamente, cuando el análisis semántico finaliza correctamente y no se está ejecutando el modo de pruebas semánticas.
    - **Generación de código Assembly** a partir de los cuádruplos intermedios y la tabla de símbolos, para la etapa `assembly`.
    - **Ensamblado y enlazado final mediante `gcc`** junto con la librería de runtime (`runtime.c`), generando el archivo ejecutable por defecto.
@@ -2355,7 +2375,7 @@ Por su parte, el análisis sintáctico finaliza el procesamiento tras encontrar 
 
 El análisis semántico continúa procesando la entrada cuando encuentra errores, permitiendo detectar **múltiples errores** en una misma ejecución. Al finalizar, el programa indica mediante su **código de retorno** si el análisis fue exitoso.
 
-De esta manera, no es necesario corregir un error para que aparezca automáticamente otro. **Se brindan todos los errores encontrados de una vez**. Sin embargo, hay que ser cuidadosos al analizarlos, ya que un error detectado puede ser únicamente causa de otro error previo propagado.
+De esta manera, no es necesario corregir un error para que aparezca automáticamente otro. **Se brindan todos los errores encontrados de una vez**. Sin embargo, hay que ser cuidadosos al analizarlos, ya que un error detectado puede ser únicamente consecuencia de otro error previo propagado.
 
 Durante la generación de código intermedio, la ocurrencia de un error provoca que **se cancele la ejecución de la etapa** sin producir ninguna secuencia como salida. El mismo comportamiento se produce durante la generación de código Assembly.
 
@@ -2375,7 +2395,7 @@ Asimismo, cuando se activa el **modo de depuración** (`-debug`) junto con las *
 
 El **reconocimiento de los tokens** es responsabilidad del analizador léxico, mientras que la **validación de la estructura sintáctica** y la **construcción del AST** corresponden al analizador sintáctico. El **análisis semántico** utiliza posteriormente ese AST junto con la tabla de símbolos propia de la etapa. El **optimizador del AST** recibe ese árbol validado y aplica transformaciones de simplificación en memoria antes de su traducción.
 
-La **generación de código intermedio** se realiza a partir del AST validado semánticamente (y potencialmente optimizado por el módulo de optimización si se especificaron las opciones `-opt`). Si el análisis sintáctico o semántico detecta errores, se **cancela el procesamiento** y no se genera una secuencia de código intermedio como salida. En caso contrario, se recorre el AST para generar las **instrucciones** correspondientes a las sentencias del programa. Si se especifica explícitamente el objetivo mediante `-target codinter`, estas instrucciones se escriben en un archivo con **extensión `.ci`**. Caso contrario, la compilación continúa hacia las etapas posteriores de generación de código. El **modo de pruebas semánticas** (activado con `-test-sem`) permite ejecutar exclusivamente el análisis semántico sin avanzar hacia ninguna etapa de backend.
+La **generación de código intermedio** se realiza a partir del AST validado semánticamente (y potencialmente optimizado por el módulo de optimización si se especificaron las opciones `-opt`). Si el análisis sintáctico o semántico detecta errores, se **cancela el procesamiento** y no se genera una secuencia de código intermedio como salida. En caso contrario, se recorre el AST para generar las **instrucciones** correspondientes a las sentencias del programa. Si se especifica explícitamente el objetivo mediante `-target codinter`, estas instrucciones se escriben en un archivo con **extensión `.ci`**. En caso contrario, la compilación continúa hacia las etapas posteriores de generación de código. El **modo de pruebas semánticas** (activado con `-test-sem`) permite ejecutar exclusivamente el análisis semántico sin avanzar hacia ninguna etapa de backend.
 
 A partir de la lista de cuádruplos generada en memoria y la tabla de símbolos, la **etapa de Assembly** traduce las instrucciones intermedias a **código de máquina x86-64** (siguiendo la ABI estándar de Linux). Si se solicita explícitamente el objetivo `-target assembly`, este código se vuelca en un archivo con extensión `.ass`. Por defecto, cuando no se especifica un objetivo, el compilador procesa esta etapa de forma transparente generando un **archivo temporal de Assembly**, el cual es ensamblado y enlazado automáticamente mediante `gcc` junto con la **librería de runtime** (`runtime.c`) para producir finalmente un **archivo ejecutable** con extensión `.out`.
 
@@ -2383,7 +2403,7 @@ A partir de la lista de cuádruplos generada en memoria y la tabla de símbolos,
 
 ## *Runtime y soporte de I/O*
 
-Para satisfacer los **requerimientos de entrada/salida** de los programas escritos en C-TDS y cumplir con la ABI estándar de Linux, se incorporó el archivo de soporte **[runtime.c](../Src/runtime.c)**.
+Para satisfacer los **requerimientos de entrada/salida** de los programas escritos en C-TDS y cumplir con la ABI estándar de Linux, se incorporó el archivo de soporte **[`runtime.c`](../Src/runtime.c)**.
 
 Este módulo implementa en C puro las funciones externas primitivas del lenguaje:
 
@@ -2406,7 +2426,7 @@ El archivo de entrada debe tener extensión `.ctds` y no puede comenzar con `-`.
 
 ### *Ejecución por defecto*
 
-Si no se especifica una etapa mediante `target`, el compilador ejecuta el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico** y, si no se producen errores, la **generación de código intermedio**, la **generación de código Assembly** y el **enlazado final** con la librería de runtime (`runtime.c`). Esta secuencia constituye el procesamiento completo implementado actualmente.
+Si no se especifica una etapa mediante `-target`, el compilador ejecuta el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico** y, si no se producen errores, la **generación de código intermedio**, la **generación de código Assembly** y el **enlazado final** con la librería de runtime (`runtime.c`). Esta secuencia constituye el procesamiento completo implementado actualmente.
 
 ```bash
 c-tds programa.ctds
@@ -2465,7 +2485,7 @@ O:
 c-tds -target assembly programa.ctds
 ```
 
-Actualmente no existe un `-target sem`. El **análisis semántico** se ejecuta automáticamente cuando no se especifica un `-target`, o bien cuando se llega hasta las etapas `target codinter` o `target assembly`.
+Actualmente no existe un `-target sem`. El **análisis semántico** se ejecuta automáticamente cuando no se especifica un `-target`, o bien cuando se llega hasta las etapas `-target codinter` o `-target assembly`.
 
 ### *Nombre del archivo de salida*
 
@@ -2542,7 +2562,7 @@ Actualmente, se encuentran implementadas las optimizaciones:
 - `plegado-constantes`: Activa el constant folding sobre el AST.
 - `codigo-muerto`: Activa la poda de ramas inalcanzables, bucles falsos y código post-return (dead code elimination).
 - `reutilizacion-offsets`: Activa la optimización de espacio en pila (liveness analysis / stack packing) sobre los temporales.
-- `reduccion-fuerza`: Activa el reemplazo de operaciones de multiplicación y división entera (por potencias de 2) por operaciones eficientes de desplazamientos.
+- `reduccion-fuerza`: Activa el reemplazo de operaciones de multiplicación y división entera (por potencias de 2) por operaciones eficientes de desplazamiento.
 
 Por ejemplo:
 
@@ -2590,7 +2610,7 @@ En este caso se selecciona el análisis léxico, se especifica el nombre del arc
 
 ## *Compilación y ejecución*
 
-El [Makefile](../Makefile) permite **centralizar la compilación del compilador y la ejecución de las pruebas**.
+El [`Makefile`](../Makefile) permite **centralizar la compilación del compilador y la ejecución de las pruebas**.
 
 Desde la raíz del repositorio:
 
@@ -2733,9 +2753,9 @@ Src/Test/Resultados/CodigoIntermedio/
 
 Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**, generando un archivo `.ci` con las instrucciones generadas en la etapa.
 
-### *Ejecutar las pruebas de generación de código assembly y ejecutables*
+### *Ejecutar las pruebas de generación de código Assembly y ejecutables*
 
-Para **ejecutar todas las pruebas del generador de código assembly y generación de binarios**:
+Para **ejecutar todas las pruebas del generador de código Assembly y generación de binarios**:
 
 ```bash
 make tests-assembly
@@ -2799,13 +2819,9 @@ Los **resultados** de estas pruebas se generan en:
 
 ```text
 Src/Test/Resultados/Optimizador/PlegadoConstantes/
-
 Src/Test/Resultados/Optimizador/CodigoMuerto/
-
 Src/Test/Resultados/Optimizador/ReutilizacionOffsets/
-
 Src/Test/Resultados/Optimizador/ReduccionFuerza/
-
 Src/Test/Resultados/Optimizador/
 ```
 
@@ -2833,7 +2849,7 @@ En el estado actual del proyecto, esto equivale a ejecutar:
 4. Las pruebas independientes de la **TS**.
 5. Las pruebas del **análisis semántico**.
 6. Las pruebas de **código intermedio**.
-7. Las pruebas de **código assembly y ejecutables**.
+7. Las pruebas de **código Assembly y ejecutables**.
 8. Las pruebas de **optimización (plegado de constantes, eliminación de código muerto, reutilización de offsets, reducción de fuerza y prueba integral)**.
 
 ### *Ejecutar el compilador manualmente*

@@ -25,7 +25,7 @@ typedef struct {
     // Arreglo para mapear el número de un temporal a su offset en la pila.
     int offset_temporales [MAX_TEMPORALES];
 
-    // Búfer para retener los argumentos > 6 antes de apilarlos.
+    // Búfer LIFO para retener los argumentos > 6 antes de apilarlos en orden inverso.
     Operando buffer_argumentos [MAX_ARGUMENTOS_PILA];
     int tope_argumentos;
 } ContextoAssembly;
@@ -65,7 +65,7 @@ int generar_codigo_assembly (ListaCuadruplos *lista, TablaSimbolos *ts, FILE *ar
     contexto.error = 0;
     contexto.archivo = archivo_salida;
 
-    // Se inicializa en 0 los arreglos del contexto.
+    // Se inicializan en 0 los arreglos del contexto.
     memset (contexto.offset_temporales, 0, sizeof (contexto.offset_temporales));
     memset (contexto.buffer_argumentos, 0, sizeof (contexto.buffer_argumentos));
 
@@ -135,6 +135,13 @@ static void escribir_seccion_datos (TablaSimbolos *ts, ContextoAssembly *context
 
 /**
  * Recorre y traduce los cuádruplos pertenecientes al cuerpo de una función.
+ * 
+ * Emite la etiqueta de entrada (y '.globl main' si corresponde), construye el
+ * prólogo mediante 'enter', baja los primeros 6 parámetros desde los registros
+ * ABI a sus ranuras en la pila, traduce cada cuádruplo hasta CI_FIN_FUNCION y
+ * asegura un epílogo ('leave' + 'ret') si la función no finaliza con return.
+ * 
+ * Actualiza '*actual_ptr' apuntando al nodo CI_FIN_FUNCION procesado.
  */
 static void procesar_funcion (NodoCuadruplo **actual_ptr, ContextoAssembly *contexto) {
     NodoCuadruplo *actual = *actual_ptr;
@@ -158,10 +165,10 @@ static void procesar_funcion (NodoCuadruplo **actual_ptr, ContextoAssembly *cont
     // Prólogo: 'enter' guarda el %rbp viejo y resta 'bytes_locales' al %rsp.
     fprintf (contexto -> archivo, "\tenter $(%d), $0\n", bytes_locales);
 
-    // Las funciones reciben los argumentos (los primeros 6) a través de registros.
+    // Las funciones reciben los primeros 6 argumentos a través de registros ABI
+    // y los copian a sus ranuras locales asignadas en la pila.
     NodoCuadruplo *param_nodo = actual -> siguiente;
     for (int i = 0; i < cantidad_parametros && i < 6; i ++) {
-        // Se pasan los parámetros a la pila.
         if (param_nodo -> instruccion.op == CI_PARAMETRO) {
             obtener_referencia_operando (&param_nodo -> instruccion.arg1, contexto, ref1);
             fprintf (contexto -> archivo, "\tmovq %s, %s\n", REGISTROS_ARG [i], ref1);
@@ -171,7 +178,7 @@ static void procesar_funcion (NodoCuadruplo **actual_ptr, ContextoAssembly *cont
 
     actual = actual -> siguiente;
 
-    // Bandera para evitar doble epílogo.
+    // Bandera para evitar emitir un doble epílogo al cerrar la función.
     int ultimo_fue_return = 0;
 
     // Generación instrucción por instrucción hasta encontrar CI_FIN_FUNCION.
@@ -208,7 +215,7 @@ static void procesar_funcion (NodoCuadruplo **actual_ptr, ContextoAssembly *cont
 
         switch (inst.op) {
             case CI_ASIGNAR:
-                // No se puede hacer mov directo memoria-memoria. Se pasa por %r10.
+                // No se puede hacer mov directo memoria-memoria. Se triangula por %r10.
                 fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", ref1);
                 fprintf (contexto -> archivo, "\tmovq %%r10, %s\n", res);
                 break;
@@ -333,13 +340,13 @@ static void procesar_funcion (NodoCuadruplo **actual_ptr, ContextoAssembly *cont
             case CI_MENOR:
             case CI_MAYOR:
             case CI_IGUAL:
-                // Las comparaciones requieren que ambos registros estén en operandos.
+                // Las comparaciones requieren que ambos operandos estén en registros.
                 fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", ref1);
                 fprintf (contexto -> archivo, "\tmovq %s, %%r11\n", ref2);
-                // Compara r11 contra r10 y actualiza banderas.
+                // Compara r11 contra r10 (calcula r10 - r11) y actualiza banderas.
                 fprintf (contexto -> archivo, "\tcmpq %%r11, %%r10\n");
 
-                // Se coloca 0 en r11 y 1 en r10 para hacer el movimiento condicional.
+                // Se coloca 0 (falso) en r11 y 1 (verdadero) en r10 para el movimiento condicional.
                 fprintf (contexto -> archivo, "\tmovq $0, %%r11\n");
                 fprintf (contexto -> archivo, "\tmovq $1, %%r10\n");
 
@@ -374,12 +381,13 @@ static void procesar_funcion (NodoCuadruplo **actual_ptr, ContextoAssembly *cont
             case CI_ARGUMENTO:
                 int arg_idx = atoi (inst.arg2.nombre);
 
-                // Los primeros 6 argumentos se mandan a los registros correspondientes.
+                // Los primeros 6 argumentos se cargan directo en los registros ABI.
                 if (arg_idx < 6) {
                     fprintf (contexto -> archivo, "\tmovq %s, %%r10\n", ref1);
                     fprintf (contexto -> archivo, "\tmovq %%r10, %s\n", REGISTROS_ARG [arg_idx]);
                 }
-                // Los argumentos del 7 en adelante se guardan temporalmente en el búfer.
+                // Los argumentos del 7 en adelante llegan en orden creciente y se
+                // retienen en el búfer LIFO para apilarlos en orden inverso en CI_LLAMADA.
                 else {
                     contexto -> buffer_argumentos [contexto -> tope_argumentos ++] = inst.arg1;
                 }
@@ -389,7 +397,8 @@ static void procesar_funcion (NodoCuadruplo **actual_ptr, ContextoAssembly *cont
                 int args_totales = atoi (inst.arg2.nombre);
                 int args_en_pila = args_totales > 6 ? args_totales - 6 : 0;
 
-                // Si hay argumentos en pila, se vacía el búfer en orden inverso (LIFO).
+                // Si hay argumentos en pila, se vacía el búfer en orden inverso (LIFO)
+                // para que el argumento 7 quede en el tope (%rsp).
                 for (int i = 1; i <= args_en_pila; i ++) {
                     Operando arg_op = contexto -> buffer_argumentos [contexto -> tope_argumentos - i];
                     obtener_referencia_operando (&arg_op, contexto, ref1);
@@ -401,7 +410,7 @@ static void procesar_funcion (NodoCuadruplo **actual_ptr, ContextoAssembly *cont
                 // Se actualiza el tope del búfer.
                 contexto -> tope_argumentos -= args_en_pila;
 
-                // Convención Linux ABI para funciones con cantidad de argumentos variables o externos.
+                // Convención Linux ABI: %rax indica la cantidad de registros vectoriales usados (0).
                 if (strcmp (inst.arg1.nombre, "printInt") == 0 || strcmp (inst.arg1.nombre, "get_int") == 0) {
                     fprintf (contexto -> archivo, "\tmovq $0, %%rax\n");
                 }
@@ -458,11 +467,21 @@ static void procesar_funcion (NodoCuadruplo **actual_ptr, ContextoAssembly *cont
  * Realiza una pasada previa sobre los cuádruplos de una función para
  * asignar offsets a parámetros, variables locales y temporales, y
  * calcular el tamaño total del Stack Frame (entorno).
+ * 
+ * Distribución del marco de pila respecto de %rbp:
+ * - Parámetros 1..6: -8(%rbp), -16(%rbp), ... (copiados desde registros ABI).
+ * - Parámetros 7..N: +16(%rbp), +24(%rbp), ... (apilados por el llamador).
+ * - Variables locales y temporales: offsets negativos contiguos de 8 bytes.
+ * 
+ * Si 'optimizar_offsets' está activo, aplica escaneo lineal de intervalos
+ * de vida útil (Linear Scan) para reciclar ranuras de temporales muertos.
+ * Finalmente redondea '*bytes_locales' al múltiplo de 16 bytes superior
+ * exigido por la System V AMD64 ABI.
  */
 static void calcular_entorno_funcion (NodoCuadruplo *inicio, ContextoAssembly *contexto, int *bytes_locales, int *cantidad_parametros) {
     // La pila crece hacia direcciones menores. El primer dato local se ubica en -8(%rbp).
     int offset_local = -8;
-    // Los argumentos en pila comienzan en 16(%rbp).
+    // Los argumentos en pila comienzan en 16(%rbp) (tras %rbp guardado y dirección de retorno).
     int offset_param_pila = 16;
     *cantidad_parametros = 0;
 
@@ -498,7 +517,7 @@ static void calcular_entorno_funcion (NodoCuadruplo *inicio, ContextoAssembly *c
     // (Permanecen fijas para garantizar la seguridad en ciclos y saltos).
     actual = inicio -> siguiente;
     while (actual != NULL && actual -> instruccion.op != CI_FIN_FUNCION) {
-        // Se revisa los tres posibles operandos del cuádruplo.
+        // Se revisan los tres posibles operandos del cuádruplo.
         Operando *ops [] = {&actual -> instruccion.arg1, &actual -> instruccion.arg2, &actual -> instruccion.resultado};
 
         for (int i = 0; i < 3; i ++) {
@@ -522,12 +541,12 @@ static void calcular_entorno_funcion (NodoCuadruplo *inicio, ContextoAssembly *c
         // Modo sin optimización: se asigna un offset único a cada temporal a medida que aparecen.
         actual = inicio -> siguiente;
         while (actual != NULL && actual -> instruccion.op != CI_FIN_FUNCION) {
-            // Se revisa los tres posibles operandos del cuádruplo.
+            // Se revisan los tres posibles operandos del cuádruplo.
             Operando *ops [] = {&actual -> instruccion.arg1, &actual -> instruccion.arg2, &actual -> instruccion.resultado};
 
             for (int i = 0; i < 3; i ++) {
                 if (ops [i] -> tipo == OPERANDO_TEMPORAL) {
-                    // Se extrae el número del temporal.
+                    // Se extrae el número del temporal (omitiendo la 'T' inicial).
                     int num = atoi (ops [i] -> nombre + 1);
 
                     if (num < MAX_TEMPORALES && contexto -> offset_temporales [num] == 0) {
@@ -557,12 +576,12 @@ static void calcular_entorno_funcion (NodoCuadruplo *inicio, ContextoAssembly *c
         int indice_inst = 0;
 
         while (actual != NULL && actual -> instruccion.op != CI_FIN_FUNCION) {
-            // Se revisa los tres posibles operandos del cuádruplo.
+            // Se revisan los tres posibles operandos del cuádruplo.
             Operando *ops [] = {&actual -> instruccion.arg1, &actual -> instruccion.arg2, &actual -> instruccion.resultado};
 
             for (int i = 0; i < 3; i ++) {
                 if (ops [i] -> tipo == OPERANDO_TEMPORAL) {
-                    // Se extrae el número del temporal.
+                    // Se extrae el número del temporal (omitiendo la 'T' inicial).
                     int num = atoi (ops [i] -> nombre + 1);
 
                     if (num < MAX_TEMPORALES) {
@@ -582,7 +601,7 @@ static void calcular_entorno_funcion (NodoCuadruplo *inicio, ContextoAssembly *c
             indice_inst ++;
         }
 
-        // Paso B: Filtrar temporales y ordenarlos por momento de nacimiento.
+        // Paso B: Filtrar temporales activos y ordenarlos por momento de nacimiento.
         IntervaloTemporal activos [MAX_TEMPORALES];
         int idx = 0;
         
@@ -604,7 +623,7 @@ static void calcular_entorno_funcion (NodoCuadruplo *inicio, ContextoAssembly *c
             IntervaloTemporal temp = activos [i];
             int asignado = 0;
 
-            // Se busca si hay alguna ranura libre (cuyo uso previo murió antes de este nacimiento).
+            // Se busca si hay alguna ranura libre (cuyo uso previo murió estrictamente antes de este nacimiento).
             for (int j = 0; j < num_pool; j ++) {
                 if (pool_fin [j] < temp.inicio) {
                     // Se recicla la ranura.
@@ -648,7 +667,13 @@ static void calcular_entorno_funcion (NodoCuadruplo *inicio, ContextoAssembly *c
 }
 
 /**
- * Traduce un Operando del código intermedio a su sintaxis x86-64 y la guarda en el buffer.
+ * Traduce un Operando del código intermedio a su sintaxis x86-64 AT&T
+ * y almacena el resultado en 'buffer':
+ * - Constantes: '$1', '$0' (booleanos) o '$valor' (enteros inmediatos).
+ * - Temporales: 'offset(%rbp)'.
+ * - Símbolos globales: 'nombre(%rip)' (direccionamiento relativo).
+ * - Símbolos locales / parámetros: 'offset(%rbp)'.
+ * - Etiquetas: '.nombre'.
  */
 static void obtener_referencia_operando (Operando *op, ContextoAssembly *contexto, char *buffer) {
     if (op -> tipo == OPERANDO_CONSTANTE) {
@@ -667,7 +692,7 @@ static void obtener_referencia_operando (Operando *op, ContextoAssembly *context
     }
     else if (op -> tipo == OPERANDO_TEMPORAL) {
         int num = atoi (op -> nombre + 1);
-        //Desplazamiento relativo al Base Pointer (%rbp).
+        // Desplazamiento relativo al Base Pointer (%rbp).
         sprintf (buffer, "%d(%%rbp)", contexto -> offset_temporales [num]);
     }
     else if (op -> tipo == OPERANDO_SIMBOLO) {
@@ -756,7 +781,10 @@ static void debug_assembly (ContextoAssembly *contexto, const char *mensaje) {
 }
 
 /**
- * Registra un error y marca el contexto para detener la generación.
+ * Registra un error por stderr y marca el contexto para detener la generación.
+ * 
+ * Función auxiliar interna disponible para reportar fallos fatales durante
+ * la emisión de código Assembly.
  */
 static void registrar_error (ContextoAssembly *contexto, const char *mensaje) {
     contexto -> error = 1;

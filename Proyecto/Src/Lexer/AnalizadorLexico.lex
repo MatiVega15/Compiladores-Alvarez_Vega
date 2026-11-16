@@ -20,10 +20,10 @@
  *  - Si vale 1, muestra información de cada token reconocido.
  */
 
-/* Columna actual dentro de la línea. */
+/* Columna actual dentro de la línea (Flex solo gestiona yylineno automáticamente). */
 int yycolumn = 1;
 
-/* Indica si ocurrió algún error léxico. */
+/* Indica si ocurrió algún error léxico (permite continuar y reportar múltiples errores). */
 int error_lexico = 0;
 
 /* Indica si está activado el modo debug. */
@@ -35,6 +35,9 @@ FILE *salida_lexico = NULL;
 /*
  * Registra la ubicación del token actual para Bison
  * y avanza la columna hasta el final del lexema.
+ *
+ * Se envuelve en do-while (0) para garantizar una
+ * expansión segura como sentencia única.
  */
 #define REGISTRAR_UBICACION()                       \
     do {                                            \
@@ -56,7 +59,7 @@ static void mostrar_error_lexico (const char *lexema);
 %option noyywrap
 %option yylineno
 
-/* Estado especial del autómata para comentarios de más de una línea. */
+/* Estado exclusivo del autómata para comentarios multilínea (aísla las reglas normales). */
 %x COMENTARIO
 
 /* - DEFINICIONES - */
@@ -67,8 +70,11 @@ DIGITO      [0-9]
 %%
 
     /* - REGLAS - */
+    /* Nota: registrar_token () se invoca siempre ANTES de REGISTRAR_UBICACION()
+     * para capturar la columna inicial del token antes de que yycolumn avance. */
     
     /* - Palabras reservadas - */
+    /* Deben preceder a la regla de identificadores para ganar en caso de empate de longitud. */
 
 "int"                               { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return INT; }
 "boolean"                           { registrar_token ("PALABRA RESERVADA", yytext); REGISTRAR_UBICACION (); return BOOLEAN; }
@@ -90,6 +96,7 @@ DIGITO      [0-9]
 {DIGITO}+                           { registrar_token ("LITERAL ENTERO", yytext); REGISTRAR_UBICACION (); yylval.numero = atoi (yytext); return NRO; }
 
     /* - Identificadores - */
+    /* Se duplica yytext con strdup porque el búfer interno de Flex se sobrescribe en el siguiente token. */
 
 {LETRA}({LETRA}|{DIGITO}|_)*        { registrar_token ("IDENTIFICADOR", yytext); REGISTRAR_UBICACION (); yylval.identificador = strdup (yytext); return ID; }
 
@@ -139,6 +146,7 @@ DIGITO      [0-9]
 \n                                  { yycolumn = 1; }
 
     /* - Error léxico - */
+    /* Regla catch-all de longitud 1: no retorna token para permitir continuar el escaneo. */
 
 .                                   { mostrar_error_lexico (yytext); error_lexico = 1; yycolumn += yyleng; }
 
@@ -156,7 +164,7 @@ static void registrar_token (const char *tipo, const char *lexema) {
     }
     
     if (modo_debug) {
-        printf ("[LEX] %s: %s (línea %d, columna %d)\n", tipo, lexema, yylineno, yycolumn);
+        printf ("[LEX] %s: %s (línea %d, columna %d).\n", tipo, lexema, yylineno, yycolumn);
     }
 }
 
