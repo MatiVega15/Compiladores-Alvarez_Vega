@@ -2348,7 +2348,7 @@ Para la prueba se genera el código Assembly en su versión estándar (`.ass`) y
 
 ## *Programa principal*
 
-Se incorporó [main.c](../Src/main.c), encargado de **coordinar la ejecución del compilador y de gestionar la interfaz de línea de comandos**.
+Se incorporó [`main.c`](../Src/main.c), encargado de **coordinar la ejecución del compilador y de gestionar la interfaz de línea de comandos**.
 
 En la etapa actual, el programa principal permite ejecutar el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico**, la **generación de código intermedio** y la **generación de código Assembly** del archivo fuente. El procesamiento por defecto avanza hasta la **generación de un archivo ejecutable `.out`**. El **módulo de optimización** se encuentra integrado al flujo de compilación, permitiendo aplicar pases de transformación sobre el AST una vez superado el análisis semántico y antes de la generación de código intermedio. Además, se permiten realizar optimizaciones directamente sobre el backend Assembly.
 
@@ -2362,7 +2362,7 @@ El **procesamiento** actual consiste en:
    - **Análisis léxico** mediante Flex, para la etapa `scan`.
    - **Análisis sintáctico** mediante Bison, utilizando los tokens proporcionados por Flex, para la etapa `parse`.
    - **Análisis semántico** mediante el AST y la tabla de símbolos, como parte del procesamiento completo.
-   - **Optimizador del AST y backend**, para las opciones `-opt plegado-constantes`, `-opt codigo-muerto`, `-opt reutilizacion-offsets`, `-opt reduccion-fuerza` o `-opt all`. Aplica transformaciones sobre el AST en memoria y/o habilita la reutilización de ranuras de pila en la generación de Assembly, así como el reemplazo eficiente de multiplicaciones y divisiones enteras (por potencias de 2) por operaciones de desplazamientos.
+   - **Optimizador del AST y backend**, para las opciones `-opt plegado-constantes`, `-opt codigo-muerto`, `-opt reutilizacion-offsets`, `-opt reduccion-fuerza` o `-opt all`. Aplica transformaciones sobre el AST en memoria y/o habilita la reutilización de ranuras de pila en la generación de Assembly, así como el reemplazo eficiente de multiplicaciones y divisiones enteras (por potencias de 2) por operaciones de desplazamiento.
    - **Generación de código intermedio**, para la etapa `codinter`, a partir del AST validado semánticamente, cuando el análisis semántico finaliza correctamente y no se está ejecutando el modo de pruebas semánticas.
    - **Generación de código Assembly** a partir de los cuádruplos intermedios y la tabla de símbolos, para la etapa `assembly`.
    - **Ensamblado y enlazado final mediante `gcc`** junto con la librería de runtime (`runtime.c`), generando el archivo ejecutable por defecto.
@@ -2375,7 +2375,7 @@ Por su parte, el análisis sintáctico finaliza el procesamiento tras encontrar 
 
 El análisis semántico continúa procesando la entrada cuando encuentra errores, permitiendo detectar **múltiples errores** en una misma ejecución. Al finalizar, el programa indica mediante su **código de retorno** si el análisis fue exitoso.
 
-De esta manera, no es necesario corregir un error para que aparezca automáticamente otro. **Se brindan todos los errores encontrados de una vez**. Sin embargo, hay que ser cuidadosos al analizarlos, ya que un error detectado puede ser únicamente causa de otro error previo propagado.
+De esta manera, no es necesario corregir un error para que aparezca automáticamente otro. **Se brindan todos los errores encontrados de una vez**. Sin embargo, hay que ser cuidadosos al analizarlos, ya que un error detectado puede ser únicamente consecuencia de otro error previo propagado.
 
 Durante la generación de código intermedio, la ocurrencia de un error provoca que **se cancele la ejecución de la etapa** sin producir ninguna secuencia como salida. El mismo comportamiento se produce durante la generación de código Assembly.
 
@@ -2395,7 +2395,7 @@ Asimismo, cuando se activa el **modo de depuración** (`-debug`) junto con las *
 
 El **reconocimiento de los tokens** es responsabilidad del analizador léxico, mientras que la **validación de la estructura sintáctica** y la **construcción del AST** corresponden al analizador sintáctico. El **análisis semántico** utiliza posteriormente ese AST junto con la tabla de símbolos propia de la etapa. El **optimizador del AST** recibe ese árbol validado y aplica transformaciones de simplificación en memoria antes de su traducción.
 
-La **generación de código intermedio** se realiza a partir del AST validado semánticamente (y potencialmente optimizado por el módulo de optimización si se especificaron las opciones `-opt`). Si el análisis sintáctico o semántico detecta errores, se **cancela el procesamiento** y no se genera una secuencia de código intermedio como salida. En caso contrario, se recorre el AST para generar las **instrucciones** correspondientes a las sentencias del programa. Si se especifica explícitamente el objetivo mediante `-target codinter`, estas instrucciones se escriben en un archivo con **extensión `.ci`**. Caso contrario, la compilación continúa hacia las etapas posteriores de generación de código. El **modo de pruebas semánticas** (activado con `-test-sem`) permite ejecutar exclusivamente el análisis semántico sin avanzar hacia ninguna etapa de backend.
+La **generación de código intermedio** se realiza a partir del AST validado semánticamente (y potencialmente optimizado por el módulo de optimización si se especificaron las opciones `-opt`). Si el análisis sintáctico o semántico detecta errores, se **cancela el procesamiento** y no se genera una secuencia de código intermedio como salida. En caso contrario, se recorre el AST para generar las **instrucciones** correspondientes a las sentencias del programa. Si se especifica explícitamente el objetivo mediante `-target codinter`, estas instrucciones se escriben en un archivo con **extensión `.ci`**. En caso contrario, la compilación continúa hacia las etapas posteriores de generación de código. El **modo de pruebas semánticas** (activado con `-test-sem`) permite ejecutar exclusivamente el análisis semántico sin avanzar hacia ninguna etapa de backend.
 
 A partir de la lista de cuádruplos generada en memoria y la tabla de símbolos, la **etapa de Assembly** traduce las instrucciones intermedias a **código de máquina x86-64** (siguiendo la ABI estándar de Linux). Si se solicita explícitamente el objetivo `-target assembly`, este código se vuelca en un archivo con extensión `.ass`. Por defecto, cuando no se especifica un objetivo, el compilador procesa esta etapa de forma transparente generando un **archivo temporal de Assembly**, el cual es ensamblado y enlazado automáticamente mediante `gcc` junto con la **librería de runtime** (`runtime.c`) para producir finalmente un **archivo ejecutable** con extensión `.out`.
 
@@ -2403,7 +2403,7 @@ A partir de la lista de cuádruplos generada en memoria y la tabla de símbolos,
 
 ## *Runtime y soporte de I/O*
 
-Para satisfacer los **requerimientos de entrada/salida** de los programas escritos en C-TDS y cumplir con la ABI estándar de Linux, se incorporó el archivo de soporte **[runtime.c](../Src/runtime.c)**.
+Para satisfacer los **requerimientos de entrada/salida** de los programas escritos en C-TDS y cumplir con la ABI estándar de Linux, se incorporó el archivo de soporte **[`runtime.c`](../Src/runtime.c)**.
 
 Este módulo implementa en C puro las funciones externas primitivas del lenguaje:
 
@@ -2426,7 +2426,7 @@ El archivo de entrada debe tener extensión `.ctds` y no puede comenzar con `-`.
 
 ### *Ejecución por defecto*
 
-Si no se especifica una etapa mediante `target`, el compilador ejecuta el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico** y, si no se producen errores, la **generación de código intermedio**, la **generación de código Assembly** y el **enlazado final** con la librería de runtime (`runtime.c`). Esta secuencia constituye el procesamiento completo implementado actualmente.
+Si no se especifica una etapa mediante `-target`, el compilador ejecuta el **análisis léxico**, el **análisis sintáctico**, el **análisis semántico** y, si no se producen errores, la **generación de código intermedio**, la **generación de código Assembly** y el **enlazado final** con la librería de runtime (`runtime.c`). Esta secuencia constituye el procesamiento completo implementado actualmente.
 
 ```bash
 c-tds programa.ctds
@@ -2485,7 +2485,7 @@ O:
 c-tds -target assembly programa.ctds
 ```
 
-Actualmente no existe un `-target sem`. El **análisis semántico** se ejecuta automáticamente cuando no se especifica un `-target`, o bien cuando se llega hasta las etapas `target codinter` o `target assembly`.
+Actualmente no existe un `-target sem`. El **análisis semántico** se ejecuta automáticamente cuando no se especifica un `-target`, o bien cuando se llega hasta las etapas `-target codinter` o `-target assembly`.
 
 ### *Nombre del archivo de salida*
 
@@ -2562,7 +2562,7 @@ Actualmente, se encuentran implementadas las optimizaciones:
 - `plegado-constantes`: Activa el constant folding sobre el AST.
 - `codigo-muerto`: Activa la poda de ramas inalcanzables, bucles falsos y código post-return (dead code elimination).
 - `reutilizacion-offsets`: Activa la optimización de espacio en pila (liveness analysis / stack packing) sobre los temporales.
-- `reduccion-fuerza`: Activa el reemplazo de operaciones de multiplicación y división entera (por potencias de 2) por operaciones eficientes de desplazamientos.
+- `reduccion-fuerza`: Activa el reemplazo de operaciones de multiplicación y división entera (por potencias de 2) por operaciones eficientes de desplazamiento.
 
 Por ejemplo:
 
@@ -2610,7 +2610,7 @@ En este caso se selecciona el análisis léxico, se especifica el nombre del arc
 
 ## *Compilación y ejecución*
 
-El [Makefile](../Makefile) permite **centralizar la compilación del compilador y la ejecución de las pruebas**.
+El [`Makefile`](../Makefile) permite **centralizar la compilación del compilador y la ejecución de las pruebas**.
 
 Desde la raíz del repositorio:
 
@@ -2753,9 +2753,9 @@ Src/Test/Resultados/CodigoIntermedio/
 
 Al finalizar, **se informa la cantidad de pruebas correctas y fallidas**, generando un archivo `.ci` con las instrucciones generadas en la etapa.
 
-### *Ejecutar las pruebas de generación de código assembly y ejecutables*
+### *Ejecutar las pruebas de generación de código Assembly y ejecutables*
 
-Para **ejecutar todas las pruebas del generador de código assembly y generación de binarios**:
+Para **ejecutar todas las pruebas del generador de código Assembly y generación de binarios**:
 
 ```bash
 make tests-assembly
@@ -2819,13 +2819,9 @@ Los **resultados** de estas pruebas se generan en:
 
 ```text
 Src/Test/Resultados/Optimizador/PlegadoConstantes/
-
 Src/Test/Resultados/Optimizador/CodigoMuerto/
-
 Src/Test/Resultados/Optimizador/ReutilizacionOffsets/
-
 Src/Test/Resultados/Optimizador/ReduccionFuerza/
-
 Src/Test/Resultados/Optimizador/
 ```
 
@@ -2853,7 +2849,7 @@ En el estado actual del proyecto, esto equivale a ejecutar:
 4. Las pruebas independientes de la **TS**.
 5. Las pruebas del **análisis semántico**.
 6. Las pruebas de **código intermedio**.
-7. Las pruebas de **código assembly y ejecutables**.
+7. Las pruebas de **código Assembly y ejecutables**.
 8. Las pruebas de **optimización (plegado de constantes, eliminación de código muerto, reutilización de offsets, reducción de fuerza y prueba integral)**.
 
 ### *Ejecutar el compilador manualmente*
