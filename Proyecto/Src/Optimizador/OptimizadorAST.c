@@ -36,7 +36,7 @@ NodoAST *optimizar_ast (NodoAST *ast, OpcionesOptimizacion opciones) {
             printf ("[OPTIMIZADOR] Pase activado: Plegado de Constantes (Constant Folding).\n");
         }
 
-        // Se repite el pase mientras se encuentren operaciones para plegar.
+        // Se repite el pase mientras se encuentren operaciones para plegar (hasta punto fijo).
         while (se_hizo_cambio) {
             numero_pasada ++;
             if (opciones.modo_debug) {
@@ -62,7 +62,7 @@ NodoAST *optimizar_ast (NodoAST *ast, OpcionesOptimizacion opciones) {
             printf ("[OPTIMIZADOR] Pase activado: Eliminación de código muerto (Dead Code Elimination).\n");
         }
 
-        // Se repite el pase mientras se encuentre código muerto para eliminar.
+        // Se repite el pase mientras se encuentre código muerto para eliminar (hasta punto fijo).
         while (se_hizo_cambio) {
             numero_pasada ++;
             if (opciones.modo_debug) {
@@ -88,10 +88,13 @@ NodoAST *optimizar_ast (NodoAST *ast, OpcionesOptimizacion opciones) {
 /* =========== Funciones auxiliares privadas =========== */
 
 /**
- * Recorre el AST de forma recursiva (Post-Order / Bottom-Up, de abajo hacia arriba).
+ * Ejecuta una pasada de plegado de constantes recorriendo el AST de forma
+ * recursiva (Post-Order / Bottom-Up, de abajo hacia arriba).
  * 
- * Primero procesa todos los subárboles hijos de forma recursiva, luego revisa si los
- * hijos del nodo actual son operaciones con operandos constantes.
+ * Primero procesa todos los subárboles hijos de forma recursiva, permitiendo
+ * que las subexpresiones profundas se reduzcan a literales antes de evaluar
+ * a su nodo padre. Luego revisa si los hijos del nodo actual son operaciones
+ * con operandos constantes y los reemplaza por un único nodo literal.
  * 
  * Retorna 1 si modificó al menos una operación en el árbol, o 0 si no hubo cambios.
  */
@@ -131,15 +134,17 @@ static int pase_plegado_constantes (NodoAST *nodo, int modo_debug, int *total_tr
 }
 
 /**
- * Recorre el AST de forma recursiva (Post-Order / Bottom-Up, de abajo hacia arriba)
- * para identificar y eliminar patrones de código inalcanzable (Dead Code).
+ * Ejecuta una pasada de eliminación de código muerto recorriendo el AST de
+ * forma recursiva (Post-Order / Bottom-Up, de abajo hacia arriba).
  * 
  * Primero procesa todos los subárboles hijos de forma recursiva. Luego, evalúa
- * los hijos del nodo actual buscando los siguientes patrones:
+ * los hijos del nodo actual buscando los siguientes patrones inalcanzables:
  *  - IF (true) -> Reemplaza el condicional entero por su bloque THEN.
  *  - IF (false) -> Elimina el condicional, o lo reemplaza por su bloque ELSE (si existe).
  *  - WHILE (false) -> Elimina el ciclo completo.
- *  - Código post-RETURN -> Elimina las sentencias que le siguen dentro de un bloque.
+ *  - Código post-RETURN -> Trunca y libera las sentencias siguientes dentro del mismo bloque.
+ * 
+ * Retorna 1 si realizó al menos una poda o reemplazo, o 0 en caso contrario.
  */
 static int pase_eliminacion_codigo_muerto (NodoAST *nodo, int modo_debug, int *total_transformaciones) {
     // Caso base.
@@ -182,7 +187,7 @@ static int pase_eliminacion_codigo_muerto (NodoAST *nodo, int modo_debug, int *t
                     // IF (false) sin ELSE -> Eliminar IF por completo.
                     eliminar_hijo_y_desplazar (nodo, i, modo_debug, total_transformaciones, "IF (false) -> Rama eliminada");
                     
-                    // Se desplazaron los índices, hay que retroceder i.
+                    // Se compactó el arreglo de hijos; se retrocede el índice para no saltar el siguiente elemento.
                     i --;
                 }
 
@@ -197,7 +202,7 @@ static int pase_eliminacion_codigo_muerto (NodoAST *nodo, int modo_debug, int *t
                 // WHILE (false) -> Eliminar WHILE por completo.
                 eliminar_hijo_y_desplazar (nodo, i, modo_debug, total_transformaciones, "WHILE (false) -> Ciclo inalcanzable eliminado");
                     
-                // Se desplazaron los índices, hay que retroceder i.
+                // Se compactó el arreglo de hijos; se retrocede el índice para no saltar el siguiente elemento.
                 i --;
             
                 hubo_cambios = 1;
@@ -210,7 +215,7 @@ static int pase_eliminacion_codigo_muerto (NodoAST *nodo, int modo_debug, int *t
                     printf ("[OPTIMIZADOR] Línea %d, Columna %d: Sentencia RETURN trunca %d sentencia(s) inalcanzable(s) posterior(es).\n", hijo -> linea, hijo -> columna, (nodo -> cantidad_hijos - 1 - i));
                 }
 
-                // Se liberan todos los nodos siguientes.
+                // Se liberan todos los nodos siguientes dentro del bloque actual.
                 for (int j = i + 1; j < nodo -> cantidad_hijos; j ++) {
                     liberar_arbol (nodo -> hijos [j]);
                 }
@@ -275,15 +280,17 @@ static int es_literal_constante (const NodoAST *nodo) {
 }
 
 /**
- * Intenta calcular el resultado de una operación cuyo operando(s)
- * son literales constantes.
+ * Intenta calcular el resultado de una operación cuyo(s) operando(s)
+ * son literales constantes, respetando la semántica de tipos de C-TDS
+ * (división entera truncada entre enteros, promoción a float si alguno es real).
  * 
  * Si la operación se puede resolver:
- *  - Almacena las propiedades del resultado en las variables de salida.
- *  - Retorna 1 para indicar éxito.
+ * - Almacena las propiedades del resultado en las variables de salida.
+ * - Retorna 1 para indicar éxito.
  * 
- * Si no se puede resolver:
- *  - Retorna 0 sin modificar nada.
+ * Si no se puede resolver (por tener operandos no constantes o por tratarse
+ * de una división/módulo por cero):
+ * - Retorna 0 sin modificar nada.
  */
 static int calcular_resultado_operacion (NodoAST *nodo, TipoNodo *tipo_res, TipoDato *tipo_dato_res, ValorNodo *valor_res) {
     // Se valida el argumento.
@@ -558,9 +565,9 @@ static int calcular_resultado_operacion (NodoAST *nodo, TipoNodo *tipo_res, Tipo
 }
 
 /**
- * Crea un nuevo nodo constante hoja con el resultado calculado, lo
- * coloca en la posición del hijo correspondiente en el padre y
- * libera la memoria del subárbol anterior.
+ * Crea un nuevo nodo constante hoja con el resultado calculado (preservando
+ * la línea y columna del subárbol original), lo coloca en 'padre->hijos [indice_hijo]',
+ * libera la memoria del subárbol anterior e incrementa '*total_transformaciones'.
  */
 static void reemplazar_hijo_por_constante (NodoAST *padre, int indice_hijo, TipoNodo tipo_nuevo, TipoDato tipo_dato_nuevo, ValorNodo valor_nuevo, int modo_debug, int *total_transformaciones) {
     NodoAST *rama_vieja = padre -> hijos [indice_hijo];
@@ -599,10 +606,11 @@ static void reemplazar_hijo_por_constante (NodoAST *padre, int indice_hijo, Tipo
 }
 
 /**
- * Reemplaza un nodo padre por uno de sus propios subárboles.
+ * Reemplaza un hijo de 'padre' por uno de los propios subárboles de ese hijo
+ * (por ejemplo, promoviendo la rama THEN o ELSE de un IF constante).
  * 
- * Desvincula el subárbol preservado para evitar que sea
- * liberado al destruir el padre original.
+ * Desvincula el subárbol preservado del nodo viejo antes de liberar este
+ * último para evitar destruir el código promovido.
  */
 static void reemplazar_hijo_por_subarbol (NodoAST *padre, int indice, NodoAST *subarbol_nuevo, int modo_debug, int *total_transformaciones, const char *motivo) {
     NodoAST *viejo = padre -> hijos [indice];
@@ -610,7 +618,7 @@ static void reemplazar_hijo_por_subarbol (NodoAST *padre, int indice, NodoAST *s
     // Se coloca el subárbol preservado en el lugar del nodo viejo.
     padre -> hijos [indice] = subarbol_nuevo;
 
-    // Se desvincula el subárbol nuevo del viejo.
+    // Se desvincula el subárbol nuevo del viejo para preservarlo en memoria.
     if (subarbol_nuevo != NULL) {
         for (int i = 0; i < viejo -> cantidad_hijos; i ++) {
             if (viejo -> hijos [i] == subarbol_nuevo) {
@@ -633,8 +641,9 @@ static void reemplazar_hijo_por_subarbol (NodoAST *padre, int indice, NodoAST *s
 }
 
 /**
- * Elimina un nodo por completo y compacta el arreglo de hijos
- * desplazándolo hacia la izquierda.
+ * Elimina y libera por completo el hijo ubicado en 'padre->hijos [indice]'
+ * y compacta el arreglo de hijos desplazando los elementos posteriores
+ * una posición hacia la izquierda.
  */
 static void eliminar_hijo_y_desplazar (NodoAST *padre, int indice, int modo_debug, int *total_transformaciones, const char *motivo) {
     NodoAST *viejo = padre -> hijos [indice];
@@ -661,7 +670,7 @@ static void eliminar_hijo_y_desplazar (NodoAST *padre, int indice, int modo_debu
 }
 
 /**
- * Retorna una representación textual del tipo de nodo dado.
+ * Retorna una representación textual del tipo de nodo dado para trazas de depuración.
  */
 static const char *nombre_tipo_nodo (TipoNodo tipo) {
     switch (tipo) {
