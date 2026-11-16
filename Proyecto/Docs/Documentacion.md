@@ -1002,8 +1002,8 @@ En esta sección se documentan las **decisiones de implementación y los mecanis
 
 El analizador semántico se encuentra implementado en:
 
-- [AnalizadorSemantico.h](../Src/Semantico/AnalizadorSemantico.h).
-- [AnalizadorSemantico.c](../Src/Semantico/AnalizadorSemantico.c).
+- [`AnalizadorSemantico.h`](../Src/Semantico/AnalizadorSemantico.h).
+- [`AnalizadorSemantico.c`](../Src/Semantico/AnalizadorSemantico.c).
 
 La implementación se **integra** con el AST, la TS y el programa principal para realizar el análisis después de que la entrada haya sido reconocida sintácticamente.
 
@@ -1181,7 +1181,7 @@ ERROR SEMÁNTICO: línea X, columna Y - mensaje.
 Por ejemplo:
 
 ```text
-ERROR SEMÁNTICO: línea 4, columna 5 - La variable 'x' no fue declarada.
+ERROR SEMÁNTICO: línea 4, columna 5 - El identificador utilizado en la expresión no está declarado.
 ```
 
 La utilización de las posiciones almacenadas en el AST permite que las funciones semánticas puedan **informar el lugar correspondiente** sin depender nuevamente del analizador léxico.
@@ -1208,9 +1208,9 @@ Por ejemplo:
 
 ```text
 [SEM] Entrando al programa.
-[SEM] Declaración de variable analizada.
+[SEM] Variable 'x' declarada como int.
 [SEM] Abriendo ámbito de bloque.
-[SEM] Condición de if analizada.
+[SEM] Condición de if analizada: tipo boolean.
 [SEM] Cerrando ámbito de bloque.
 ```
 
@@ -1226,10 +1226,10 @@ El análisis semántico se ejecuta sobre el **AST generado por el analizador sin
 
 La separación entre ambas etapas permite mantener una **división clara de responsabilidades**:
 
-* **Flex** reconoce los componentes léxicos.
-* **Bison** verifica la estructura sintáctica y construye el AST.
-* **El analizador semántico** interpreta la información del AST y verifica las restricciones semánticas.
-* **La tabla de símbolos** conserva la información de declaraciones y ámbitos.
+- **Flex** reconoce los componentes léxicos.
+- **Bison** verifica la estructura sintáctica y construye el AST.
+- **El analizador semántico** interpreta la información del AST y verifica las restricciones semánticas.
+- **La tabla de símbolos** conserva la información de declaraciones y ámbitos.
 
 El **parser** no realiza búsquedas en la tabla de símbolos ni realiza comprobaciones semánticas. Su responsabilidad termina con la **construcción del AST**.
 
@@ -1265,8 +1265,8 @@ Entre los principales **cambios** se encuentran:
 
 Se incorporó un conjunto de **146 pruebas** para el análisis semántico, dividido en:
 
-* **65 pruebas válidas**, destinadas a comprobar que programas que cumplen las restricciones semánticas sean aceptados.
-* **81 pruebas inválidas**, destinadas a comprobar que programas que violan alguna restricción semántica sean rechazados.
+- **65 pruebas válidas**, destinadas a comprobar que programas que cumplen las restricciones semánticas sean aceptados.
+- **81 pruebas inválidas**, destinadas a comprobar que programas que violan alguna restricción semántica sean rechazados.
 
 Las pruebas se encuentran **organizadas** en:
 
@@ -1286,7 +1286,7 @@ Src/Test/Resultados/Semantico/
 
 Los resultados generados durante las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
 
-Las **pruebas semánticas** se ejecutan mediante la **opción interna `test-sem`**, que permite realizar el análisis semántico sin continuar con la generación de código intermedio. El archivo de salida indicado para cada prueba se utiliza para registrar los resultados del análisis.
+Las **pruebas semánticas** se ejecutan mediante la **opción interna `-test-sem`**, que permite realizar el análisis semántico sin continuar con la generación de código intermedio. El archivo de salida indicado para cada prueba se utiliza para registrar los resultados del análisis.
 
 La ejecución de las pruebas **no requiere seleccionar un nuevo `target`**, ya que el modo de pruebas semánticas se controla mediante esta opción específica.
 
