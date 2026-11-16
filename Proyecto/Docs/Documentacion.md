@@ -1342,8 +1342,8 @@ En esta sección se documentan las **decisiones de implementación y los mecanis
 
 La implementación se encuentra dividida en dos componentes:
 
-- [Cuadruplos.h](../Src/CodigoIntermedio/Cuadruplos.h) y [Cuadruplos.c](../Src/CodigoIntermedio/Cuadruplos.c).
-- [GeneradorCodigoIntermedio.h](../Src/CodigoIntermedio/GeneradorCodigoIntermedio.h) y [GeneradorCodigoIntermedio.c](../Src/CodigoIntermedio/GeneradorCodigoIntermedio.c).
+- [`Cuadruplos.h`](../Src/CodigoIntermedio/Cuadruplos.h) y [`Cuadruplos.c`](../Src/CodigoIntermedio/Cuadruplos.c).
+- [`GeneradorCodigoIntermedio.h`](../Src/CodigoIntermedio/GeneradorCodigoIntermedio.h) y [`GeneradorCodigoIntermedio.c`](../Src/CodigoIntermedio/GeneradorCodigoIntermedio.c).
 
 El primer componente define la **representación de las instrucciones y las operaciones para administrar la lista de cuádruplos**. El segundo se encarga de **recorrer el AST y traducir sus construcciones a dicha representación**.
 
@@ -1467,12 +1467,12 @@ La siguiente tabla resume las **operaciones definidas** en `Cuadruplos.h`.
 | `LABEL` | Marca una posición del código mediante una etiqueta. | No se utiliza | No se utiliza | Etiqueta | `LABEL - - L1` |
 | `GOTO` | Transfiere incondicionalmente la ejecución a una etiqueta. | No se utiliza | No se utiliza | Etiqueta destino | `GOTO - - L1` |
 | `IF_FALSE` | Transfiere la ejecución a una etiqueta si la condición es falsa. | Condición booleana | No se utiliza | Etiqueta destino | `IF_FALSE a - L1` |
-| `FUNC_BEGIN` | Marca el comienzo de una función. | No se utiliza | No se utiliza | Nombre de la función | `FUNC_BEGIN calcular - -` |
+| `FUNC_BEGIN` | Marca el comienzo de una función. | Nombre de la función | No se utiliza | No se utiliza | `FUNC_BEGIN calcular - -` |
 | `PARAM` | Representa un parámetro de una función. | Nombre del parámetro | No se utiliza | No se utiliza | `PARAM x - -` |
 | `ARG` | Registra un argumento de una llamada a función. | Valor del argumento | Índice del argumento | No se utiliza | `ARG a 0 -` |
 | `CALL` | Invoca una función con una cantidad determinada de argumentos. | Nombre de la función | Cantidad de argumentos | Temporal para el valor retornado, si corresponde | `CALL sumar 2 T1` |
 | `RETURN` | Devuelve un valor y finaliza la ejecución de la función. También admite una devolución vacía. | Valor retornado o `-` | No se utiliza | No se utiliza | `RETURN a - -` |
-| `FUNC_END` | Marca el final de una función. | No se utiliza | No se utiliza | Nombre de la función | `FUNC_END calcular - -` |
+| `FUNC_END` | Marca el final de una función. | Nombre de la función | No se utiliza | No se utiliza | `FUNC_END calcular - -` |
 
 **Consideraciones sobre las operaciones:**
 
