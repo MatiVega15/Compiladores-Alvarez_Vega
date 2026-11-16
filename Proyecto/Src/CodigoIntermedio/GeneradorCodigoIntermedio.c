@@ -238,6 +238,7 @@ static Operando crear_operando_literal (ContextoGenerador *contexto, NodoAST *no
             tipo = TIPO_INT;
             break;
         case AST_REAL:
+            // Se usa %g para obtener una representación compacta sin ceros redundantes.
             snprintf (valor, sizeof (valor), "%g", nodo -> valor.real);
             tipo = TIPO_FLOAT;
             break;
@@ -577,7 +578,8 @@ static int generar_condicion (NodoAST *nodo, ContextoGenerador *contexto, const 
             return 0;
         }
 
-        // Si A es verdadero, se evalúa B.
+        // Si A es verdadero salta a 'intermedia' para evaluar B;
+        // si es falso, cortocircuita directamente a 'etiqueta_falsa'.
         generar_condicion (nodo -> hijos [0], contexto, &intermedia, etiqueta_falsa);
 
         if (!contexto -> error) {
@@ -611,7 +613,8 @@ static int generar_condicion (NodoAST *nodo, ContextoGenerador *contexto, const 
             return 0;
         }
 
-        // Si A es falso, se evalúa B.
+        // Si A es falso salta a 'intermedia' para evaluar B;
+        // si es verdadero, cortocircuita directamente a 'etiqueta_verdadera'.
         generar_condicion (nodo -> hijos [0], contexto, etiqueta_verdadera, &intermedia);
 
         if (!contexto -> error) {
@@ -641,7 +644,8 @@ static int generar_condicion (NodoAST *nodo, ContextoGenerador *contexto, const 
         return generar_condicion (nodo -> hijos [0], contexto, etiqueta_falsa, etiqueta_verdadera);
     }
 
-    // Las demás condiciones se evalúan como expresiones.
+    // Las demás condiciones (literales, variables, comparaciones o llamadas booleanas)
+    // se evalúan como expresiones y bifurcan según su resultado.
     Operando condicion = generar_expresion (nodo, contexto);
 
     if (contexto -> error) {
@@ -672,8 +676,10 @@ static int generar_condicion (NodoAST *nodo, ContextoGenerador *contexto, const 
 /**
  * Convierte una expresión booleana en un valor booleano.
  * 
- * La expresión se evalúa mediante saltos y etiquetas.
- * El resultado final se almacena en un temporal boolean.
+ * Se utiliza cuando una expresión lógica aparece en contexto de
+ * valor (asignaciones, argumentos o retornos) en lugar de controlar
+ * directamente una bifurcación. La expresión se evalúa mediante
+ * saltos y etiquetas, y el resultado final se guarda en un temporal.
  */
 static Operando generar_expresion_booleana (NodoAST *nodo, ContextoGenerador *contexto) {
     Operando resultado = crear_operando_temporal_nuevo (contexto, TIPO_BOOLEAN);
