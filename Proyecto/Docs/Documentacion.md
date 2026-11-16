@@ -1882,7 +1882,7 @@ En conjunto, estas pruebas permiten comprobar que las distintas construcciones d
 
 ## *5. Código Assembly y ejecutable*
 
-La generación de código Assembly se encuentra **implementada** en [GeneradorCodigoAssembly.c](../Src/CodigoAssembly/GeneradorCodigoAssembly.c) y expuesta mediante la **interfaz** definida en [GeneradorCodigoAssembly.h](../Src/CodigoAssembly/GeneradorCodigoAssembly.h).
+La generación de código Assembly se encuentra **implementada** en [`GeneradorCodigoAssembly.c`](../Src/CodigoAssembly/GeneradorCodigoAssembly.c) y expuesta mediante la **interfaz** definida en [`GeneradorCodigoAssembly.h`](../Src/CodigoAssembly/GeneradorCodigoAssembly.h).
 
 Su función es **recorrer la lista de cuádruplos generada en la etapa anterior y traducir cada instrucción a código máquina textual (Assembly x86-64)**, respetando estrictamente la convención de llamadas **System V AMD64 ABI** utilizada en sistemas Linux.
 
@@ -1917,8 +1917,8 @@ Adicionalmente, al finalizar la generación, se inyecta la **directiva de seguri
 El diseño del backend administra la **pila de ejecución (Stack Frame)** de manera estricta para cada función. Antes de emitir las instrucciones de una función, `calcular_entorno_funcion ()` realiza una pasada previa sobre los cuádruplos para:
 
 1. **Asignar offsets**: Asigna **posiciones de memoria negativas relativas al Base Pointer** (`%rbp`) para las variables locales, los primeros 6 parámetros y los temporales (ej. `-8(%rbp)`, `-16(%rbp)`). Los parámetros pasados por pila (del 7 en adelante) reciben **offsets positivos** (`16(%rbp)`, `24(%rbp)`).
--  *Sin optimización*: Asigna un offset único e independiente a cada variable temporal a medida que aparece.
--  *Con optimización* (`reutilizacion-offsets`): Implementa un análisis de vida útil (liveness analysis) mediante la estructura `IntervaloTemporal`, registrando el inicio y fin de cada temporal en la secuencia de cuádruplos. Mediante un recorrido de escaneo lineal, recicla aquellas ranuras cuyo intervalo anterior haya finalizado, minimizando la cantidad de ranuras físicas requeridas.
+   - *Sin optimización*: Asigna un offset único e independiente a cada variable temporal a medida que aparece.
+   - *Con optimización* (`reutilizacion-offsets`): Implementa un análisis de vida útil (liveness analysis) mediante la estructura `IntervaloTemporal`, registrando el inicio y fin de cada temporal en la secuencia de cuádruplos. Mediante un recorrido de escaneo lineal, recicla aquellas ranuras cuyo intervalo anterior haya finalizado, minimizando la cantidad de ranuras físicas requeridas.
 2. **Alineación a 16 bytes**: Para cumplir con la restricción fundamental de la **System V ABI** y evitar fallos de segmentación (`Segmentation fault`) al invocar funciones que utilizan instrucciones vectoriales (como `get_int ()`), el generador **suma el espacio total requerido por la función y lo redondea hacia arriba al múltiplo de 16 bytes más cercano**.
 
 Este tamaño total se utiliza para construir el **prólogo de la función** mediante la instrucción `enter $(bytes_locales), $0`.
@@ -1938,7 +1938,7 @@ La **traducción de cuádruplos a Assembly x86-64** se realiza mediante un `swit
 
 - **Asignaciones y movimientos**: Como x86-64 no permite movimientos directos de memoria a memoria, **las asignaciones se triangulan utilizando el registro temporal de propósito general `%r10`** (`movq mem, %r10` y luego `movq %r10, mem`).
 - **Aritmética**: Se utilizan las **instrucciones nativas de 64 bits** `addq`, `subq`, e `imulq` para sumar, restar y multiplicar, respectivamente. Para la división (`idivq`) y el módulo, se carga el dividendo en `%rax`, se extiende su signo hacia `%rdx` mediante `cqo` y, tras operar, se rescata el cociente de `%rax` o el resto de `%rdx`.
-  
+
   Cuando se habilita la **optimización de reducción de fuerza**, las multiplicaciones por potencias de 2 se reemplazan eficientemente mediante desplazamientos a la izquierda (`shlq`), y las divisiones por potencias de 2 se optimizan con desplazamientos aritméticos a derecha (`sarq`), incorporando un cálculo de sesgo o corrección de signo por complemento a 2 para garantizar el truncamiento correcto hacia cero en valores negativos.
 - **Relacionales**: Las comparaciones (`==`, `<`, `>`) se resuelven mediante `cmpq` seguido de **movimientos condicionales** (`cmove`, `cmovl`, `cmovg`), depositando un `1` o un `0` en el destino sin necesidad de ramificar el flujo.
 - **Control de flujo**: Los cuádruplos de salto se traducen directamente a `jmp` (**salto incondicional**) o `je` (**salto si es falso**, al comparar contra `0`).
@@ -1948,7 +1948,7 @@ La **traducción de cuádruplos a Assembly x86-64** se realiza mediante un `swit
 
 El generador de Assembly actual se encuentra disponible para el **procesamiento completo de tipos enteros (`int`) y lógicos (`boolean`)**, empleando registros y operaciones de 64 bits (con desbordamiento en complemento a 2 propio de arquitecturas enteras). **Actualmente, no hay soporte para las operaciones que involucran el tipo real** (`float`).
 
-En la implementación actual, cuando el generador detecta un operando de tipo `float`, **interrumpe la traducción de esa instrucción específica y emite un comentario estructurado** (`# TODO: Implementar coerción/operación float`) en el código fuente Assembly. Esta decisión permite que el compilador no interrumpa el proceso de generación ni falle abruptamente, facilitando la futura incorporación del módulo de punto flotante sin reestructurar la lógica central.
+En la implementación actual, cuando el generador detecta un operando de tipo `float`, **interrumpe la traducción de esa instrucción específica y emite un comentario estructurado** (`# TODO: Implementar coerción/operación float (<OPERACION>).`) en el código fuente Assembly. Esta decisión permite que el compilador no interrumpa el proceso de generación ni falle abruptamente, facilitando la futura incorporación del módulo de punto flotante sin reestructurar la lógica central.
 
 ### *5.7 Modo de depuración*
 
@@ -1961,13 +1961,13 @@ Cuando está activo, el compilador emite mensajes por consola utilizando el **pr
 
 Adicionalmente, cuando la optimización de reutilización de offsets (`-opt reutilizacion-offsets` o `-opt all`) se encuentra habilitada, el backend emite trazas informativas con el prefijo `[OPTIMIZADOR]` detallando para cada función el número de **temporales lógicos**, las **ranuras físicas finales asignadas** en la pila y la cantidad de **ranuras reutilizadas**.
 
-De manera similar, cuando la optimización de reducción de fuerza (`-opt reducción fuerza` o `-opt all`) se encuentra habilitada, el backend emite trazas informativas con el prefijo `[OPTIMIZADOR]` detallando aquellas **multiplicaciones o divisiones que hayan sido reemplazadas por una cierta cantidad de desplazamientos**.
+De manera similar, cuando la optimización de reducción de fuerza (`-opt reduccion-fuerza` o `-opt all`) se encuentra habilitada, el backend emite trazas informativas con el prefijo `[OPTIMIZADOR]` detallando aquellas **multiplicaciones o divisiones que hayan sido reemplazadas por una cierta cantidad de desplazamientos**.
 
 ### *5.8 Salida del generador*
 
 Como resultado de la etapa de generación de código Assembly, **se genera un archivo con extensión `.ass`**, únicamente si la etapa se solicita de forma explícita mediante la opción `-target assembly`. Dicho archivo contiene el **código fuente Assembly**.
 
-En caso de no especificarse ninguna etapa, la generación de código Assembly se ejecuta de manera silenciosa como **soporte fundamental** para la generación del ejecutable, volcando sus resultados en un archivo temporal `.s`, a partir del cual `gcc` genera el ejecutable `.out` final. 
+En caso de no especificarse ninguna etapa, la generación de código Assembly se ejecuta de manera silenciosa como **soporte fundamental** para la generación del ejecutable, volcando sus resultados en un archivo temporal `.s`, a partir del cual `gcc` genera el ejecutable `.out` final.
 
 Naturalmente, esta etapa no se ejecuta en absoluto si el usuario solicitó un **objetivo estrictamente anterior**, como `-target scan`, `-target parse` o `-target codinter`.
 
@@ -1995,7 +1995,7 @@ Src/Test/Resultados/CodigoAssembly/
 
 Los resultados generados durante las pruebas **no forman parte del repositorio** y se encuentran excluidos mediante [.gitignore](../../.gitignore).
 
-Los archivos de resultados permiten **inspeccionar el código Assembly `.s` generado, el binario `.out` compilado y la salida por consola** producida por el programa durante su ejecución.
+Los archivos de resultados permiten **inspeccionar el código Assembly `.ass` generado, el binario `.out` compilado y la salida por consola** producida por el programa durante su ejecución.
 
 A diferencia de las etapas anteriores, las pruebas de Assembly no se limitan a verificar la estructura, sino que **validan el comportamiento físico del programa a nivel de sistema operativo y hardware**.
 
@@ -2014,7 +2014,7 @@ Las **pruebas** cubren las principales construcciones que debe traducir el gener
 - **Sentencias de retorno** con expresiones simples, complejas o sin expresión en funciones `void` y `main`.
 - **Invocación a funciones externas** (`extern`) como `printInt` y `get_int`.
 
-El entorno de pruebas automatizadas realiza un **flujo completo** de extremo a extremo para cada archivo: 
+El entorno de pruebas automatizadas realiza un **flujo completo** de extremo a extremo para cada archivo:
 
 1. **Compila** el archivo `.ctds` produciendo el código Assembly `.ass`.
 2. Invoca a `gcc` para **ensamblar el código y enlazar las funciones de runtime**, generando el binario ejecutable `.out`.
@@ -2023,9 +2023,9 @@ El entorno de pruebas automatizadas realiza un **flujo completo** de extremo a e
 
 #### *5.10.1 Prueba de estrés y excepciones de hardware*
 
-Adicionalmente, se diseñó [PruebaDeEstresYLimites.ctds](../Src/Test/PruebaDeEstresYLimites.ctds), enfocada específicamente en la **auditoría de límites físicos y de robustez del backend** frente a entradas dinámicas impredecibles. Utilizando la función externa `get_int ()`, el binario se somete a las siguientes evaluaciones de estrés:
+Adicionalmente, se diseñó [`PruebaDeEstresYLimites.ctds`](../Src/Test/PruebaDeEstresYLimites.ctds), enfocada específicamente en la **auditoría de límites físicos y de robustez del backend** frente a entradas dinámicas impredecibles. Utilizando la función externa `get_int ()`, el binario se somete a las siguientes evaluaciones de estrés:
 
-- **Desbordamiento aritmético (Integer Overflow)**: Al ingresar valores que, multiplicados, superan el límite de los enteros con signo de 32 bits ($2^{31} - 1$), el binario recorta los bits excedentes y realiza un wrap-around hacia los valores negativos, respetando la representación en complemento a 2.
+- **Desbordamiento aritmético (Integer Overflow)**: Al ingresar valores que superan el límite de los enteros con signo de 64 bits ($2^{63} - 1$) en los registros de la CPU —o el límite de 32 bits ($2^{31} - 1$) al ser truncados por la interfaz de `printInt ()` en C—, el binario recorta los bits excedentes y realiza un wrap-around hacia los valores negativos, respetando la representación en complemento a 2.
 - **División por cero en tiempo de ejecución**: Al forzar una división por cero dinámica, la instrucción `idivq` dispara la interrupción de hardware, provocando que el sistema operativo intercepte la falla y finalice el proceso con un `Floating point exception (core dumped)` limpio.
 - **Límite de la pila (Stack Overflow)**: Forzando una profundidad de recursión extrema, se agotan intencionalmente las páginas de memoria reservadas para la pila. El programa finaliza con un `Segmentation fault (core dumped)`, lo que certifica mecánicamente que los marcos de pila y los punteros `%rbp` / `%rsp` se construyen y destruyen de forma estrictamente simétrica en cada llamada sin corromper registros ni memoria adyacente.
 
@@ -2039,7 +2039,7 @@ Esta decisión responde a que la prueba **requiere interacción mediante la entr
 
 ## *6. Optimizaciones*
 
-La etapa de optimización fue implementada en **lenguaje C** y actúa en dos niveles del compilador:
+La etapa de optimización fue implementada en **lenguaje C** y actúa en **dos niveles** del compilador (nivel de AST y backend Assembly) mediante **tres técnicas**:
 
 1. **Optimizador de AST**: Modifica la estructura del AST en memoria (*plegado de constantes* y *eliminación de código muerto*) antes de la generación del código intermedio.
 2. **Optimizador de Stack Frame (Assembly)**: Analiza el intervalo de vida de los temporales en el código intermedio para reusar desplazamientos de pila (*reutilización de offsets*) durante la generación de código máquina.
@@ -2047,7 +2047,7 @@ La etapa de optimización fue implementada en **lenguaje C** y actúa en dos niv
 
 El objetivo conjunto de las optimizaciones es **reducir el tiempo de ejecución, la cantidad de cuádruplos e instrucciones y el tamaño del marco de pila (Stack Frame)**, manteniendo la estricta equivalencia semántica del programa.
 
-*Para revisar los detalles de implementación, consultar [OptimizadorAST.h](../Src/Optimizador/OptimizadorAST.h), [OptimizadorAST.c](../Src/Optimizador/OptimizadorAST.c), [GeneradorCodigoAssembly.h](../Src/CodigoAssembly/GeneradorCodigoAssembly.h) y [GeneradorCodigoAssembly.c](../Src/CodigoAssembly/GeneradorCodigoAssembly.c).*
+*Para revisar los detalles de implementación, consultar [`OptimizadorAST.h`](../Src/Optimizador/OptimizadorAST.h), [`OptimizadorAST.c`](../Src/Optimizador/OptimizadorAST.c), [`GeneradorCodigoAssembly.h`](../Src/CodigoAssembly/GeneradorCodigoAssembly.h) y [`GeneradorCodigoAssembly.c`](../Src/CodigoAssembly/GeneradorCodigoAssembly.c).*
 
 La interfaz del optimizador del AST define la estructura `OpcionesOptimizacion`, que permite **activar o desactivar** de forma independiente los pases disponibles (como `plegado_constantes` y `eliminacion_codigo_muerto`) y configurar el comportamiento de **depuración** (`modo_debug`). El **punto de entrada principal** es la función `optimizar_ast ()`, la cual recibe la raíz del árbol junto con la configuración de banderas de optimización seleccionadas desde la línea de comandos.
 
@@ -2200,7 +2200,7 @@ Las **pruebas** cubren los siguientes casos de evaluación:
 - Bucles **`while` con condición constante falsa (`false`)**, podando y desvinculando todo el ciclo inalcanzable de la estructura del AST.
 - Sentencias **`return` que truncan y eliminan todas las instrucciones siguientes** dentro del mismo ámbito estricto.
 - Estructuras de control y bloques **anidados**.
-- Reducción en **cascada multipase** sobre estructuras muertas. 
+- Reducción en **cascada multipase** sobre estructuras muertas.
 
 Para cada prueba se genera el archivo de código intermedio estándar (`.ci`) y su representación gráfica (`.dot` / `.png`), así como sus **versiones optimizadas** correspondientes (`_opt.ci` y `_opt.dot` / `_opt.png`). Esto permite verificar visualmente y por texto la eliminación de instrucciones intermedias y la simplificación alcanzada en la estructura del AST.
 
@@ -2210,7 +2210,7 @@ La **reutilización de offsets de temporales** (Stack Packing) consiste en anali
 
 #### *6.3.1 Diseño y decisiones*
 
-El pase se implementa dentro del backend de Assembly ([GeneradorCodigoAssembly.c](../Src/CodigoAssembly/GeneradorCodigoAssembly.c)) durante la fase de cálculo del entorno de función (`calcular_entorno_funcion ()`), utilizando el algoritmo de **Linear Scan Register Allocation adaptado a la pila**:
+El pase se implementa dentro del backend de Assembly ([`GeneradorCodigoAssembly.c`](../Src/CodigoAssembly/GeneradorCodigoAssembly.c)) durante la fase de cálculo del entorno de función (`calcular_entorno_funcion ()`), utilizando el algoritmo de **Linear Scan Register Allocation adaptado a la pila**:
 
 - **Estructura `IntervaloTemporal`**: Registra para cada temporal su identificador numérico, su instrucción de nacimiento (`inicio`, primera aparición) y su instrucción de muerte (`fin`, último uso).
 - **Escaneo de cuádruplos (Paso A)**: Recorre linealmente la secuencia de cuádruplos de la función identificando la posición del primer y último uso de cada temporal.
@@ -2320,7 +2320,7 @@ Para cada prueba se genera el código Assembly en su versión estándar (`.ass`)
 
 ### *6.5 Pruebas integrales (`-opt all`)*
 
-Para verificar la **composición y coexistencia entre todas las optimizaciones** del compilador, (plegado de constantes, eliminación de código muerto de ramas condicionales, reducción de fuerza y reutilización de offsets en la pila), se incorporó una suite de pruebas integrales activadas mediante la bandera `-opt all`.
+Para verificar la **composición y coexistencia entre todas las optimizaciones** del compilador (plegado de constantes, eliminación de código muerto de ramas condicionales, reducción de fuerza y reutilización de offsets en la pila), se incorporó una suite de pruebas integrales activadas mediante la bandera `-opt all`.
 
 La prueba integral desarrollada **combina** en un único flujo de ejecución:
 
