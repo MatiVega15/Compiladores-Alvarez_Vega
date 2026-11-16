@@ -222,13 +222,14 @@ El **objetivo `tests`** permite ejecutar todas las pruebas correspondientes a la
 make tests
 ```
 
-Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico**, del **árbol sintáctico abstracto (AST)**, de la **tabla de símbolos (TS)**, del **análisis semántico**, del **generador de código intermedio**, del **generador de código Assembly y ejecutables**, del **optimizador del AST (plegado de constantes y eliminación de código muerto)** y del **optimizador del backend Assembly (reutilización de offsets y reducción de fuerzas para potencias de 2)**.
+Actualmente, esto equivale a ejecutar las pruebas del **análisis léxico**, del **análisis sintáctico**, del **árbol sintáctico abstracto (AST)**, de la **tabla de símbolos (TS)**, del **análisis semántico**, del **generador de código intermedio**, del **generador de código Assembly y ejecutables**, del **optimizador del AST (plegado de constantes y eliminación de código muerto)** y del **optimizador del backend Assembly (reutilización de offsets y reducción de fuerza para potencias de 2)**.
 
 Para **ejecutar solamente las pruebas del análisis léxico**:
 
 ```bash
 make tests-lexico
 ```
+
 Para **ejecutar solamente las pruebas del análisis sintáctico**:
 
 ```bash
@@ -279,6 +280,6 @@ make clean
 
 ## *Documentación*
 
-***La documentación completa de cada etapa junto con información detallada sobre implementación, interfaz de línea de comandos, pruebas, compilación y ejecución, se encuentra en [Documentación del Proyecto](Proyecto/Docs/Documentacion.md).***
+***La documentación completa de cada etapa junto con información detallada sobre implementación, interfaz de línea de comandos, pruebas, compilación y ejecución se encuentra en [Documentación del Proyecto](Proyecto/Docs/Documentacion.md).***
 
 ---
