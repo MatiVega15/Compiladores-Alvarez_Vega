@@ -246,7 +246,9 @@ static void analizar_declaracion_variable (NodoAST *nodo, ContextoSemantico *con
  * Se abre un nuevo nivel correspondiente al ámbito de
  * la función y se analizan sus parámetros.
  * 
- * El mismo nivel se utiliza para las variables locales.
+ * El mismo nivel se utiliza para las variables locales,
+ * con lo cual se impide que una variable local redeclare
+ * un parámetro de la función.
  */
 static void analizar_declaracion_funcion (NodoAST *nodo, ContextoSemantico *contexto) {    
     // El primer hijo es el identificador de la función.
@@ -774,7 +776,7 @@ static TipoDato analizar_expresion (NodoAST *nodo, ContextoSemantico *contexto) 
     }
 
     switch (nodo -> tipo) {
-        // Literales.
+        // Literales (su tipo_dato ya fue asignado durante el análisis sintáctico).
         case AST_NUMERO:
             return TIPO_INT;
         case AST_REAL:
@@ -1159,8 +1161,8 @@ static TipoDato analizar_llamada (NodoAST *nodo, ContextoSemantico *contexto) {
  * Recorre las declaraciones globales del nodo raíz y compara el
  * nombre de cada función con el nombre recibido.
  * 
- * Retorna el nodo AST_DECLARACION_FUNCION encontrado o NULL si
- * no existe una declaración con ese nombre.
+ * Retorna el nodo AST_DECLARACION_FUNCION o AST_DECLARACION_FUNCION_EXTERNA
+ * encontrado, o NULL si no existe una declaración con ese nombre.
  */
 static NodoAST *buscar_declaracion_funcion (const char *nombre, ContextoSemantico *contexto) {
     // Se obtiene la raíz del AST.
@@ -1623,6 +1625,9 @@ static int evaluar_constante_numerica (NodoAST *nodo, double *valor) {
  * 
  * Se utiliza para detectar divisiones o módulos por cero
  * cuyo divisor puede determinarse durante el análisis.
+ * 
+ * Requiere que el subárbol ya haya sido analizado previamente
+ * para que sus nodos tengan el campo 'tipo_dato' resuelto.
  */
 static int es_constante_cero (NodoAST *nodo) {
     double valor;

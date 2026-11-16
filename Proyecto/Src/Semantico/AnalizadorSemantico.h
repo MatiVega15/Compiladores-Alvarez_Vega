@@ -12,16 +12,17 @@
  * reglas semánticas del lenguaje.
  * 
  * Se asume que el AST fue construido correctamente por el
- * analizador sintáctico.
+ * analizador sintáctico. Si 'salida_sem' es NULL, el análisis
+ * se ejecuta sin volcar registros a archivo.
  * 
  * Durante el análisis:
  * - Verifica declaraciones y usos de identificadores.
  * - Verifica tipos en asignaciones y expresiones.
- * - Verifica las reglas asociadas a las funciones.
+ * - Verifica las reglas asociadas a las funciones (regulares y externas).
  * - Verifica los retornos.
  * - Asocia los identificadores del AST con sus símbolos.
  * - Determina el tipo de las expresiones.
- * - Registra información relevante en el archivo .sem.
+ * - Registra información relevante en el archivo .sem (si está abierto).
  * - Puede mostrar información detallada por consola en modo debug.
  * 
  * Retorna 0 si no se encontraron errores semánticos.
